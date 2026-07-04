@@ -1,0 +1,57 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": ["config:recommended"],
+	"enabledManagers": ["npm", "github-actions"],
+	"prConcurrentLimit": 10,
+	"packageRules": [
+		{
+			"description": "Label npm updates",
+			"matchManagers": ["npm"],
+			"addLabels": ["dependencies"]
+		},
+		{
+			"description": "Group non-major production deps",
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["dependencies", "optionalDependencies", "peerDependencies"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "production deps"
+		},
+		{
+			"description": "Group non-major production pnpm catalog deps",
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["/^pnpm\\.catalog/"],
+			"matchPackageNames": ["react", "react-dom"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "production deps"
+		},
+		{
+			"description": "Group non-major dev deps",
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["devDependencies"],
+			"matchPackageNames": [
+				"@types/**",
+				"/^eslint/",
+				"/^@eslint\\//",
+				"typescript",
+				"svelte-check"
+			],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "dev tooling"
+		},
+		{
+			"description": "Group non-major dev pnpm catalog deps",
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["/^pnpm\\.catalog/"],
+			"matchPackageNames": ["@eslint/compat", "eslint", "prettier", "typescript"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "dev tooling"
+		},
+		{
+			"description": "Group non-major GitHub Actions updates",
+			"matchManagers": ["github-actions"],
+			"matchUpdateTypes": ["minor", "patch", "digest"],
+			"groupName": "github actions",
+			"labels": ["ci"]
+		}
+	]
+}

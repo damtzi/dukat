@@ -1,0 +1,23 @@
+{
+	"name": "@repo/eslint-config",
+	"version": "0.0.0",
+	"type": "module",
+	"private": true,
+	"main": "index.js",
+	"license": "MIT",
+	"exports": {
+		".": "./index.js",
+		"./configs/base": "./configs/base.js",
+		"./configs/web": "./configs/web.js",
+		"./configs/backend": "./configs/backend.js"
+	},
+	"devDependencies": {
+		"@eslint/compat": "catalog:",
+		"@eslint/js": "^9.39.1",
+		"eslint": "catalog:",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "catalog:",
+		"prettier": "catalog:",
+		"typescript-eslint": "^8.53.0"
+	}
+}

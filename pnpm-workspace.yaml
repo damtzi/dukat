@@ -1,0 +1,26 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalog:
+  '@astrojs/check': latest
+  '@astrojs/svelte': latest
+  '@eslint/compat': ^2.0.5
+  '@lucide/svelte': latest
+  '@sveltejs/adapter-auto': latest
+  '@sveltejs/kit': latest
+  '@sveltejs/vite-plugin-svelte': ^6.2.4
+  '@tailwindcss/vite': ^4.1.18
+  astro: ^6.1.8
+  eslint: ^10.2.1
+  eslint-plugin-svelte: latest
+  prettier: ^3.7.4
+  shadcn-svelte: latest
+  svelte: latest
+  svelte-check: latest
+  tailwind-variants: ^3.2.2
+  tailwindcss: ^4.2.4
+  typescript: 5.9.2
+  vite: ^7.3.2
+
+nodeLinker: hoisted

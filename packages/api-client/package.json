@@ -1,0 +1,25 @@
+{
+	"name": "@repo/api-client",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"build": "tsc",
+		"check-types": "tsc --noEmit"
+	},
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"devDependencies": {
+		"@repo/typescript-config": "workspace:*",
+		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"@repo/api": "workspace:*",
+		"hono": "^4.12.23"
+	}
+}

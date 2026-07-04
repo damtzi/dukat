@@ -1,0 +1,27 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const {
+	title = 'Svelte Monorepo Template',
+	description = 'A TypeScript monorepo template with Astro, SvelteKit, Hono, Tailwind CSS, and shadcn-svelte.'
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content={description} />
+		<link rel="icon" href="/favicon.svg" />
+		<title>{title}</title>
+	</head>
+	<body class="bg-background text-foreground">
+		<slot />
+	</body>
+</html>

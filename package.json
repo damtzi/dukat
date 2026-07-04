@@ -1,0 +1,47 @@
+{
+	"name": "svelte-monorepo-template",
+	"private": true,
+	"scripts": {
+		"build": "turbo run build",
+		"check-types": "turbo run check-types",
+		"dev": "turbo run dev",
+		"db:start": "pnpm --filter @repo/db supabase:start",
+		"db:stop": "pnpm --filter @repo/db supabase:stop",
+		"db:status": "pnpm --filter @repo/db supabase:status",
+		"db:reset": "pnpm --filter @repo/db supabase:reset",
+		"format": "prettier --write .",
+		"lint": "turbo run lint",
+		"lint-staged": "lint-staged",
+		"prepare": "husky"
+	},
+	"lint-staged": {
+		"*.{js,cjs,mjs,ts,svelte}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.astro": "prettier --write",
+		"*.{json,md}": "prettier --write"
+	},
+	"devDependencies": {
+		"@commitlint/cli": "^20.5.0",
+		"@commitlint/config-conventional": "^20.5.0",
+		"@eslint/compat": "catalog:",
+		"@repo/eslint-config": "workspace:*",
+		"eslint": "catalog:",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.4.0",
+		"prettier": "catalog:",
+		"turbo": "^2.9.6",
+		"typescript": "catalog:"
+	},
+	"packageManager": "pnpm@10.18.0",
+	"engines": {
+		"node": ">=18"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"lightningcss"
+		]
+	}
+}

@@ -1,0 +1,11 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": "./base.json",
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"moduleResolution": "Bundler",
+		"noEmit": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.svelte", "*.config.*"],
+	"exclude": ["node_modules", "dist"]
+}

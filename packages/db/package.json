@@ -1,0 +1,37 @@
+{
+	"name": "@repo/db",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"supabase:start": "supabase start",
+		"supabase:stop": "supabase stop",
+		"supabase:status": "supabase status",
+		"supabase:reset": "supabase db reset",
+		"db:push": "drizzle-kit push",
+		"db:generate": "drizzle-kit generate",
+		"db:studio": "drizzle-kit studio",
+		"db:migrate": "drizzle-kit migrate",
+		"check-types": "tsc --noEmit"
+	},
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"dependencies": {
+		"@repo/env": "workspace:*",
+		"better-auth": "^1.6.11",
+		"drizzle-orm": "^0.45.2",
+		"pg": "^8.21.0",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@repo/typescript-config": "workspace:*",
+		"@types/pg": "^8.20.0",
+		"drizzle-kit": "^0.31.10",
+		"typescript": "catalog:"
+	}
+}
