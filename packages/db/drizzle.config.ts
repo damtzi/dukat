@@ -1,4 +1,4 @@
-import { dbEnv } from '@repo/env/db';
+import { dbEnv } from '@dukat/env/db';
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({

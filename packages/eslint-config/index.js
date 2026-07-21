@@ -1,4 +1,4 @@
-// Main exports for @repo/eslint-config
+// Main exports for @dukat/eslint-config
 export { baseConfig, sharedRules } from './configs/base.js';
 export { webConfig } from './configs/web.js';
 export { backendConfig } from './configs/backend.js';

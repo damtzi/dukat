@@ -1,5 +1,5 @@
 {
-	"name": "@repo/core",
+	"name": "@dukat/core",
 	"version": "0.0.1",
 	"type": "module",
 	"private": true,
@@ -19,7 +19,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@repo/typescript-config": "workspace:*",
+		"@dukat/typescript-config": "workspace:*",
 		"typescript": "catalog:"
 	}
 }

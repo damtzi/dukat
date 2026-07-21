@@ -1,5 +1,5 @@
 {
-	"name": "@repo/db",
+	"name": "@dukat/db",
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
@@ -22,14 +22,14 @@
 		}
 	},
 	"dependencies": {
-		"@repo/env": "workspace:*",
+		"@dukat/env": "workspace:*",
 		"better-auth": "^1.6.11",
 		"drizzle-orm": "^0.45.2",
 		"pg": "^8.21.0",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@repo/typescript-config": "workspace:*",
+		"@dukat/typescript-config": "workspace:*",
 		"@types/pg": "^8.20.0",
 		"drizzle-kit": "^0.31.10",
 		"typescript": "catalog:"

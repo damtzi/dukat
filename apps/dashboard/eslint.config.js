@@ -1,5 +1,5 @@
 //  @ts-check
 
-import { webConfig } from '@repo/eslint-config'
+import { webConfig } from '@dukat/eslint-config'
 
 export default webConfig

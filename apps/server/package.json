@@ -1,5 +1,5 @@
 {
-	"name": "@repo/server",
+	"name": "@dukat/server",
 	"type": "module",
 	"scripts": {
 		"dev": "tsx watch src/index.ts",
@@ -9,12 +9,12 @@
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.19.14",
-		"@repo/api": "workspace:*"
+		"@dukat/api": "workspace:*"
 	},
 	"devDependencies": {
-		"@repo/env": "workspace:*",
-		"@repo/eslint-config": "workspace:*",
-		"@repo/typescript-config": "workspace:*",
+		"@dukat/env": "workspace:*",
+		"@dukat/eslint-config": "workspace:*",
+		"@dukat/typescript-config": "workspace:*",
 		"@types/node": "^20.11.17",
 		"eslint": "catalog:",
 		"tsx": "^4.7.1",

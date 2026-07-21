@@ -1,4 +1,4 @@
-import { backendConfig } from '@repo/eslint-config';
+import { backendConfig } from '@dukat/eslint-config';
 
 /** @type {import("eslint").Linter.Config} */
 export default backendConfig;

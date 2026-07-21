@@ -1,4 +1,4 @@
-# @repo/env
+# @dukat/env
 
 Type-safe environment variables for this template monorepo.
 
@@ -6,9 +6,9 @@ The Node exports load `.env` files by walking upward from the current working di
 
 ## Exports
 
-- `@repo/env/auth` — Better Auth configuration (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN`).
-- `@repo/env/db` — database configuration (`DATABASE_URL`).
-- `@repo/env/server` — server runtime configuration.
+- `@dukat/env/auth` — Better Auth configuration (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN`).
+- `@dukat/env/db` — database configuration (`DATABASE_URL`).
+- `@dukat/env/server` — server runtime configuration.
 
 ## Local development
 

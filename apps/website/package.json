@@ -1,5 +1,5 @@
 {
-	"name": "@repo/website",
+	"name": "@dukat/website",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -10,7 +10,7 @@
 		"check-types": "astro check"
 	},
 	"dependencies": {
-		"@repo/ui": "workspace:*",
+		"@dukat/ui": "workspace:*",
 		"@astrojs/svelte": "catalog:",
 		"@tailwindcss/vite": "catalog:",
 		"astro": "catalog:",

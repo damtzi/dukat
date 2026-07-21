@@ -1,4 +1,4 @@
-# Svelte Monorepo Template
+# Dukat
 
 This repository is a pnpm/Turborepo template for building TypeScript apps with SvelteKit, Astro, Hono, Better Auth, Drizzle, Tailwind CSS, and shadcn-svelte.
 
@@ -9,12 +9,12 @@ This repository is a pnpm/Turborepo template for building TypeScript apps with S
 - `apps/website` — Astro public website with Tailwind CSS and optional Svelte islands.
 - `apps/dashboard` — SvelteKit app placeholder for a product surface or dashboard.
 - `apps/admin` — SvelteKit app placeholder for internal tooling.
-- `apps/server` — Hono server that hosts the `@repo/api` app via `@hono/node-server`.
+- `apps/server` — Hono server that hosts the `@dukat/api` app via `@hono/node-server`.
 
 ### Packages
 
 - `packages/api` — Hono API definition with `@hono/zod-openapi` and a Scalar API reference.
-- `packages/api-client` — typed client for `@repo/api`, sharing types end to end.
+- `packages/api-client` — typed client for `@dukat/api`, sharing types end to end.
 - `packages/core` — shared example domain schemas and types.
 - `packages/auth` — Better Auth setup.
 - `packages/db` — Drizzle ORM schema and Postgres access, with local Supabase for development.
@@ -25,7 +25,7 @@ This repository is a pnpm/Turborepo template for building TypeScript apps with S
 
 ## Template notes
 
-- Workspace packages use the `@repo/*` scope. Rename it if your product needs a different package namespace.
+- Workspace packages use the `@dukat/*` scope. Rename it if your product needs a different package namespace.
 - Replace the placeholder pages in `apps/website`, `apps/dashboard`, and `apps/admin` with your product UI.
 - Replace the example schemas in `packages/core` with your domain model.
 - Update `CONTEXT.md` as your project-specific product and architecture context evolves.
@@ -47,10 +47,10 @@ pnpm dev
 Run a specific app/package:
 
 ```sh
-pnpm --filter @repo/website dev
-pnpm --filter @repo/dashboard dev
-pnpm --filter @repo/admin dev
-pnpm --filter @repo/server dev
+pnpm --filter @dukat/website dev
+pnpm --filter @dukat/dashboard dev
+pnpm --filter @dukat/admin dev
+pnpm --filter @dukat/server dev
 ```
 
 Common root commands:
@@ -82,7 +82,7 @@ Useful database commands:
 pnpm db:status
 pnpm db:reset
 pnpm db:stop
-pnpm --filter @repo/db db:generate
-pnpm --filter @repo/db db:migrate
-pnpm --filter @repo/db db:studio
+pnpm --filter @dukat/db db:generate
+pnpm --filter @dukat/db db:migrate
+pnpm --filter @dukat/db db:studio
 ```

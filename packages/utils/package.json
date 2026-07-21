@@ -1,5 +1,5 @@
 {
-	"name": "@repo/utils",
+	"name": "@dukat/utils",
 	"version": "0.0.0",
 	"type": "module",
 	"private": true,
@@ -14,7 +14,7 @@
 		"tailwind-merge": "^3.3.1"
 	},
 	"devDependencies": {
-		"@repo/typescript-config": "workspace:*",
+		"@dukat/typescript-config": "workspace:*",
 		"typescript": "catalog:"
 	}
 }

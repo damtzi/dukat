@@ -1,5 +1,5 @@
 {
-	"name": "@repo/api-client",
+	"name": "@dukat/api-client",
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
@@ -15,11 +15,11 @@
 		}
 	},
 	"devDependencies": {
-		"@repo/typescript-config": "workspace:*",
+		"@dukat/typescript-config": "workspace:*",
 		"typescript": "catalog:"
 	},
 	"dependencies": {
-		"@repo/api": "workspace:*",
+		"@dukat/api": "workspace:*",
 		"hono": "^4.12.23"
 	}
 }

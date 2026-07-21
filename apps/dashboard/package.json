@@ -1,5 +1,5 @@
 {
-  "name": "@repo/dashboard",
+  "name": "@dukat/dashboard",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,10 +12,10 @@
     "check": "prettier --write . && eslint --fix . && pnpm check-types"
   },
   "dependencies": {
-    "@repo/ui": "workspace:*"
+    "@dukat/ui": "workspace:*"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
+    "@dukat/eslint-config": "workspace:*",
     "@sveltejs/adapter-auto": "catalog:",
     "@sveltejs/kit": "catalog:",
     "@sveltejs/vite-plugin-svelte": "catalog:",

@@ -1,4 +1,4 @@
-# @repo/core
+# @dukat/core
 
 Shared schemas and types for this template.
 

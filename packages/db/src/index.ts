@@ -1,4 +1,4 @@
-import { dbEnv } from '@repo/env/db';
+import { dbEnv } from '@dukat/env/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 import * as schema from './schema';

@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
-import { app } from '@repo/api';
-import { serverEnv } from '@repo/env/server';
+import { app } from '@dukat/api';
+import { serverEnv } from '@dukat/env/server';
 
 serve(
 	{

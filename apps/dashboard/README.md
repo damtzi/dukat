@@ -7,12 +7,12 @@ This is a template SvelteKit app intended as a placeholder for a product surface
 The app currently demonstrates:
 
 - SvelteKit routing.
-- Shared Tailwind/global styles from `@repo/ui`.
+- Shared Tailwind/global styles from `@dukat/ui`.
 - A shared shadcn-svelte Button component.
 
 ## Customize for your project
 
-- Rename the app package if `@repo/dashboard` is not meaningful for your product.
+- Rename the app package if `@dukat/dashboard` is not meaningful for your product.
 - Replace the placeholder page with real product workflows.
 - Add authentication, authorization, data loading, and deployment configuration as needed.
 
@@ -21,8 +21,8 @@ The app currently demonstrates:
 From the repository root:
 
 ```sh
-pnpm --filter @repo/dashboard dev
-pnpm --filter @repo/dashboard build
-pnpm --filter @repo/dashboard check-types
-pnpm --filter @repo/dashboard lint
+pnpm --filter @dukat/dashboard dev
+pnpm --filter @dukat/dashboard build
+pnpm --filter @dukat/dashboard check-types
+pnpm --filter @dukat/dashboard lint
 ```

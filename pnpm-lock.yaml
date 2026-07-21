@@ -74,12 +74,12 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^20.5.0
         version: 20.5.3
+      '@dukat/eslint-config':
+        specifier: workspace:*
+        version: link:packages/eslint-config
       '@eslint/compat':
         specifier: 'catalog:'
         version: 2.1.0(eslint@10.5.0(jiti@2.7.0))
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:packages/eslint-config
       eslint:
         specifier: 'catalog:'
         version: 10.5.0(jiti@2.7.0)
@@ -101,11 +101,11 @@ importers:
 
   apps/admin:
     dependencies:
-      '@repo/ui':
+      '@dukat/ui':
         specifier: workspace:*
         version: link:../../packages/ui
     devDependencies:
-      '@repo/eslint-config':
+      '@dukat/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
       '@sveltejs/adapter-auto':
@@ -138,11 +138,11 @@ importers:
 
   apps/dashboard:
     dependencies:
-      '@repo/ui':
+      '@dukat/ui':
         specifier: workspace:*
         version: link:../../packages/ui
     devDependencies:
-      '@repo/eslint-config':
+      '@dukat/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
       '@sveltejs/adapter-auto':
@@ -175,20 +175,20 @@ importers:
 
   apps/server:
     dependencies:
+      '@dukat/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@hono/node-server':
         specifier: ^1.19.14
         version: 1.19.14(hono@4.12.26)
-      '@repo/api':
-        specifier: workspace:*
-        version: link:../../packages/api
     devDependencies:
-      '@repo/env':
+      '@dukat/env':
         specifier: workspace:*
         version: link:../../packages/env
-      '@repo/eslint-config':
+      '@dukat/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@types/node':
@@ -209,7 +209,7 @@ importers:
       '@astrojs/svelte':
         specifier: 'catalog:'
         version: 8.1.2(@types/node@22.20.0)(astro@6.4.8(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(yaml@2.9.0))(jiti@2.7.0)(lightningcss@1.32.0)(svelte@5.56.3(@typescript-eslint/types@8.61.1))(tsx@4.22.4)(typescript@5.9.2)(yaml@2.9.0)
-      '@repo/ui':
+      '@dukat/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@tailwindcss/vite':
@@ -231,15 +231,15 @@ importers:
 
   packages/api:
     dependencies:
+      '@dukat/env':
+        specifier: workspace:*
+        version: link:../env
       '@hono/structured-logger':
         specifier: ^0.1.0
         version: 0.1.0(hono@4.12.26)
       '@hono/zod-openapi':
         specifier: ^1.4.0
         version: 1.4.0(hono@4.12.26)(zod@4.4.3)
-      '@repo/env':
-        specifier: workspace:*
-        version: link:../env
       '@scalar/hono-api-reference':
         specifier: ^0.10.19
         version: 0.10.20(hono@4.12.26)
@@ -256,7 +256,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       pino-pretty:
@@ -268,14 +268,14 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@repo/api':
+      '@dukat/api':
         specifier: workspace:*
         version: link:../api
       hono:
         specifier: ^4.12.23
         version: 4.12.26
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       typescript:
@@ -284,17 +284,17 @@ importers:
 
   packages/auth:
     dependencies:
-      '@repo/db':
+      '@dukat/db':
         specifier: workspace:*
         version: link:../db
-      '@repo/env':
+      '@dukat/env':
         specifier: workspace:*
         version: link:../env
       better-auth:
         specifier: ^1.6.11
         version: 1.6.20(@sveltejs/kit@2.66.0(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.56.3(@typescript-eslint/types@8.61.1))(vite@7.3.5(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)))(svelte@5.56.3(@typescript-eslint/types@8.61.1))(typescript@5.9.2)(vite@7.3.5(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.2)(pg@8.22.0))(pg@8.22.0)(svelte@5.56.3(@typescript-eslint/types@8.61.1))
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       typescript:
@@ -307,7 +307,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       typescript:
@@ -316,7 +316,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@repo/env':
+      '@dukat/env':
         specifier: workspace:*
         version: link:../env
       better-auth:
@@ -332,7 +332,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/pg':
@@ -360,7 +360,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -398,12 +398,12 @@ importers:
 
   packages/ui:
     dependencies:
+      '@dukat/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@lucide/svelte':
         specifier: 'catalog:'
         version: 1.21.0(svelte@5.56.3(@typescript-eslint/types@8.61.1))
-      '@repo/utils':
-        specifier: workspace:*
-        version: link:../utils
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -420,10 +420,10 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
-      '@repo/eslint-config':
+      '@dukat/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@sveltejs/kit':
@@ -454,7 +454,7 @@ importers:
         specifier: ^3.3.1
         version: 3.6.0
     devDependencies:
-      '@repo/typescript-config':
+      '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       typescript:

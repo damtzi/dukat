@@ -1,5 +1,5 @@
 {
-	"extends": "@repo/typescript-config/svelte-library.json",
+	"extends": "@dukat/typescript-config/svelte-library.json",
 	"compilerOptions": {
 		"strictNullChecks": true,
 		"baseUrl": ".",

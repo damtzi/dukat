@@ -2,7 +2,7 @@
 
 This is the template's public Astro website.
 
-Use it for marketing pages, documentation, public content, or any mostly-static web experience. It is wired for Tailwind CSS and can render shared Svelte components from `@repo/ui` through `@astrojs/svelte`.
+Use it for marketing pages, documentation, public content, or any mostly-static web experience. It is wired for Tailwind CSS and can render shared Svelte components from `@dukat/ui` through `@astrojs/svelte`.
 
 ## Template responsibilities
 
@@ -22,8 +22,8 @@ Use it for marketing pages, documentation, public content, or any mostly-static 
 From the repository root:
 
 ```sh
-pnpm --filter @repo/website dev
-pnpm --filter @repo/website build
-pnpm --filter @repo/website preview
-pnpm --filter @repo/website check-types
+pnpm --filter @dukat/website dev
+pnpm --filter @dukat/website build
+pnpm --filter @dukat/website preview
+pnpm --filter @dukat/website check-types
 ```

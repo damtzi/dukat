@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from '@repo/ui';
+	import { Button } from '@dukat/ui';
 </script>
 
 <svelte:head>

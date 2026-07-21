@@ -7,7 +7,7 @@ This is a template SvelteKit app intended as a placeholder for internal tooling.
 The app currently demonstrates:
 
 - SvelteKit routing.
-- Shared Tailwind/global styles from `@repo/ui`.
+- Shared Tailwind/global styles from `@dukat/ui`.
 - A shared shadcn-svelte Button component.
 
 ## Customize for your project
@@ -21,8 +21,8 @@ The app currently demonstrates:
 From the repository root:
 
 ```sh
-pnpm --filter @repo/admin dev
-pnpm --filter @repo/admin build
-pnpm --filter @repo/admin check-types
-pnpm --filter @repo/admin lint
+pnpm --filter @dukat/admin dev
+pnpm --filter @dukat/admin build
+pnpm --filter @dukat/admin check-types
+pnpm --filter @dukat/admin lint
 ```

@@ -1,4 +1,4 @@
-@import '@repo/ui/styles/globals.css';
+@import '@dukat/ui/styles/globals.css';
 
 @source './routes/**/*.{svelte,ts}';
 

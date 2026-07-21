@@ -1,6 +1,6 @@
-import { db } from '@repo/db';
-import { authEnv } from '@repo/env/auth';
-import * as schema from '@repo/db/schema/auth';
+import { db } from '@dukat/db';
+import { authEnv } from '@dukat/env/auth';
+import * as schema from '@dukat/db/schema/auth';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 

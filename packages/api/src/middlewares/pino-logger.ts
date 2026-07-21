@@ -1,5 +1,5 @@
 import { structuredLogger } from '@hono/structured-logger';
-import { serverEnv } from '@repo/env/server';
+import { serverEnv } from '@dukat/env/server';
 import pino from 'pino';
 import pretty from 'pino-pretty';
 
