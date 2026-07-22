@@ -1,44 +1,95 @@
-# Dukat Context
+# Dukat Domain Context
 
-This repository is a reusable application template. It is intentionally product-neutral and should be customized for each new project.
+## Product promise
 
-## Purpose
+Dukat gives an individual or household a trustworthy view of what money they have now, where it went, and what their available cash is projected to be over the coming months.
 
-Use this template to start a TypeScript monorepo with:
+## Glossary
 
-- Astro for a public website.
-- SvelteKit for application surfaces and dashboards.
-- Hono for an API/server entrypoint.
-- Better Auth for authentication setup.
-- Drizzle ORM with Postgres and local Supabase for persistence.
-- Tailwind CSS and shadcn-svelte for shared UI.
-- Shared workspace packages under the `@dukat/*` namespace.
+### Workspace
 
-## Template conventions
+The ownership and collaboration boundary for financial data. An account or transaction belongs to exactly one workspace.
 
-- Keep shared code in `packages/*` and app-specific code in `apps/*`.
-- Prefer `@dukat/*` workspace imports over relative cross-package imports.
-- Keep `packages/ui` framework-specific to Svelte/shadcn-svelte components.
-- Keep `packages/core` product-neutral until a project domain is chosen, then replace the example schemas with real domain schemas.
-- Keep environment validation centralized in `packages/env`.
-- Keep API route contracts and handlers in `packages/api`, and consume them through `packages/api-client` where possible.
+### Personal workspace
 
-## Customization checklist
+A workspace whose financial data is private to one user.
 
-When creating a real product from this template:
+### Household workspace
 
-1. Rename the root package and workspace package scope if `@dukat/*` is not desired.
-2. Replace placeholder app names, titles, and copy in `apps/website`, `apps/dashboard`, and `apps/admin`.
-3. Replace `packages/core` example schemas with the product domain model.
-4. Update database schema files in `packages/db/src/schema`.
-5. Update auth providers and trusted origins in `packages/auth` and `packages/env`.
-6. Update this `CONTEXT.md` with the project's actual domain language, relationships, and architectural decisions.
-7. Review all markdown docs so they describe the customized product rather than the template.
+A workspace shared by invited household members. A household can have one or more owners, and a user can belong to multiple households.
 
-## Current placeholders
+### Household member
 
-- `apps/website` demonstrates an Astro public site that can render Svelte UI components.
-- `apps/dashboard` demonstrates a SvelteKit app surface placeholder.
-- `apps/admin` demonstrates a SvelteKit internal-tooling placeholder.
-- `packages/ui` includes a shadcn-svelte Button component as the first shared UI primitive.
-- `packages/core` includes example schemas only.
+A user who can view and edit all financial data in a household workspace. Membership does not grant access to financial data in another member's personal workspace.
+
+### Household owner
+
+A household member who can also manage membership, assign or remove ownership, change household settings, and delete the household. All household owners have equal authority.
+
+### Financial account
+
+A place whose balance Dukat tracks in one account currency. In the MVP, this can be a current account, savings account, or cash account. Its balance starts with an opening balance and changes through recorded transactions.
+
+### Account balance
+
+The opening balance of a financial account adjusted by its recorded income, expenses, transfers, and balance corrections.
+
+### Transaction
+
+A completed movement of money into, out of, or between financial accounts. An expected future movement is a planned transaction instead.
+
+### Transfer
+
+A movement of money between two financial accounts. A same-currency transfer moves one amount; a cross-currency transfer records the amount sent and the amount received.
+
+### Category
+
+A workspace-defined label used to explain the purpose of a transaction. In the MVP, a transaction has at most one category.
+
+### Import batch
+
+The group of transactions created by one confirmed CSV upload into a financial account. It preserves the upload's provenance and can be moved to trash as a group.
+
+### Balance check
+
+A dated balance observed outside Dukat, such as on a bank statement. Dukat uses it to reveal a mismatch with the calculated balance rather than silently rewriting transaction history.
+
+### Balance correction
+
+An explicit adjustment that resolves a known difference between an observed balance and Dukat's calculated balance. It changes the account balance but is not income or spending.
+
+### Planned transaction
+
+Expected future income or expense assigned to a financial account, with an amount, date, and expected-or-tentative status. It contributes to a forecast until matched with the real transaction, skipped, or cancelled.
+
+### Recurring plan
+
+A repeating rule that produces planned transactions on a weekly, monthly, or yearly schedule.
+
+### Transaction match
+
+A user-confirmed link between one planned transaction and the completed transaction that fulfilled it.
+
+### Forecast
+
+A projection from current account balances through expected, unmatched planned transactions. Tentative plans can be included as a possible outcome, and overdue plans are treated as due today until resolved.
+
+### Account currency
+
+The single currency used by a financial account. Transactions on the account use this currency.
+
+### Reporting currency
+
+The currency a workspace uses to show combined balances and forecasts. Amounts in other currencies are converted for reporting without replacing their original values.
+
+### Exchange rate
+
+An effective-dated rate used to convert an amount between currencies for reporting. It may come from Dukat's automatic source or an explicit workspace override; it never replaces the original amount.
+
+### Cross-currency transfer
+
+A transfer that records both the amount sent in one currency and the amount received in another.
+
+## Language to avoid
+
+- **Public/private table** — use **household workspace** or **personal workspace**. Tables are not the sharing boundary.
