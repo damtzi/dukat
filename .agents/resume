@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+
+node_version="$(node --version)"
+pnpm_version="$(pnpm --version)"
+
+[[ "$node_version" == v24.* ]] || {
+	echo "Expected Node.js 24.x, found $node_version; rerun .agents/setup" >&2
+	exit 1
+}
+[[ "$pnpm_version" == 10.18.0 ]] || {
+	echo "Expected pnpm 10.18.0, found $pnpm_version; rerun .agents/setup" >&2
+	exit 1
+}
+
+echo "Orb resumed: $node_version, pnpm $pnpm_version"

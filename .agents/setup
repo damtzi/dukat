@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+node_major=24
+pnpm_version=10.18.0
+local_bin="$HOME/.local/bin"
+node_root="$HOME/.local/share/nodejs"
+
+mkdir -p "$local_bin" "$node_root"
+export PATH="$local_bin:$PATH"
+
+profile_marker="# dukat orb toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+	cat >> "$HOME/.bash_profile" <<'EOF'
+
+# dukat orb toolchain
+case ":$PATH:" in
+	*":$HOME/.local/bin:"*) ;;
+	*) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+EOF
+fi
+
+current_node_major="$(node --version 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || true)"
+if [[ "$current_node_major" != "$node_major" ]]; then
+	echo "Installing Node.js ${node_major}.x..."
+	tmp_dir="$(mktemp -d)"
+	trap 'rm -rf "$tmp_dir"' EXIT
+
+	curl --fail --silent --show-error --location \
+		-o "$tmp_dir/index.json" https://nodejs.org/dist/index.json
+	node_version="$(python3 - "$tmp_dir/index.json" "$node_major" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as versions_file:
+    versions = json.load(versions_file)
+
+major = int(sys.argv[2])
+print(next(item["version"] for item in versions if int(item["version"].split(".")[0][1:]) == major))
+PY
+)"
+
+	case "$(uname -m)" in
+		x86_64) node_arch="x64" ;;
+		aarch64 | arm64) node_arch="arm64" ;;
+		*) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+	esac
+
+	archive="node-${node_version}-linux-${node_arch}.tar.xz"
+	curl --fail --silent --show-error --location \
+		-o "$tmp_dir/$archive" "https://nodejs.org/dist/${node_version}/${archive}"
+	curl --fail --silent --show-error --location \
+		-o "$tmp_dir/SHASUMS256.txt" "https://nodejs.org/dist/${node_version}/SHASUMS256.txt"
+	(
+		cd "$tmp_dir"
+		grep "  ${archive}$" SHASUMS256.txt | sha256sum --check --status
+	)
+
+	install_dir="$node_root/$node_version"
+	mkdir -p "$install_dir"
+	tar -xJf "$tmp_dir/$archive" --strip-components=1 -C "$install_dir"
+	ln -sfn "$install_dir/bin/node" "$local_bin/node"
+	ln -sfn "$install_dir/bin/npm" "$local_bin/npm"
+	ln -sfn "$install_dir/bin/npx" "$local_bin/npx"
+	[[ ! -e "$install_dir/bin/corepack" ]] || ln -sfn "$install_dir/bin/corepack" "$local_bin/corepack"
+	hash -r
+fi
+
+if [[ "$(pnpm --version 2>/dev/null || true)" != "$pnpm_version" ]]; then
+	echo "Installing pnpm ${pnpm_version}..."
+	npm install --global --prefix "$HOME/.local" "pnpm@${pnpm_version}"
+	hash -r
+fi
+
+cd "$repo_root"
+if [[ ! -f .env ]]; then
+	echo "Creating .env from .env.example..."
+	cp -- .env.example .env
+fi
+
+echo "Installing workspace dependencies..."
+pnpm install --frozen-lockfile
+
+echo "Orb setup complete: $(node --version), pnpm $(pnpm --version)"
