@@ -3,15 +3,15 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"supabase:start": "supabase start",
-		"supabase:stop": "supabase stop",
-		"supabase:status": "supabase status",
-		"supabase:reset": "supabase db reset",
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:studio": "drizzle-kit studio",
-		"db:migrate": "drizzle-kit migrate",
-		"check-types": "tsc --noEmit"
+		"db:migrate": "tsx src/commands/migrate.ts",
+		"db:backup": "tsx src/commands/backup.ts",
+		"db:restore": "tsx src/commands/restore.ts",
+		"db:check": "tsx src/commands/check.ts",
+		"check-types": "tsc --noEmit",
+		"test": "tsx --test src/*.test.ts"
 	},
 	"exports": {
 		".": {
@@ -22,16 +22,14 @@
 		}
 	},
 	"dependencies": {
-		"@dukat/env": "workspace:*",
-		"better-auth": "^1.6.11",
-		"drizzle-orm": "^0.45.2",
-		"pg": "^8.21.0",
-		"zod": "^4.4.3"
+		"@libsql/client": "^0.17.4",
+		"drizzle-orm": "^0.45.2"
 	},
 	"devDependencies": {
 		"@dukat/typescript-config": "workspace:*",
-		"@types/pg": "^8.20.0",
+		"@types/node": "^24.13.3",
 		"drizzle-kit": "^0.31.10",
+		"tsx": "^4.23.1",
 		"typescript": "catalog:"
 	}
 }
