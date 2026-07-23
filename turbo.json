@@ -8,7 +8,15 @@
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
 			"outputs": [".svelte-kit/**", "build/**", "dist/**"],
-			"env": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CORS_ORIGIN"]
+			"env": [
+				"DATABASE_URL",
+				"DATABASE_AUTH_TOKEN",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"CORS_ORIGIN",
+				"RESEND_API_KEY",
+				"AUTH_EMAIL_FROM"
+			]
 		},
 		"lint": {
 			"dependsOn": ["^lint"]
@@ -16,10 +24,22 @@
 		"check-types": {
 			"dependsOn": ["^check-types"]
 		},
+		"test": {
+			"dependsOn": ["^test"],
+			"inputs": ["$TURBO_DEFAULT$", "packages/db/src/migrations/**"]
+		},
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"env": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CORS_ORIGIN"]
+			"env": [
+				"DATABASE_URL",
+				"DATABASE_AUTH_TOKEN",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"CORS_ORIGIN",
+				"RESEND_API_KEY",
+				"AUTH_EMAIL_FROM"
+			]
 		}
 	}
 }

@@ -14,7 +14,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ${{ matrix.os-version }}
-    
+
     strategy:
       matrix:
         node-version: [24.x]
@@ -67,10 +67,33 @@ jobs:
       - name: Check types
         run: pnpm check-types
 
+  test:
+    name: Test migrations, authentication, and authorization
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.1.0
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
   build:
     name: Build
     runs-on: ${{ matrix.os-version }}
-    needs: [lint, check-types]
+    needs: [lint, check-types, test]
 
     strategy:
       matrix:
