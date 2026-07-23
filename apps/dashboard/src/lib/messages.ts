@@ -1,0 +1,50 @@
+export const messages = {
+  brand: 'Dukat',
+  meta: {
+    title: 'Dukat — your money, accounted for',
+    description: 'A trustworthy view of the money you have and where it went.',
+  },
+  tagline: 'A clear account of what is yours.',
+  masthead: 'Personal accounts / honest forecasts',
+  signIn: 'Sign in',
+  signUp: 'Create account',
+  signOut: 'Sign out',
+  forgotPassword: 'Forgot password?',
+  resetPassword: 'Reset password',
+  checkEmailVerification:
+    'Check your email to verify your address before signing in.',
+  checkEmailReset:
+    'If an account exists for that address, a reset link is on its way.',
+  genericError: 'Something went wrong. Please try again.',
+  loading: 'Opening the ledger…',
+  dashboard: {
+    edition: (date: string) => `Private ledger · ${date}`,
+    heading: 'Your workspace',
+    greeting: (name: string) => `Good to see you, ${name}.`,
+    emptyWorkspace: 'Your personal workspace is being prepared.',
+    workspaceNumber: '01',
+    workspacePlaceholder: 'Balances and activity will appear here.',
+  },
+  auth: {
+    optionsLabel: 'Authentication options',
+    eyebrow: 'Money, without the fog',
+    intro:
+      'See what you have now, understand where it went, and look ahead with confidence.',
+    fullName: 'Full name',
+    emailAddress: 'Email address',
+    password: 'Password',
+    pleaseWait: 'Please wait…',
+    sendResetLink: 'Send reset link',
+    createLedger: 'Create my ledger',
+    openLedger: 'Open my ledger',
+    backToSignIn: '← Back to sign in',
+  },
+  recovery: {
+    eyebrow: 'Account recovery / 01',
+    newPassword: 'New password',
+    invalidLink: 'This password reset link is invalid or has expired.',
+    success: 'Your password has been reset. You can now sign in.',
+    returnToSignIn: 'Return to sign in →',
+    setPassword: 'Set new password →',
+  },
+} as const
