@@ -15,6 +15,12 @@ node_modules
 
 # Testing
 coverage
+data/
+backups/
+*.backup
+*.db
+*.db-shm
+*.db-wal
 
 # Turbo
 .turbo

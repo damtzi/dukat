@@ -7,7 +7,8 @@ loadDotenv();
 
 export const dbEnv = createEnv({
 	server: {
-		DATABASE_URL: z.url()
+		DATABASE_URL: z.string().min(1),
+		DATABASE_AUTH_TOKEN: z.string().min(1).optional()
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true

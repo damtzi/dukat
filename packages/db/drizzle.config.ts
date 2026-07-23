@@ -1,11 +1,11 @@
-import { dbEnv } from '@dukat/env/db';
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
 	schema: './src/schema',
 	out: './src/migrations',
-	dialect: 'postgresql',
+	dialect: 'turso',
 	dbCredentials: {
-		url: dbEnv.DATABASE_URL
+		url: process.env.DATABASE_URL ?? 'file:../../data/dukat.db',
+		authToken: process.env.DATABASE_AUTH_TOKEN
 	}
 });

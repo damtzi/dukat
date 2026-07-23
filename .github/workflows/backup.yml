@@ -1,0 +1,37 @@
+name: Encrypted database backup
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: production-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4.1.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create encrypted logical export
+        run: pnpm db:backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          BACKUP_PATH: backup/dukat-${{ github.run_id }}.backup
+      - name: Copy export to separate object storage
+        run: aws s3 cp "backup/dukat-${GITHUB_RUN_ID}.backup" "s3://${BACKUP_BUCKET}/daily/dukat-$(date -u +%F).backup" --sse AES256
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
