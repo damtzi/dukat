@@ -7,6 +7,11 @@ dist
 *.tgz
 /prisma/generated
 
+# local databases
+*.db
+*.db-shm
+*.db-wal
+
 # code coverage
 coverage
 *.lcov

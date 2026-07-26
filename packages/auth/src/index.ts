@@ -6,7 +6,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
-		provider: 'pg',
+		provider: 'sqlite',
 		schema: schema
 	}),
 	trustedOrigins: [authEnv.CORS_ORIGIN].filter((origin): origin is string => Boolean(origin)),

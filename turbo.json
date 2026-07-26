@@ -8,7 +8,13 @@
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
 			"outputs": [".svelte-kit/**", "build/**", "dist/**"],
-			"env": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CORS_ORIGIN"]
+			"env": [
+				"TURSO_DATABASE_URL",
+				"TURSO_AUTH_TOKEN",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"CORS_ORIGIN"
+			]
 		},
 		"lint": {
 			"dependsOn": ["^lint"]
@@ -19,7 +25,13 @@
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"env": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CORS_ORIGIN"]
+			"env": [
+				"TURSO_DATABASE_URL",
+				"TURSO_AUTH_TOKEN",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"CORS_ORIGIN"
+			]
 		}
 	}
 }

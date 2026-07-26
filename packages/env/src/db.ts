@@ -7,7 +7,8 @@ loadDotenv();
 
 export const dbEnv = createEnv({
 	server: {
-		DATABASE_URL: z.url()
+		TURSO_DATABASE_URL: z.string().min(1),
+		TURSO_AUTH_TOKEN: z.string().min(1).optional()
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true
