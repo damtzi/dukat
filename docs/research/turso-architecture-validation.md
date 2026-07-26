@@ -4,7 +4,7 @@
 
 The proposed stack can safely support the MVP with one shared Turso database, provided Dukat treats workspace authorization as an application invariant, stores money without floating point, uses transactions for multi-row financial changes, and establishes migration and recovery procedures before launch.
 
-The current repository is still the Postgres/Supabase template: `packages/db` uses `node-postgres`, PostgreSQL Drizzle tables and a PostgreSQL Drizzle dialect; `packages/auth` configures Better Auth's Drizzle adapter with `provider: 'pg'`; and root database scripts start Supabase. Those pieces must be replaced rather than adapted incrementally.
+The repository uses Drizzle's native libSQL client and SQLite schema definitions, with Better Auth configured through its SQLite Drizzle adapter.
 
 ## Chosen application shape
 
@@ -105,7 +105,7 @@ Do not enable experimental concurrent-write behavior initially. One application 
 
 Drizzle supports the Turso dialect and checked-in generated migrations through `drizzle-kit generate` and `drizzle-kit migrate`.[^4]
 
-- Replace the Postgres schema with `sqliteTable` definitions and set Drizzle Kit's dialect to `turso`.
+- Keep schema definitions on `sqliteTable` and Drizzle Kit's dialect set to `turso`.
 - Use local `file:` libSQL databases in development and isolated temporary databases in tests.
 - Generate SQL migrations, review them, and commit both SQL and snapshots.
 - `db:push` is development-only. Production accepts only checked-in migrations.
@@ -159,11 +159,19 @@ The architecture is ready to implement after these automated checks exist:
 ## Sources
 
 [^1]: Better Auth, [Drizzle ORM Adapter](https://www.better-auth.com/docs/adapters/drizzle). Documents SQLite support, supplied schemas, and CLI schema generation.
+
 [^2]: Better Auth, [Hono Integration](https://www.better-auth.com/docs/integrations/hono). Documents handler mounting, session middleware, CORS, and cookie guidance.
+
 [^3]: Better Auth, [SvelteKit Integration](https://www.better-auth.com/docs/integrations/svelte-kit). Confirms Svelte client support and the alternative server-hook integration.
+
 [^4]: Drizzle ORM, [Get Started with Drizzle and Turso Cloud](https://orm.drizzle.team/docs/get-started/turso-new). Documents `@libsql/client`, local and remote protocols, Turso dialect configuration, and generate/migrate workflow.
+
 [^5]: Turso, [Concurrent Writes](https://docs.turso.tech/tursodb/concurrent-writes). Documents the default single-writer behavior and conflict/retry requirement for concurrent writes.
+
 [^6]: Turso, [Transactions](https://docs.turso.tech/sql-reference/statements/transactions). Documents atomic explicit transactions, autocommit, savepoints, and transaction modes.
+
 [^7]: Turso, [Cloud limitations](https://docs.turso.tech/cloud/limitations). Documents unsupported or read-only pragmas including `user_version`, `busy_timeout`, and `journal_mode`.
+
 [^8]: Turso, [Point-in-Time Recovery](https://docs.turso.tech/features/point-in-time-recovery). Documents restore into a new database and the required connection/token switch.
+
 [^9]: SQLite, [Datatypes in SQLite](https://www.sqlite.org/datatype3.html) and [Floating Point Numbers](https://sqlite.org/floatingpoint.html). Documents exact signed integer storage and the approximation inherent in binary floating point.

@@ -17,7 +17,7 @@ This repository is a pnpm/Turborepo template for building TypeScript apps with S
 - `packages/api-client` — typed client for `@dukat/api`, sharing types end to end.
 - `packages/core` — shared example domain schemas and types.
 - `packages/auth` — Better Auth setup.
-- `packages/db` — Drizzle ORM schema and Postgres access, with local Supabase for development.
+- `packages/db` — Drizzle ORM schema and Turso database access through the libSQL client.
 - `packages/env` — type-safe environment variables via `@t3-oss/env-core`.
 - `packages/ui` — shared shadcn-svelte UI components and Tailwind theme styles.
 - `packages/utils` — shared utilities.
@@ -64,24 +64,19 @@ pnpm format
 
 ### Local database
 
-Supabase local development lives in `packages/db/supabase`. Install the Supabase CLI first, then start it from the repository root with:
-
-```sh
-pnpm db:start
-```
-
-The default local database URL is:
+Set Turso credentials in the root `.env` file:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
+TURSO_DATABASE_URL=libsql://your-database-name-your-organization.turso.io
+TURSO_AUTH_TOKEN=your-database-auth-token
 ```
 
-Useful database commands:
+Create a database and token with `turso db create <name>` and `turso db tokens create <name>`. For local development without a hosted database, set `TURSO_DATABASE_URL` to an absolute `file:` URL and omit `TURSO_AUTH_TOKEN`.
+
+Database schema commands run through the `@dukat/db` package:
 
 ```sh
-pnpm db:status
-pnpm db:reset
-pnpm db:stop
+pnpm --filter @dukat/db db:push
 pnpm --filter @dukat/db db:generate
 pnpm --filter @dukat/db db:migrate
 pnpm --filter @dukat/db db:studio
