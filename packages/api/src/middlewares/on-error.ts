@@ -1,6 +1,6 @@
 import type { ErrorHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { StatusCodes } from 'http-status-codes';
+import { ReasonPhrases, StatusCodes } from 'http-status-codes';
 
 const onError: ErrorHandler = (err, c) => {
 	const currentStatus = 'status' in err ? err.status : c.newResponse(null).status;
@@ -13,7 +13,7 @@ const onError: ErrorHandler = (err, c) => {
 
 	return c.json(
 		{
-			message: err.message,
+			message: env === 'production' ? ReasonPhrases.INTERNAL_SERVER_ERROR : err.message,
 			stack: env === 'production' ? undefined : err.stack
 		},
 		statusCode

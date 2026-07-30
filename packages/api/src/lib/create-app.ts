@@ -1,8 +1,9 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { notFound, onError, pinoLogger } from '../middlewares';
+import { notFound, onError, requestLogger } from '../middlewares';
 import { requestId } from 'hono/request-id';
 import type { AppBindings } from './types';
 import { defaultHook } from '../openapi';
+import type { APIServices } from '../services';
 
 export function createRouter() {
 	return new OpenAPIHono<AppBindings>({
@@ -11,11 +12,15 @@ export function createRouter() {
 	});
 }
 
-export default function createApp() {
+export default function createApp(services: APIServices) {
 	const app = createRouter();
 
 	app.use(requestId());
-	app.use(pinoLogger);
+	app.use(requestLogger);
+	app.use('*', async (c, next) => {
+		c.set('services', services);
+		await next();
+	});
 	app.notFound(notFound);
 	app.onError(onError);
 
