@@ -1,12 +1,13 @@
-import { createClient } from '@libsql/client';
 import { dbEnv } from '@dukat/env/db';
-import { drizzle } from 'drizzle-orm/libsql';
 
-import * as schema from './schema';
+import { createDatabase } from './connection';
 
-const client = createClient({
+export { createDatabase, type Database } from './connection';
+
+const connection = createDatabase({
 	url: dbEnv.TURSO_DATABASE_URL,
 	authToken: dbEnv.TURSO_AUTH_TOKEN
 });
 
-export const db = drizzle(client, { schema });
+export const client = connection.client;
+export const db = connection.db;
