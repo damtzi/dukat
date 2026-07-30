@@ -7,6 +7,10 @@
 		"db:generate": "drizzle-kit generate",
 		"db:studio": "drizzle-kit studio",
 		"db:migrate": "drizzle-kit migrate",
+		"db:migrate:release": "drizzle-kit migrate",
+		"db:backup": "tsx src/recovery-cli.ts backup",
+		"db:restore": "tsx src/recovery-cli.ts restore",
+		"db:integrity": "tsx src/recovery-cli.ts integrity",
 		"check-types": "tsc --noEmit"
 	},
 	"exports": {
@@ -26,7 +30,9 @@
 	},
 	"devDependencies": {
 		"@dukat/typescript-config": "workspace:*",
+		"@types/node": "^22.15.3",
 		"drizzle-kit": "^0.31.10",
+		"tsx": "^4.7.1",
 		"typescript": "catalog:"
 	}
 }
