@@ -6,7 +6,7 @@ The Node exports load `.env` files by walking upward from the current working di
 
 ## Exports
 
-- `@dukat/env/auth` — Better Auth configuration (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN`).
+- `@dukat/env/auth` — Better Auth and Resend configuration (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN`, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`).
 - `@dukat/env/db` — Turso database configuration (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`).
 - `@dukat/env/server` — server runtime configuration.
 
@@ -15,14 +15,16 @@ The Node exports load `.env` files by walking upward from the current working di
 Create a root `.env` file with the values needed by the packages you run:
 
 ```env
-TURSO_DATABASE_URL=libsql://your-database-name-your-organization.turso.io
-TURSO_AUTH_TOKEN=your-database-auth-token
+TURSO_DATABASE_URL=file:/absolute/path/to/dukat.db
+TURSO_AUTH_TOKEN=
 BETTER_AUTH_SECRET=replace-me
-BETTER_AUTH_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:9999
+CORS_ORIGIN=http://localhost:9999
+RESEND_API_KEY=re_your-api-key
+AUTH_EMAIL_FROM="Dukat <auth@example.com>"
 LOG_LEVEL=info
 ```
 
-For a local database, use an absolute file URL such as `file:/absolute/path/to/dukat.db` and omit `TURSO_AUTH_TOKEN`.
+For a hosted database, use its `libsql://` URL and provide `TURSO_AUTH_TOKEN`.
 
 Keep secrets in server-only exports. Client-safe SvelteKit variables should use SvelteKit's `$env/static/public` or `$env/dynamic/public` conventions.
