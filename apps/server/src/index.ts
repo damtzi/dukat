@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
-import { app } from '@dukat/api';
 import { serverEnv } from '@dukat/env/server';
+
+import { app } from './app';
 
 serve(
 	{
@@ -8,6 +9,6 @@ serve(
 		port: serverEnv.PORT
 	},
 	(info) => {
-		console.log(`Server is running on http://localhost:${info.port}`);
+		console.log(JSON.stringify({ level: 'info', event: 'server.started', port: info.port }));
 	}
 );
