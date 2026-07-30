@@ -1,25 +1,18 @@
 import { db } from '@dukat/db';
 import { authEnv } from '@dukat/env/auth';
-import * as schema from '@dukat/db/schema/auth';
-import { betterAuth } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { serverEnv } from '@dukat/env/server';
 
-export const auth = betterAuth({
-	database: drizzleAdapter(db, {
-		provider: 'sqlite',
-		schema: schema
-	}),
+import { createAuth } from './create-auth';
+import { createResendEmailSender } from './email';
+
+export { createAuth, type Auth } from './create-auth';
+export * from './email';
+
+export const auth = createAuth({
+	database: db,
 	trustedOrigins: [authEnv.CORS_ORIGIN].filter((origin): origin is string => Boolean(origin)),
-	emailAndPassword: {
-		enabled: true
-	},
+	emailSender: createResendEmailSender(authEnv.RESEND_API_KEY, authEnv.AUTH_EMAIL_FROM),
 	secret: authEnv.BETTER_AUTH_SECRET,
 	baseURL: authEnv.BETTER_AUTH_URL,
-	advanced: {
-		defaultCookieAttributes: {
-			sameSite: 'none',
-			secure: true,
-			httpOnly: true
-		}
-	}
+	isProduction: serverEnv.NODE_ENV === 'production'
 });
