@@ -1,5 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { notFound, onError, requestLogger } from '../middlewares';
+import { notFound, onError, requestLogger } from '../middleware';
 import { requestId } from 'hono/request-id';
 import type { AppBindings } from './types';
 import { defaultHook } from '../openapi';

@@ -1,5 +1,5 @@
 import { createRouter } from '../../lib/create-app';
-import { authenticated } from '../../middlewares/authenticated';
+import { authenticated } from '../../middleware/authenticated';
 import * as handlers from './workspaces.handlers';
 import * as routes from './workspaces.routes';
 
