@@ -12,3 +12,15 @@ export function createDatabase(config: Config) {
 }
 
 export type Database = ReturnType<typeof createDatabase>['db'];
+
+declare const financialDatabaseBrand: unique symbol;
+export type FinancialDatabase = Database & { readonly [financialDatabaseBrand]: true };
+
+/** A separate client is required because libSQL's integer mode is client-global. */
+export function createFinancialDatabase(config: Config) {
+	const client = createClient({ ...config, intMode: 'bigint' });
+	return {
+		client,
+		db: drizzle(client, { schema }) as FinancialDatabase
+	};
+}
