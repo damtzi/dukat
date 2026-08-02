@@ -15,6 +15,7 @@ node_modules
 
 # Testing
 coverage
+test-results/
 *.db
 *.backup.json
 
