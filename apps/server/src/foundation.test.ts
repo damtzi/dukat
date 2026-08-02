@@ -8,11 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { createAPI } from '@dukat/api';
 import { createAuth } from '@dukat/auth/create-auth';
 import type { TransactionalEmail } from '@dukat/auth/email';
-import { createDatabase } from '@dukat/db/connection';
+import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
 import { backupDatabase, restoreDatabase } from '@dukat/db/recovery';
 import { session, user } from '@dukat/db/schema/auth';
 import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
+import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
@@ -43,6 +44,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 	const backupPath = join(directory, 'backup.json');
 	const key = Buffer.alloc(32, 7).toString('base64');
 	const source = createDatabase({ url: sourceUrl });
+	const sourceFinancial = createFinancialDatabase({ url: sourceUrl });
 	const emails: TransactionalEmail[] = [];
 
 	try {
@@ -85,6 +87,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			api: createAPI({
 				auth,
 				readiness: () => source.db.run('select 1'),
+				ledger: createLedgerRepository(sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory
@@ -147,6 +150,40 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 					.where(eq(workspace.personalOwnerUserId, firstSession.user.id))
 			).length,
 			1
+		);
+		const boundaryAccountResponse = await app.request(
+			`${origin}/api/workspaces/${firstWorkspaceId}/accounts`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie: firstCookie },
+				body: JSON.stringify({
+					name: 'Boundary account',
+					type: 'cash',
+					currency: 'USD',
+					openingBalanceMinor: '9223372036854775807',
+					idempotencyKey: 'foundation-boundary-account'
+				})
+			}
+		);
+		assert.equal(boundaryAccountResponse.status, 200);
+		const boundaryAccount = (await boundaryAccountResponse.json()) as { id: string };
+		const boundaryTransactionResponse = await app.request(
+			`${origin}/api/workspaces/${firstWorkspaceId}/accounts/${boundaryAccount.id}/transactions`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie: firstCookie },
+				body: JSON.stringify({
+					kind: 'expense',
+					amountMinor: '9223372036854775807',
+					date: '2026-07-30',
+					idempotencyKey: 'foundation-boundary-transaction'
+				})
+			}
+		);
+		assert.equal(boundaryTransactionResponse.status, 200);
+		assert.equal(
+			((await boundaryTransactionResponse.json()) as { balanceMinor: string }).balanceMinor,
+			'0'
 		);
 
 		await signupAndVerify('Second User', 'second@example.com', 'initial-password-2');
@@ -222,6 +259,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			api: createAPI({
 				auth: productionAuth,
 				readiness: () => source.db.run('select 1'),
+				ledger: createLedgerRepository(sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory
@@ -267,12 +305,24 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		await backupDatabase(sourceUrl, undefined, backupPath, key);
 		await restoreDatabase(restoredUrl, undefined, backupPath, key);
 		const restored = createDatabase({ url: restoredUrl });
+		const restoredFinancial = createFinancialDatabase({ url: restoredUrl });
 		try {
 			assert.equal((await restored.db.select().from(workspace)).length, 2);
+			const restoredAccounts = await createLedgerRepository(restoredFinancial.db).listAccounts({
+				userId: firstSession.user.id,
+				workspaceId: firstWorkspaceId
+			});
+			const restoredBoundary = restoredAccounts.find(
+				(account) => account.id === boundaryAccount.id
+			);
+			assert.equal(restoredBoundary?.openingBalanceMinor, '9223372036854775807');
+			assert.equal(restoredBoundary?.balanceMinor, '0');
 		} finally {
+			restoredFinancial.client.close();
 			restored.client.close();
 		}
 	} finally {
+		sourceFinancial.client.close();
 		source.client.close();
 		await rm(directory, { recursive: true, force: true });
 	}
