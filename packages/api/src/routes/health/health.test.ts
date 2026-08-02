@@ -17,6 +17,7 @@ function createServices(readiness: () => Promise<unknown>): APIServices {
 			}
 		},
 		readiness,
+		ledger: {} as APIServices['ledger'],
 		workspaces: {
 			async listAuthorized() {
 				return [];

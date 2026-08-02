@@ -19,6 +19,7 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 			}
 		},
 		async readiness() {},
+		ledger: {} as APIServices['ledger'],
 		workspaces: {
 			async listAuthorized() {
 				return [];
