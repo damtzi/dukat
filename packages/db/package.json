@@ -11,6 +11,8 @@
 		"db:backup": "tsx src/recovery-cli.ts backup",
 		"db:restore": "tsx src/recovery-cli.ts restore",
 		"db:integrity": "tsx src/recovery-cli.ts integrity",
+		"ledger:purge-trash": "tsx src/ledger-lifecycle-cli.ts",
+		"test": "tsx --test src/repositories/*.test.ts",
 		"check-types": "tsc --noEmit"
 	},
 	"exports": {

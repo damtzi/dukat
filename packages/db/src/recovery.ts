@@ -135,7 +135,7 @@ export async function backupDatabase(
 	outputPath: string,
 	encodedKey: string
 ) {
-	const client = createClient({ url: databaseUrl, authToken });
+	const client = createClient({ url: databaseUrl, authToken, intMode: 'bigint' });
 	try {
 		await writeEncryptedBackup(await createLogicalBackup(client), outputPath, encodedKey);
 	} finally {
@@ -149,7 +149,7 @@ export async function restoreDatabase(
 	inputPath: string,
 	encodedKey: string
 ) {
-	const client = createClient({ url: databaseUrl, authToken });
+	const client = createClient({ url: databaseUrl, authToken, intMode: 'bigint' });
 	try {
 		const existing = await client.execute(
 			"SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1"
