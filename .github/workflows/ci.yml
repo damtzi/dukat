@@ -116,5 +116,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install browser for end-to-end tests
+        run: pnpm --filter @dukat/e2e exec playwright install --with-deps chromium
+
       - name: Run foundation integration tests
         run: pnpm test
