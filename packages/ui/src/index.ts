@@ -1,2 +1,13 @@
 export { Button, Root as ButtonRoot, buttonVariants } from './components/ui/button/index.js';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './components/ui/button/index.js';
+export * as Alert from './components/ui/alert/index.js';
+export * as Card from './components/ui/card/index.js';
+export * as Dialog from './components/ui/dialog/index.js';
+export * as Select from './components/ui/select/index.js';
+export * as Table from './components/ui/table/index.js';
+export * as Tabs from './components/ui/tabs/index.js';
+export { Badge } from './components/ui/badge/index.js';
+export { Input } from './components/ui/input/index.js';
+export { Label } from './components/ui/label/index.js';
+export { Separator } from './components/ui/separator/index.js';
+export { Textarea } from './components/ui/textarea/index.js';
