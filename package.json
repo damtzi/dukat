@@ -8,6 +8,7 @@
 		"format": "prettier --write .",
 		"lint": "turbo run lint",
 		"test": "turbo run test",
+		"test:e2e": "pnpm --filter @dukat/e2e test",
 		"lint-staged": "lint-staged",
 		"prepare": "husky"
 	},
@@ -22,12 +23,13 @@
 	"devDependencies": {
 		"@commitlint/cli": "^20.5.0",
 		"@commitlint/config-conventional": "^20.5.0",
-		"@eslint/compat": "catalog:",
 		"@dukat/eslint-config": "workspace:*",
+		"@eslint/compat": "catalog:",
 		"eslint": "catalog:",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.4.0",
 		"prettier": "catalog:",
+		"prettier-plugin-svelte": "^3.5.2",
 		"turbo": "^2.9.6",
 		"typescript": "catalog:"
 	},

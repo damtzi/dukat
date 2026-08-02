@@ -41,7 +41,7 @@ catalogs:
       version: 3.8.4
     shadcn-svelte:
       specifier: latest
-      version: 1.4.2
+      version: 1.5.0
     svelte:
       specifier: latest
       version: 5.56.8
@@ -86,6 +86,9 @@ importers:
       prettier:
         specifier: 'catalog:'
         version: 3.8.4
+      prettier-plugin-svelte:
+        specifier: ^3.5.2
+        version: 3.5.2(prettier@3.8.4)(svelte@5.56.8(@typescript-eslint/types@8.61.1))
       turbo:
         specifier: ^2.9.6
         version: 2.9.18
@@ -467,7 +470,7 @@ importers:
         version: 2.18.1(@internationalized/date@3.12.2)(@sveltejs/kit@2.70.2(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.56.8(@typescript-eslint/types@8.61.1))(vite@8.1.5(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)))(svelte@5.56.8(@typescript-eslint/types@8.61.1))(typescript@5.9.2)(vite@8.1.5(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)))(svelte@5.56.8(@typescript-eslint/types@8.61.1))
       shadcn-svelte:
         specifier: 'catalog:'
-        version: 1.4.2(svelte@5.56.8(@typescript-eslint/types@8.61.1))
+        version: 1.5.0(svelte@5.56.8(@typescript-eslint/types@8.61.1))
       svelte:
         specifier: 'catalog:'
         version: 5.56.8(@typescript-eslint/types@8.61.1)
@@ -3905,6 +3908,12 @@ packages:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
 
+  prettier-plugin-svelte@3.5.2:
+    resolution: {integrity: sha512-ItFouLvzSFE3ulNl4DKoWM3BGcbDCNVpIyy/Y3F2gC3aNiGLxtFUdffVqO5Z5hhYG+DFT5KULWaxmeFFpdbvaQ==}
+    peerDependencies:
+      prettier: ^3.0.0
+      svelte: ^3.2.0 || ^4.0.0-next.0 || ^5.0.0-next.0
+
   prettier@3.8.4:
     resolution: {integrity: sha512-N2MylSdi48+5N/6S5j+maeHbUSIzzZ5uOcX5Hm4QpV8Dkb1HFjfAKTKX6yNPJQD9AhcT3ifHNB66tWTTJDi11Q==}
     engines: {node: '>=14'}
@@ -4080,8 +4089,8 @@ packages:
   set-cookie-parser@3.1.0:
     resolution: {integrity: sha512-kjnC1DXBHcxaOaOXBHBeRtltsDG2nUiUni+jP92M9gYdW12rsmx92UsfpH7o5tDRs7I1ZZPSQJQGv3UaRfCiuw==}
 
-  shadcn-svelte@1.4.2:
-    resolution: {integrity: sha512-j7oDhXRmFuZ8bAhvF7Y65moMi9qM0iA68j5wEDNBiH0be9NWOEg1qo7myDeIf+h2oUSLBYHpVmeJIKYBmNT4Kg==}
+  shadcn-svelte@1.5.0:
+    resolution: {integrity: sha512-fcxTeUwEIvELkL/h0Vg2i/9Sf6exAmLG5u3GXc0aN8CA+3fNffKQnfrTdMgkjUEmx9XP619I+wcJOvlr5aDWYQ==}
     hasBin: true
     peerDependencies:
       svelte: ^5.0.0
@@ -8136,6 +8145,11 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
+  prettier-plugin-svelte@3.5.2(prettier@3.8.4)(svelte@5.56.8(@typescript-eslint/types@8.61.1)):
+    dependencies:
+      prettier: 3.8.4
+      svelte: 5.56.8(@typescript-eslint/types@8.61.1)
+
   prettier@3.8.4: {}
 
   prismjs@1.30.0: {}
@@ -8366,7 +8380,7 @@ snapshots:
 
   set-cookie-parser@3.1.0: {}
 
-  shadcn-svelte@1.4.2(svelte@5.56.8(@typescript-eslint/types@8.61.1)):
+  shadcn-svelte@1.5.0(svelte@5.56.8(@typescript-eslint/types@8.61.1)):
     dependencies:
       commander: 14.0.3
       node-fetch-native: 1.6.7
