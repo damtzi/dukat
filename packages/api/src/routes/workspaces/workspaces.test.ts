@@ -27,6 +27,7 @@ function createServices(): APIServices {
 			}
 		},
 		async readiness() {},
+		ledger: {} as APIServices['ledger'],
 		workspaces: {
 			async listAuthorized(userId) {
 				assert.equal(userId, 'user-1');
