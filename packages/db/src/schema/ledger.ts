@@ -66,6 +66,43 @@ export const financialAccount = sqliteTable(
 	]
 );
 
+export const ledgerTransfer = sqliteTable(
+	'ledger_transfer',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		fromAccountId: text('from_account_id').notNull(),
+		toAccountId: text('to_account_id').notNull(),
+		amountMinor: int64('amount_minor').notNull(),
+		date: text('date').notNull(),
+		description: text('description'),
+		version: safeInteger('version').default(1).notNull(),
+		trashedAt: secondsTimestamp('trashed_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.fromAccountId],
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
+		}).onDelete('restrict'),
+		foreignKey({
+			columns: [table.workspaceId, table.toAccountId],
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
+		}).onDelete('restrict'),
+		uniqueIndex('ledger_transfer_workspace_id_unique').on(table.workspaceId, table.id),
+		check('ledger_transfer_accounts_check', sql`${table.fromAccountId} <> ${table.toAccountId}`),
+		check('ledger_transfer_amount_check', sql`${table.amountMinor} > 0`),
+		check('ledger_transfer_version_check', sql`${table.version} > 0`)
+	]
+);
+
 export const ledgerTransaction = sqliteTable(
 	'ledger_transaction',
 	{
@@ -78,9 +115,11 @@ export const ledgerTransaction = sqliteTable(
 		amountMinor: int64('amount_minor').notNull(),
 		date: text('date').notNull(),
 		description: text('description'),
-		source: text('source', { enum: ['manual'] })
+		source: text('source', { enum: ['manual', 'transfer'] })
 			.default('manual')
 			.notNull(),
+		transferId: text('transfer_id'),
+		transferSide: text('transfer_side', { enum: ['from', 'to'] }),
 		version: safeInteger('version').default(1).notNull(),
 		trashedAt: secondsTimestamp('trashed_at'),
 		createdAt: secondsTimestamp('created_at')
@@ -93,11 +132,20 @@ export const ledgerTransaction = sqliteTable(
 	(table) => [
 		foreignKey({
 			columns: [table.workspaceId, table.accountId],
-			foreignColumns: [financialAccount.workspaceId, financialAccount.id],
-			name: 'ledger_transaction_workspace_account_fk'
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
 		}).onDelete('restrict'),
+		foreignKey({
+			columns: [table.workspaceId, table.transferId],
+			foreignColumns: [ledgerTransfer.workspaceId, ledgerTransfer.id],
+			name: 'ledger_transaction_workspace_transfer_fk'
+		}).onDelete('cascade'),
 		index('ledger_transaction_account_idx').on(table.accountId),
 		index('ledger_transaction_trash_idx').on(table.trashedAt),
+		uniqueIndex('ledger_transaction_transfer_side_unique').on(
+			table.workspaceId,
+			table.transferId,
+			table.transferSide
+		),
 		check('ledger_transaction_kind_check', sql`${table.kind} IN ('income', 'expense')`),
 		check('ledger_transaction_amount_check', sql`${table.amountMinor} > 0`),
 		check(
@@ -108,7 +156,72 @@ export const ledgerTransaction = sqliteTable(
 			'ledger_transaction_date_check',
 			sql`${table.date} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
 		),
-		check('ledger_transaction_version_check', sql`${table.version} > 0`)
+		check('ledger_transaction_version_check', sql`${table.version} > 0`),
+		check(
+			'ledger_transaction_transfer_check',
+			sql`(${table.source} = 'manual' AND ${table.transferId} IS NULL AND ${table.transferSide} IS NULL) OR (${table.source} = 'transfer' AND ${table.transferId} IS NOT NULL AND ((${table.transferSide} = 'from' AND ${table.kind} = 'expense') OR (${table.transferSide} = 'to' AND ${table.kind} = 'income')))`
+		)
+	]
+);
+
+export const ledgerBalanceCheck = sqliteTable(
+	'ledger_balance_check',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		accountId: text('account_id').notNull(),
+		date: text('date').notNull(),
+		observedBalanceMinor: int64('observed_balance_minor').notNull(),
+		version: safeInteger('version').default(1).notNull(),
+		trashedAt: secondsTimestamp('trashed_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.accountId],
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
+		}).onDelete('restrict'),
+		check('ledger_balance_check_version_check', sql`${table.version} > 0`)
+	]
+);
+
+export const ledgerBalanceCorrection = sqliteTable(
+	'ledger_balance_correction',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		accountId: text('account_id').notNull(),
+		date: text('date').notNull(),
+		amountMinor: text('amount_minor').notNull(),
+		description: text('description'),
+		version: safeInteger('version').default(1).notNull(),
+		trashedAt: secondsTimestamp('trashed_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.accountId],
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
+		}).onDelete('restrict'),
+		check(
+			'ledger_balance_correction_amount_check',
+			sql`${table.amountMinor} <> '0' AND ((${table.amountMinor} NOT GLOB '*[^0-9]*' AND substr(${table.amountMinor}, 1, 1) BETWEEN '1' AND '9') OR (substr(${table.amountMinor}, 1, 1) = '-' AND substr(${table.amountMinor}, 2) NOT GLOB '*[^0-9]*' AND substr(${table.amountMinor}, 2, 1) BETWEEN '1' AND '9'))`
+		),
+		check('ledger_balance_correction_version_check', sql`${table.version} > 0`)
 	]
 );
 
@@ -122,7 +235,9 @@ export const ledgerAudit = sqliteTable(
 		actorUserId: text('actor_user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'restrict' }),
-		entityType: text('entity_type', { enum: ['transaction', 'account'] }).notNull(),
+		entityType: text('entity_type', {
+			enum: ['transaction', 'account', 'transfer', 'balance_check', 'correction']
+		}).notNull(),
 		entityId: text('entity_id').notNull(),
 		action: text('action').notNull(),
 		beforeJson: text('before_json'),

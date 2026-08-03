@@ -22,6 +22,13 @@
 			"when": 1785604699610,
 			"tag": "0002_bent_masked_marvel",
 			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1785758002578,
+			"tag": "0003_watery_ricochet",
+			"breakpoints": true
 		}
 	]
 }
