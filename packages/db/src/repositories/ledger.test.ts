@@ -8,7 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createDatabase, createFinancialDatabase } from '../connection';
-import { ledgerAudit, ledgerTransaction, mutationReceipt, user } from '../schema';
+import {
+	ledgerAudit,
+	ledgerBalanceCorrection,
+	ledgerTransaction,
+	ledgerTransfer,
+	mutationReceipt,
+	user
+} from '../schema';
 import { createLedgerRepository, LedgerError } from './ledger';
 
 test('personal manual ledger balances, versions, idempotency, trash and audit lifecycle', async () => {
@@ -243,6 +250,287 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 		);
 	} finally {
 		financial?.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test('transfers and dated reconciliation are atomic, exact and versioned', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-transfer-'));
+	const url = `file:${join(directory, 'ledger.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db
+			.insert(user)
+			.values({ id: 'transfer-owner', name: 'Owner', email: 'transfer@example.com' });
+		const result = await connection.client.execute(
+			"select id from workspace where personal_owner_user_id = 'transfer-owner'"
+		);
+		const context = { userId: 'transfer-owner', workspaceId: String(result.rows[0].id) };
+		const ledger = createLedgerRepository(financial.db);
+		const create = (name: string, currency = 'EUR') =>
+			ledger.createAccount(context, {
+				idempotencyKey: `account-${name}`,
+				name,
+				type: 'cash',
+				currency,
+				openingBalanceMinor: name === 'From' ? '1000' : '100'
+			});
+		const from = await create('From'),
+			to = await create('To'),
+			usd = await create('Usd', 'USD');
+		await assert.rejects(
+			() =>
+				ledger.createTransfer(context, {
+					idempotencyKey: 'same-account',
+					fromAccountId: from.id,
+					toAccountId: from.id,
+					amountMinor: '1',
+					date: '2026-07-30'
+				}),
+			/different/
+		);
+		await assert.rejects(
+			() =>
+				ledger.createTransfer(context, {
+					idempotencyKey: 'currency-mismatch',
+					fromAccountId: from.id,
+					toAccountId: usd.id,
+					amountMinor: '1',
+					date: '2026-07-30'
+				}),
+			/same currency/
+		);
+
+		await connection.client.execute(
+			"CREATE TRIGGER fail_transfer_to BEFORE INSERT ON ledger_transaction WHEN NEW.transfer_side = 'to' BEGIN SELECT RAISE(ABORT, 'partial side failure'); END"
+		);
+		await assert.rejects(() =>
+			ledger.createTransfer(context, {
+				idempotencyKey: 'rollback-transfer',
+				fromAccountId: from.id,
+				toAccountId: to.id,
+				amountMinor: '300',
+				date: '2026-07-30'
+			})
+		);
+		assert.equal((await financial.db.select().from(ledgerTransfer)).length, 0);
+		assert.equal(
+			(await financial.db.select().from(ledgerTransaction)).length,
+			0,
+			'neither side is orphaned'
+		);
+		await connection.client.execute('DROP TRIGGER fail_transfer_to');
+
+		const transfer = await ledger.createTransfer(context, {
+			idempotencyKey: 'good-transfer',
+			fromAccountId: from.id,
+			toAccountId: to.id,
+			amountMinor: '300',
+			date: '2026-07-30'
+		});
+		assert.equal((await financial.db.select().from(ledgerTransaction)).length, 2);
+		assert.equal(
+			(await ledger.listTransactions(context, from.id)).length,
+			0,
+			'transfer sides are not manual transactions'
+		);
+		assert.deepEqual(
+			(await ledger.listTransfers(context, from.id)).map(({ id }) => id),
+			[transfer.id],
+			'an account reads one transfer aggregate'
+		);
+		let accounts = await ledger.listAccounts(context);
+		assert.equal(accounts.find((a) => a.id === from.id)?.balanceMinor, '700');
+		assert.equal(accounts.find((a) => a.id === to.id)?.balanceMinor, '400');
+		const duplicate = await ledger.createTransfer(context, {
+			idempotencyKey: 'good-transfer',
+			fromAccountId: from.id,
+			toAccountId: to.id,
+			amountMinor: '300',
+			date: '2026-07-30'
+		});
+		assert.equal(duplicate.id, transfer.id);
+		assert.equal((await financial.db.select().from(ledgerTransaction)).length, 2);
+		const [corruptSide] = await financial.db
+			.select()
+			.from(ledgerTransaction)
+			.where(eq(ledgerTransaction.transferId, transfer.id));
+		await financial.db
+			.update(ledgerTransaction)
+			.set({ description: 'corrupt' })
+			.where(eq(ledgerTransaction.id, corruptSide.id));
+		await assert.rejects(
+			() =>
+				ledger.updateTransfer(context, transfer.id, {
+					idempotencyKey: 'corrupt-update',
+					version: 1,
+					toAccountId: to.id,
+					amountMinor: '200',
+					date: '2026-07-30'
+				}),
+			/corrupt or incomplete/i
+		);
+		assert.equal(
+			(
+				await financial.db.select().from(ledgerTransfer).where(eq(ledgerTransfer.id, transfer.id))
+			)[0].amountMinor,
+			300n,
+			'corruption rolls back the aggregate edit'
+		);
+		await financial.db
+			.update(ledgerTransaction)
+			.set({ description: null })
+			.where(eq(ledgerTransaction.id, corruptSide.id));
+		await assert.rejects(
+			() =>
+				ledger.transferAction(context, transfer.id, 'trash', {
+					idempotencyKey: 'stale-transfer',
+					version: 9
+				}),
+			/stale/
+		);
+		const trashed = await ledger.transferAction(context, transfer.id, 'trash', {
+			idempotencyKey: 'trash-transfer',
+			version: 1
+		});
+		assert.equal((await ledger.listTransfers(context, from.id)).length, 0);
+		assert.equal(
+			(await ledger.listTransfers(context, from.id, true))[0].trashedAt instanceof Date,
+			true,
+			'trashed transfers can be reloaded for restore'
+		);
+		accounts = await ledger.listAccounts(context);
+		assert.equal(accounts.find((a) => a.id === from.id)?.balanceMinor, '1000');
+		assert.equal(accounts.find((a) => a.id === to.id)?.balanceMinor, '100');
+		await ledger.transferAction(context, transfer.id, 'restore', {
+			idempotencyKey: 'restore-transfer',
+			version: trashed.version
+		});
+
+		await ledger.createTransaction(context, from.id, {
+			idempotencyKey: 'later-expense',
+			kind: 'expense',
+			amountMinor: '50',
+			date: '2026-07-31'
+		});
+		const check = await ledger.createBalanceCheck(context, {
+			idempotencyKey: 'dated-check',
+			accountId: from.id,
+			date: '2026-07-30',
+			observedBalanceMinor: '750'
+		});
+		const sameDateCheck = await ledger.createBalanceCheck(context, {
+			idempotencyKey: 'same-date-check',
+			accountId: from.id,
+			date: '2026-07-30',
+			observedBalanceMinor: '760'
+		});
+		assert.equal(check.calculatedBalanceMinor, '700');
+		assert.equal(check.differenceMinor, '50', 'later activity is excluded');
+		const correction = await ledger.createBalanceCorrection(context, {
+			idempotencyKey: 'explicit-correction',
+			accountId: from.id,
+			date: '2026-07-30',
+			amountMinor: '50'
+		});
+		assert.deepEqual(
+			(await ledger.listBalanceCorrections(context, from.id)).map(({ id }) => id),
+			[correction.id]
+		);
+		assert.equal(
+			(await ledger.listAccounts(context)).find((a) => a.id === from.id)?.balanceMinor,
+			'700'
+		);
+		const listedChecks = await ledger.listBalanceChecks(context, from.id);
+		assert.equal(listedChecks.length, 2);
+		const recalculated = listedChecks.find(({ id }) => id === check.id)!;
+		const sameDateRecalculated = listedChecks.find(({ id }) => id === sameDateCheck.id)!;
+		assert.equal(recalculated.calculatedBalanceMinor, '750');
+		assert.equal(recalculated.differenceMinor, '0');
+		assert.equal(sameDateRecalculated.calculatedBalanceMinor, '750');
+		assert.equal(sameDateRecalculated.differenceMinor, '10');
+		await ledger.updateTransaction(
+			context,
+			(await ledger.listTransactions(context, from.id)).find((row) => row.source === 'manual')!.id,
+			{
+				idempotencyKey: 'edit-earlier',
+				version: 1,
+				kind: 'expense',
+				amountMinor: '25',
+				date: '2026-07-29'
+			}
+		);
+		assert.equal((await ledger.listBalanceChecks(context, from.id))[0].differenceMinor, '25');
+		assert.equal(
+			(
+				await financial.db
+					.select()
+					.from(ledgerBalanceCorrection)
+					.where(eq(ledgerBalanceCorrection.id, correction.id))
+			)[0].amountMinor,
+			'50',
+			'correction is never silently changed'
+		);
+		const boundaryAccount = await ledger.createAccount(context, {
+			idempotencyKey: 'boundary-account',
+			name: 'Boundary',
+			type: 'cash',
+			currency: 'EUR',
+			openingBalanceMinor: '-9223372036854775808'
+		});
+		const boundaryCheck = await ledger.createBalanceCheck(context, {
+			idempotencyKey: 'boundary-check',
+			accountId: boundaryAccount.id,
+			date: '2026-07-30',
+			observedBalanceMinor: '9223372036854775807'
+		});
+		assert.equal(boundaryCheck.differenceMinor, '18446744073709551615');
+		const boundaryCorrection = await ledger.createBalanceCorrection(context, {
+			idempotencyKey: 'boundary-correction',
+			accountId: boundaryAccount.id,
+			date: '2026-07-30',
+			amountMinor: '18446744073709551615'
+		});
+		assert.equal(boundaryCorrection.amountMinor, '18446744073709551615');
+		assert.equal(
+			(await ledger.listAccounts(context)).find((a) => a.id === boundaryAccount.id)?.balanceMinor,
+			'9223372036854775807'
+		);
+		await assert.rejects(
+			() =>
+				ledger.createBalanceCorrection(context, {
+					idempotencyKey: 'outside-wide-bound',
+					accountId: boundaryAccount.id,
+					date: '2026-07-30',
+					amountMinor: '18446744073709551616'
+				}),
+			/outside the balance difference range/i
+		);
+		await assert.rejects(
+			() =>
+				ledger.createBalanceCorrection(context, {
+					idempotencyKey: 'final-balance-overflow',
+					accountId: boundaryAccount.id,
+					date: '2026-07-30',
+					amountMinor: '1'
+				}),
+			/balance exceeds/i
+		);
+		assert.deepEqual(
+			(await ledger.listBalanceCorrections(context, boundaryAccount.id)).map(
+				(row) => row.amountMinor
+			),
+			['18446744073709551615'],
+			'overflowing correction rolls back'
+		);
+		assert.equal((await ledger.history(context, 'transfer', transfer.id)).length, 3);
+	} finally {
+		financial.client.close();
 		connection.client.close();
 		await rm(directory, { recursive: true, force: true });
 	}
