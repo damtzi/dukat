@@ -63,6 +63,10 @@
   let editingAccount: Account | null = null
   let editingTransaction: Transaction | null = null
   let pending = false
+  let authMode: 'sign-in' | 'sign-up' = 'sign-in'
+  let authError = ''
+  let authNotice = ''
+  let authForm = { name: '', email: '', password: '' }
   let accountIntentKey = ''
   let transactionIntentKey = ''
   let actionIntent: { name: string; key: string } | null = null
@@ -120,6 +124,47 @@
       message = (error as Error).message
       state = 'error'
     }
+  }
+  async function submitAuth(event: SubmitEvent) {
+    event.preventDefault()
+    if (pending) return
+    authError = ''
+    authNotice = ''
+    pending = true
+    try {
+      const response = await fetch(`/api/auth/${authMode}/email`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: authForm.email.trim(),
+          password: authForm.password,
+          ...(authMode === 'sign-up'
+            ? { name: authForm.name.trim(), callbackURL: '/' }
+            : {}),
+        }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok)
+        throw new Error(
+          body.message || `Authentication failed (${response.status}).`,
+        )
+      if (authMode === 'sign-up') {
+        authNotice = 'Check your email to verify your account, then sign in.'
+        authMode = 'sign-in'
+        authForm.password = ''
+      } else {
+        await load()
+      }
+    } catch (error) {
+      authError = (error as Error).message
+    } finally {
+      pending = false
+    }
+  }
+  function chooseAuthMode(mode: 'sign-in' | 'sign-up') {
+    authMode = mode
+    authError = ''
+    authNotice = ''
   }
   async function loadAccounts() {
     accounts = await api(`/workspaces/${workspaceId}/accounts`)
@@ -344,13 +389,75 @@
       >{/if}
   </header>
   {#if state === 'loading'}<p aria-live="polite">Loading your dashboard…</p>
-  {:else if state === 'unauthenticated'}<Card.Root class="max-w-lg"
+  {:else if state === 'unauthenticated'}<Card.Root class="max-w-md"
       ><Card.Header
-        ><Card.Title>Sign in required</Card.Title><Card.Description
-          >Your session has expired. Sign in to see your finances.</Card.Description
+        ><Card.Title
+          >{authMode === 'sign-in'
+            ? 'Sign in to Dukat'
+            : 'Create your account'}</Card.Title
+        ><Card.Description
+          >{authMode === 'sign-in'
+            ? 'Enter your email and password to see your finances.'
+            : 'Create an account to start managing your finances.'}</Card.Description
         ></Card.Header
-      ><Card.Footer
-        ><Button href="/api/auth/sign-in">Sign in</Button></Card.Footer
+      ><Card.Content
+        >{#if authError}<Alert.Root variant="destructive" class="mb-4"
+            ><Alert.Title>Could not continue</Alert.Title><Alert.Description
+              >{authError}</Alert.Description
+            ></Alert.Root
+          >{/if}{#if authNotice}<Alert.Root class="mb-4"
+            ><Alert.Title>Account created</Alert.Title><Alert.Description
+              >{authNotice}</Alert.Description
+            ></Alert.Root
+          >{/if}
+        <form class="space-y-4" onsubmit={submitAuth}>
+          {#if authMode === 'sign-up'}<div class="space-y-2">
+              <Label for="auth-name">Name</Label><Input
+                id="auth-name"
+                autocomplete="name"
+                bind:value={authForm.name}
+                required
+              />
+            </div>{/if}
+          <div class="space-y-2">
+            <Label for="auth-email">Email</Label><Input
+              id="auth-email"
+              type="email"
+              autocomplete="email"
+              bind:value={authForm.email}
+              required
+            />
+          </div>
+          <div class="space-y-2">
+            <Label for="auth-password">Password</Label><Input
+              id="auth-password"
+              type="password"
+              autocomplete={authMode === 'sign-in'
+                ? 'current-password'
+                : 'new-password'}
+              minlength={8}
+              bind:value={authForm.password}
+              required
+            />
+          </div>
+          <Button type="submit" class="w-full" disabled={pending}
+            >{pending
+              ? 'Please wait…'
+              : authMode === 'sign-in'
+                ? 'Sign in'
+                : 'Create account'}</Button
+          >
+        </form></Card.Content
+      ><Card.Footer class="justify-center text-sm"
+        >{#if authMode === 'sign-in'}<span>New to Dukat?</span><Button
+            variant="link"
+            class="px-2"
+            onclick={() => chooseAuthMode('sign-up')}>Create an account</Button
+          >{:else}<span>Already have an account?</span><Button
+            variant="link"
+            class="px-2"
+            onclick={() => chooseAuthMode('sign-in')}>Sign in</Button
+          >{/if}</Card.Footer
       ></Card.Root
     >
   {:else if state === 'error'}<Alert.Root variant="destructive"

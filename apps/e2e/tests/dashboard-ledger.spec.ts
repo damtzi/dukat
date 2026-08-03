@@ -216,6 +216,60 @@ async function submitDialog(page: Page) {
 	await page.getByRole('dialog').locator('form').dispatchEvent('submit');
 }
 
+test('creates an account and signs in from the dashboard', async ({ page }) => {
+	let authenticated = false;
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const { pathname } = new URL(request.url());
+		const body = request.postDataJSON?.();
+
+		if (pathname === '/api/workspaces') {
+			return authenticated
+				? json(route, [{ id: workspaceId, name: 'Personal', type: 'personal' }])
+				: json(route, { message: 'Unauthorized' }, 401);
+		}
+		if (pathname === '/api/auth/sign-up/email') {
+			expect(body).toEqual({
+				name: 'Ada Lovelace',
+				email: 'ada@example.com',
+				password: 'correct-horse-battery-staple',
+				callbackURL: '/'
+			});
+			return json(route, { user: { id: 'user-e2e' }, token: null });
+		}
+		if (pathname === '/api/auth/sign-in/email') {
+			expect(body).toEqual({
+				email: 'ada@example.com',
+				password: 'correct-horse-battery-staple'
+			});
+			authenticated = true;
+			return json(route, { user: { id: 'user-e2e' }, token: 'session-e2e' });
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
+
+		return json(
+			route,
+			{ message: `Unexpected mocked request: ${request.method()} ${pathname}` },
+			500
+		);
+	});
+
+	await page.goto('/');
+	await expect(page.getByText('Sign in to Dukat', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Create an account' }).click();
+	await page.getByLabel('Name').fill('Ada Lovelace');
+	await page.getByLabel('Email').fill('ada@example.com');
+	await page.getByLabel('Password').fill('correct-horse-battery-staple');
+	await page.getByRole('button', { name: 'Create account', exact: true }).click();
+	await expect(
+		page.getByText('Check your email to verify your account, then sign in.')
+	).toBeVisible();
+	await page.getByLabel('Password').fill('correct-horse-battery-staple');
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
+});
+
 test('completes the personal account and manual ledger workflow', async ({ page }) => {
 	await mockLedger(page);
 	await page.goto('/');
