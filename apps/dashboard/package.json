@@ -13,6 +13,7 @@
     "check": "prettier --write . && eslint --fix . && pnpm check-types"
   },
   "dependencies": {
+    "@dukat/core": "workspace:*",
     "@dukat/ui": "workspace:*"
   },
   "devDependencies": {
