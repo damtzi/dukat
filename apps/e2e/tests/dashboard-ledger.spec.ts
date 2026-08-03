@@ -278,7 +278,11 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await page.getByLabel('Name').fill('Everyday account');
 	await page.getByLabel('Type').selectOption('current');
-	await expect(page.getByLabel('Currency')).toHaveValue('USD');
+	await expect(page.getByLabel('Currency')).toContainText('USD');
+	await page.getByLabel('Currency').click();
+	const currencyOptions = page.getByRole('listbox').getByRole('option');
+	await expect(currencyOptions).toHaveCount(14);
+	await currencyOptions.filter({ hasText: 'USD — US dollar' }).click();
 	await page.getByLabel('Opening balance').fill('100.00');
 	await submitDialog(page);
 	await expect(page.getByText('Everyday account', { exact: true }).last()).toBeVisible();

@@ -10,6 +10,7 @@
     Dialog,
     Input,
     Label,
+    Select,
     Table,
     Textarea,
   } from '@dukat/ui'
@@ -48,6 +49,23 @@
     beforeJson: string | null
     afterJson: string | null
   }
+
+  const currencies = [
+    { code: 'PLN', name: 'Polish złoty' },
+    { code: 'EUR', name: 'Euro' },
+    { code: 'USD', name: 'US dollar' },
+    { code: 'GBP', name: 'British pound' },
+    { code: 'CHF', name: 'Swiss franc' },
+    { code: 'CZK', name: 'Czech koruna' },
+    { code: 'SEK', name: 'Swedish krona' },
+    { code: 'NOK', name: 'Norwegian krone' },
+    { code: 'DKK', name: 'Danish krone' },
+    { code: 'UAH', name: 'Ukrainian hryvnia' },
+    { code: 'JPY', name: 'Japanese yen' },
+    { code: 'CNY', name: 'Chinese yuan' },
+    { code: 'CAD', name: 'Canadian dollar' },
+    { code: 'AUD', name: 'Australian dollar' },
+  ] as const
 
   let state: 'loading' | 'ready' | 'unauthenticated' | 'error' = 'loading'
   let workspaces: Workspace[] = []
@@ -720,7 +738,7 @@
             >{accountError}</Alert.Description
           ></Alert.Root
         >{/if}
-      <div>
+      <div class="space-y-2">
         <Label for="account-name">Name</Label><Input
           id="account-name"
           required
@@ -728,7 +746,7 @@
           bind:value={accountForm.name}
         />
       </div>
-      <div>
+      <div class="space-y-2">
         <Label for="account-type">Type</Label><select
           id="account-type"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
@@ -738,17 +756,22 @@
           ><option value="cash">Cash</option></select
         >
       </div>
-      <div>
-        <Label for="currency">Currency</Label><Input
-          id="currency"
-          required
-          pattern="[A-Za-z]{3}"
-          maxlength={3}
-          disabled={!!editingAccount?.archivedAt}
+      <div class="space-y-2">
+        <Label for="currency">Currency</Label><Select.Root
+          type="single"
           bind:value={accountForm.currency}
-        />
+          disabled={!!editingAccount?.archivedAt}
+        >
+          <Select.Trigger id="currency" class="w-full"
+            ><span>{accountForm.currency}</span></Select.Trigger
+          ><Select.Content
+            >{#each currencies as currency}<Select.Item value={currency.code}
+                >{currency.code} — {currency.name}</Select.Item
+              >{/each}</Select.Content
+          >
+        </Select.Root>
       </div>
-      <div>
+      <div class="space-y-2">
         <Label for="opening">Opening balance</Label><Input
           id="opening"
           required
@@ -780,7 +803,7 @@
           ><Alert.Title>Could not save transaction</Alert.Title
           ><Alert.Description>{transactionError}</Alert.Description></Alert.Root
         >{/if}
-      <div>
+      <div class="space-y-2">
         <Label for="kind">Kind</Label><select
           id="kind"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
@@ -790,7 +813,7 @@
           ></select
         >
       </div>
-      <div>
+      <div class="space-y-2">
         <Label for="amount">Amount</Label><Input
           id="amount"
           required
@@ -798,7 +821,7 @@
           bind:value={transactionForm.amount}
         />
       </div>
-      <div>
+      <div class="space-y-2">
         <Label for="date">Date</Label><Input
           id="date"
           required
@@ -807,7 +830,7 @@
           bind:value={transactionForm.date}
         />
       </div>
-      <div>
+      <div class="space-y-2">
         <Label for="description">Description</Label><Textarea
           id="description"
           maxlength={500}
