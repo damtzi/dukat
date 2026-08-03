@@ -46,6 +46,28 @@ function createServices(): APIServices {
 			},
 			async updateTransaction() {},
 			async transactionAction() {},
+			async createTransfer(_context, input) {
+				return input;
+			},
+			async listTransfers() {
+				return [];
+			},
+			async updateTransfer() {},
+			async transferAction() {},
+			async createBalanceCheck(_context, input) {
+				return input;
+			},
+			async listBalanceChecks() {
+				return [];
+			},
+			async listBalanceCorrections() {
+				return [];
+			},
+			async updateBalanceCheck() {},
+			async createBalanceCorrection(_context, input) {
+				return input;
+			},
+			async reconciliationAction() {},
 			async history() {
 				return [];
 			}
@@ -199,6 +221,61 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 			((await transactionResponse.json()) as { balanceMinor: string }).balanceMinor,
 			'0'
 		);
+
+		const boundaryAccountResponse = await app.request(`/api/workspaces/${workspaceId}/accounts`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: 'Boundary cash',
+				type: 'cash',
+				currency: 'PLN',
+				openingBalanceMinor: '-9223372036854775808',
+				idempotencyKey: 'integration-boundary-account'
+			})
+		});
+		assert.equal(boundaryAccountResponse.status, 200);
+		const boundaryAccount = (await boundaryAccountResponse.json()) as { id: string };
+		const checkResponse = await app.request(`/api/workspaces/${workspaceId}/balance-checks`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				accountId: boundaryAccount.id,
+				date: '2026-07-30',
+				observedBalanceMinor: '9223372036854775807',
+				idempotencyKey: 'integration-boundary-check'
+			})
+		});
+		assert.equal(checkResponse.status, 200);
+		assert.equal(
+			((await checkResponse.json()) as { differenceMinor: string }).differenceMinor,
+			'18446744073709551615'
+		);
+		const correctionResponse = await app.request(`/api/workspaces/${workspaceId}/corrections`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				accountId: boundaryAccount.id,
+				date: '2026-07-30',
+				amountMinor: '18446744073709551615',
+				idempotencyKey: 'integration-boundary-correction'
+			})
+		});
+		assert.equal(correctionResponse.status, 200);
+		assert.equal(
+			((await correctionResponse.json()) as { amountMinor: string }).amountMinor,
+			'18446744073709551615'
+		);
+		const outsideResponse = await app.request(`/api/workspaces/${workspaceId}/corrections`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				accountId: boundaryAccount.id,
+				date: '2026-07-30',
+				amountMinor: '18446744073709551616',
+				idempotencyKey: 'integration-outside-correction'
+			})
+		});
+		assert.equal(outsideResponse.status, 400);
 	} finally {
 		financial.client.close();
 		connection.client.close();
