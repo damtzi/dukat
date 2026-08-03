@@ -119,4 +119,137 @@ export const ledgerRouter = router
 		success(c, () =>
 			c.var.services.ledger.history(context(c), 'account', c.req.valid('param').accountId)
 		)
+	)
+	.openapi(routes.createTransfer, (c) =>
+		success(c, () => c.var.services.ledger.createTransfer(context(c), c.req.valid('json')))
+	)
+	.openapi(routes.listTransfers, (c) =>
+		success(c, () =>
+			c.var.services.ledger.listTransfers(
+				context(c),
+				c.req.valid('param').accountId,
+				c.req.valid('query').includeTrashed === 'true'
+			)
+		)
+	)
+	.openapi(routes.updateTransfer, (c) =>
+		success(c, () =>
+			c.var.services.ledger.updateTransfer(
+				context(c),
+				c.req.valid('param').transferId,
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.transferAction('trash'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.transferAction(
+				context(c),
+				c.req.valid('param').transferId,
+				'trash',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.transferAction('restore'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.transferAction(
+				context(c),
+				c.req.valid('param').transferId,
+				'restore',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.transferHistory, (c) =>
+		success(c, () =>
+			c.var.services.ledger.history(context(c), 'transfer', c.req.valid('param').transferId)
+		)
+	)
+	.openapi(routes.createBalanceCheck, (c) =>
+		success(c, () => c.var.services.ledger.createBalanceCheck(context(c), c.req.valid('json')))
+	)
+	.openapi(routes.listBalanceChecks, (c) =>
+		success(c, () =>
+			c.var.services.ledger.listBalanceChecks(
+				context(c),
+				c.req.valid('param').accountId,
+				c.req.valid('query').includeTrashed === 'true'
+			)
+		)
+	)
+	.openapi(routes.listCorrections, (c) =>
+		success(c, () =>
+			c.var.services.ledger.listBalanceCorrections(
+				context(c),
+				c.req.valid('param').accountId,
+				c.req.valid('query').includeTrashed === 'true'
+			)
+		)
+	)
+	.openapi(routes.updateBalanceCheck, (c) =>
+		success(c, () =>
+			c.var.services.ledger.updateBalanceCheck(
+				context(c),
+				c.req.valid('param').entityId,
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.createCorrection, (c) =>
+		success(c, () => c.var.services.ledger.createBalanceCorrection(context(c), c.req.valid('json')))
+	)
+	.openapi(routes.reconciliationAction('balance-checks', 'trash'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.reconciliationAction(
+				context(c),
+				'balance_check',
+				c.req.valid('param').entityId,
+				'trash',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.reconciliationAction('balance-checks', 'restore'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.reconciliationAction(
+				context(c),
+				'balance_check',
+				c.req.valid('param').entityId,
+				'restore',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.reconciliationAction('corrections', 'trash'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.reconciliationAction(
+				context(c),
+				'correction',
+				c.req.valid('param').entityId,
+				'trash',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.reconciliationAction('corrections', 'restore'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.reconciliationAction(
+				context(c),
+				'correction',
+				c.req.valid('param').entityId,
+				'restore',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.reconciliationHistory('balance-checks'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.history(context(c), 'balance_check', c.req.valid('param').entityId)
+		)
+	)
+	.openapi(routes.reconciliationHistory('corrections'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.history(context(c), 'correction', c.req.valid('param').entityId)
+		)
 	);

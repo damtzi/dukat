@@ -1,8 +1,13 @@
 import type {
 	CreateAccount,
+	CreateBalanceCheck,
+	CreateBalanceCorrection,
+	CreateTransfer,
 	CreateTransaction,
 	UpdateAccount,
 	UpdateTransaction,
+	UpdateTransfer,
+	UpdateBalanceCheck,
 	VersionedMutation
 } from '@dukat/core/ledger';
 
@@ -65,9 +70,59 @@ export interface LedgerService {
 		action: 'trash' | 'restore',
 		input: VersionedMutation
 	): Promise<unknown>;
+	createTransfer(
+		context: { userId: string; workspaceId: string },
+		input: CreateTransfer
+	): Promise<unknown>;
+	listTransfers(
+		context: { userId: string; workspaceId: string },
+		accountId: string,
+		includeTrashed?: boolean
+	): Promise<unknown>;
+	updateTransfer(
+		context: { userId: string; workspaceId: string },
+		transferId: string,
+		input: UpdateTransfer
+	): Promise<unknown>;
+	transferAction(
+		context: { userId: string; workspaceId: string },
+		transferId: string,
+		action: 'trash' | 'restore',
+		input: VersionedMutation
+	): Promise<unknown>;
+	createBalanceCheck(
+		context: { userId: string; workspaceId: string },
+		input: CreateBalanceCheck
+	): Promise<unknown>;
+	listBalanceChecks(
+		context: { userId: string; workspaceId: string },
+		accountId: string,
+		includeTrashed?: boolean
+	): Promise<unknown>;
+	listBalanceCorrections(
+		context: { userId: string; workspaceId: string },
+		accountId: string,
+		includeTrashed?: boolean
+	): Promise<unknown>;
+	updateBalanceCheck(
+		context: { userId: string; workspaceId: string },
+		checkId: string,
+		input: UpdateBalanceCheck
+	): Promise<unknown>;
+	createBalanceCorrection(
+		context: { userId: string; workspaceId: string },
+		input: CreateBalanceCorrection
+	): Promise<unknown>;
+	reconciliationAction(
+		context: { userId: string; workspaceId: string },
+		entityType: 'balance_check' | 'correction',
+		entityId: string,
+		action: 'trash' | 'restore',
+		input: VersionedMutation
+	): Promise<unknown>;
 	history(
 		context: { userId: string; workspaceId: string },
-		entityType: 'account' | 'transaction',
+		entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction',
 		entityId: string
 	): Promise<unknown>;
 }

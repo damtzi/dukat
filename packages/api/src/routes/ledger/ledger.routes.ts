@@ -1,11 +1,21 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import {
+	accountSchema,
+	balanceCheckSchema,
 	createAccountSchema,
+	createBalanceCheckSchema,
+	createBalanceCorrectionSchema,
+	createTransferSchema,
 	createTransactionSchema,
+	correctionSchema,
+	historyEntrySchema,
 	minorUnitsSchema,
-	positiveMinorUnitsSchema,
+	transactionSchema,
+	transferSchema,
 	updateAccountSchema,
+	updateBalanceCheckSchema,
 	updateTransactionSchema,
+	updateTransferSchema,
 	versionedMutationSchema
 } from '@dukat/core/ledger';
 import { jsonContent } from '../../openapi/helpers';
@@ -14,54 +24,12 @@ const id = z.string().min(1);
 const params = z.object({ workspaceId: id });
 const accountParams = params.extend({ accountId: id });
 const transactionParams = params.extend({ transactionId: id });
-const nullableDate = z.string().nullable();
-const accountSchema = z.object({
-	id: z.string(),
-	workspaceId: z.string(),
-	name: z.string(),
-	type: z.enum(['current', 'savings', 'cash']),
-	currency: z.string(),
-	openingBalanceMinor: minorUnitsSchema,
-	version: z.number().int(),
-	activityStartedAt: nullableDate,
-	archivedAt: nullableDate,
-	createdAt: z.string(),
-	updatedAt: z.string(),
-	balanceMinor: minorUnitsSchema,
-	negativeBalance: z.boolean(),
-	canDelete: z.boolean(),
-	canArchive: z.boolean(),
-	canRestore: z.boolean()
-});
-const transactionSchema = z.object({
-	id: z.string(),
-	workspaceId: z.string(),
-	accountId: z.string(),
-	kind: z.enum(['income', 'expense']),
-	amountMinor: positiveMinorUnitsSchema,
-	date: z.string(),
-	description: z.string().nullable(),
-	source: z.literal('manual'),
-	version: z.number().int(),
-	trashedAt: nullableDate,
-	createdAt: z.string(),
-	updatedAt: z.string()
-});
+const transferParams = params.extend({ transferId: id });
+const reconciliationParams = params.extend({ entityId: id });
 const transactionMutationSchema = z.object({
 	transaction: transactionSchema,
 	balanceMinor: minorUnitsSchema,
 	negativeBalance: z.boolean()
-});
-const auditSchema = z.object({
-	id: z.string(),
-	workspaceId: z.string(),
-	actorUserId: z.string(),
-	entityType: z.enum(['transaction', 'account']),
-	entityId: z.string(),
-	action: z.string(),
-	beforeJson: z.string().nullable(),
-	afterJson: z.string().nullable(),
-	createdAt: z.string()
 });
 const messageSchema = z.object({ message: z.string() });
 const responses = (schema: z.ZodType, description: string) => ({
@@ -144,12 +112,120 @@ export const transactionHistory = createRoute({
 	method: 'get',
 	path: '/workspaces/{workspaceId}/transactions/{transactionId}/history',
 	request: { params: transactionParams },
-	responses: responses(z.array(auditSchema), 'Transaction history')
+	responses: responses(z.array(historyEntrySchema), 'Transaction history')
 });
 export const accountHistory = createRoute({
 	...common(),
 	method: 'get',
 	path: '/workspaces/{workspaceId}/accounts/{accountId}/history',
 	request: { params: accountParams },
-	responses: responses(z.array(auditSchema), 'Account history')
+	responses: responses(z.array(historyEntrySchema), 'Account history')
 });
+export const listTransfers = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/accounts/{accountId}/transfers',
+	request: {
+		params: accountParams,
+		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
+	},
+	responses: responses(z.array(transferSchema), 'Transfers')
+});
+export const createTransfer = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/transfers',
+	request: { params, body: jsonContent(createTransferSchema, 'Transfer') },
+	responses: responses(transferSchema, 'Created transfer')
+});
+export const updateTransfer = createRoute({
+	...common(),
+	method: 'put',
+	path: '/workspaces/{workspaceId}/transfers/{transferId}',
+	request: { params: transferParams, body: jsonContent(updateTransferSchema, 'Transfer') },
+	responses: responses(transferSchema, 'Updated transfer')
+});
+export const transferAction = <A extends 'trash' | 'restore'>(action: A) =>
+	createRoute({
+		...common(),
+		method: 'post',
+		path: `/workspaces/{workspaceId}/transfers/{transferId}/${action}` as `/workspaces/{workspaceId}/transfers/{transferId}/${A}`,
+		request: { params: transferParams, body: jsonContent(versionedMutationSchema, action) },
+		responses: responses(transferSchema, `${action} transfer`)
+	});
+export const transferHistory = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/transfers/{transferId}/history',
+	request: { params: transferParams },
+	responses: responses(z.array(historyEntrySchema), 'Transfer history')
+});
+export const createBalanceCheck = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/balance-checks',
+	request: { params, body: jsonContent(createBalanceCheckSchema, 'Balance check') },
+	responses: responses(balanceCheckSchema, 'Created balance check')
+});
+export const listBalanceChecks = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/accounts/{accountId}/balance-checks',
+	request: {
+		params: accountParams,
+		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
+	},
+	responses: responses(z.array(balanceCheckSchema), 'Balance checks')
+});
+export const updateBalanceCheck = createRoute({
+	...common(),
+	method: 'put',
+	path: '/workspaces/{workspaceId}/balance-checks/{entityId}',
+	request: {
+		params: reconciliationParams,
+		body: jsonContent(updateBalanceCheckSchema, 'Balance check')
+	},
+	responses: responses(balanceCheckSchema, 'Updated balance check')
+});
+export const listCorrections = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/accounts/{accountId}/corrections',
+	request: {
+		params: accountParams,
+		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
+	},
+	responses: responses(z.array(correctionSchema), 'Corrections')
+});
+export const createCorrection = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/corrections',
+	request: { params, body: jsonContent(createBalanceCorrectionSchema, 'Correction') },
+	responses: responses(correctionSchema, 'Created correction')
+});
+export const reconciliationAction = <
+	E extends 'balance-checks' | 'corrections',
+	A extends 'trash' | 'restore'
+>(
+	entity: E,
+	action: A
+) =>
+	createRoute({
+		...common(),
+		method: 'post',
+		path: `/workspaces/{workspaceId}/${entity}/{entityId}/${action}` as `/workspaces/{workspaceId}/${E}/{entityId}/${A}`,
+		request: { params: reconciliationParams, body: jsonContent(versionedMutationSchema, action) },
+		responses: responses(
+			entity === 'balance-checks' ? balanceCheckSchema : correctionSchema,
+			`${action} reconciliation`
+		)
+	});
+export const reconciliationHistory = <E extends 'balance-checks' | 'corrections'>(entity: E) =>
+	createRoute({
+		...common(),
+		method: 'get',
+		path: `/workspaces/{workspaceId}/${entity}/{entityId}/history` as `/workspaces/{workspaceId}/${E}/{entityId}/history`,
+		request: { params: reconciliationParams },
+		responses: responses(z.array(historyEntrySchema), 'Reconciliation history')
+	});
