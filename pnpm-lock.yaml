@@ -135,6 +135,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@dukat/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@dukat/ui':
         specifier: workspace:*
         version: link:../../packages/ui
