@@ -23,6 +23,14 @@ type Transaction = {
 const workspaceId = 'workspace-e2e';
 const accountId = 'account-e2e';
 const key = expect.stringMatching(/^\d+-[0-9a-f-]{36}$/);
+const personalWorkspace = {
+	id: workspaceId,
+	name: 'Personal',
+	type: 'personal' as const,
+	reportingCurrency: 'USD',
+	version: 1,
+	role: null
+};
 
 function json(route: Route, body: unknown, status = 200) {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -61,7 +69,7 @@ async function mockLedger(page: Page) {
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
 		}
 		if (pathname === '/api/workspaces' && method === 'GET') {
-			return json(route, [{ id: workspaceId, name: 'Personal', type: 'personal' }]);
+			return json(route, [personalWorkspace]);
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
 			return json(route, account ? [accountResponse()] : []);
@@ -244,7 +252,7 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 		}
 		if (pathname === '/api/workspaces') {
 			return authenticated
-				? json(route, [{ id: workspaceId, name: 'Personal', type: 'personal' }])
+				? json(route, [personalWorkspace])
 				: json(route, { message: 'Unauthorized' }, 401);
 		}
 		if (pathname === '/api/auth/sign-up/email') {
@@ -307,20 +315,142 @@ test('protects dashboard and routes authenticated users from root', async ({ pag
 	await expect(page).toHaveURL('/dashboard');
 });
 
+test('creates and selects a household workspace', async ({ page }) => {
+	const householdId = 'household-e2e';
+	const household = {
+		id: householdId,
+		name: 'Lovelace household',
+		type: 'household',
+		reportingCurrency: 'EUR',
+		version: 1,
+		role: 'owner'
+	};
+	let created = false;
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		const method = request.method();
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces' && method === 'GET')
+			return json(route, created ? [personalWorkspace, household] : [personalWorkspace]);
+		if (path === '/api/workspaces' && method === 'POST') {
+			expect(request.postDataJSON()).toEqual({
+				name: 'Lovelace household',
+				reportingCurrency: 'EUR'
+			});
+			created = true;
+			return json(route, household, 201);
+		}
+		if (path.endsWith('/accounts')) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/members`)
+			return json(route, [
+				{ userId: 'user-e2e', name: 'Ada', email: 'ada@example.com', role: 'owner' }
+			]);
+		if (path === `/api/workspaces/${householdId}/invitations`) return json(route, []);
+		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
+	});
+
+	await page.goto('/dashboard');
+	const creation = page
+		.getByText('Create a household', { exact: true })
+		.locator('..')
+		.locator('..');
+	await creation.getByLabel('Name', { exact: true }).fill('Lovelace household');
+	await creation.getByLabel('Reporting currency', { exact: true }).fill('eur');
+	await creation.getByRole('button', { name: 'Create household', exact: true }).click();
+	const selector = page.getByLabel('Workspace', { exact: true });
+	await expect(selector).toHaveValue(householdId);
+	await expect(selector.locator('option:checked')).toHaveText('Lovelace household — Household');
+	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
+});
+
+test('renders a private incoming cross-workspace transfer without management controls', async ({
+	page
+}) => {
+	const householdId = 'household-transfer-e2e';
+	const householdAccountId = 'household-account-e2e';
+	const privateIdentity = 'Ada secret checking';
+	const account = {
+		id: householdAccountId,
+		name: 'Shared current account',
+		type: 'current',
+		currency: 'USD',
+		openingBalanceMinor: '0',
+		balanceMinor: '2500',
+		negativeBalance: false,
+		version: 1,
+		archivedAt: null,
+		canDelete: false,
+		canArchive: false,
+		canRestore: false
+	};
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces')
+			return json(route, [
+				personalWorkspace,
+				{
+					id: householdId,
+					name: 'Shared home',
+					type: 'household',
+					reportingCurrency: 'USD',
+					version: 1,
+					role: 'member'
+				}
+			]);
+		if (path === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/accounts`) return json(route, [account]);
+		if (path === `/api/workspaces/${householdId}/members`) return json(route, []);
+		if (path.endsWith('/transactions')) return json(route, []);
+		if (path.endsWith('/transfers'))
+			return json(route, [
+				{
+					id: 'private-transfer-e2e',
+					amountMinor: '2500',
+					date: '2026-08-04',
+					description: 'Personal contribution',
+					counterparty: { visibility: 'private', name: privateIdentity },
+					localSide: 'to',
+					canManage: false,
+					detachedAt: null,
+					version: 1,
+					trashedAt: null
+				}
+			]);
+		if (path.endsWith('/balance-checks') || path.endsWith('/corrections')) return json(route, []);
+		return json(route, { message: `Unexpected mocked request: ${request.method()} ${path}` }, 500);
+	});
+
+	await page.goto('/dashboard');
+	await page.getByLabel('Workspace', { exact: true }).selectOption(householdId);
+	const transfer = page
+		.getByText('Incoming transfer', { exact: true })
+		.locator('xpath=ancestor::*[@data-slot="card"][1]');
+	await expect(transfer).toContainText('Private personal account');
+	await expect(transfer).toContainText('+$25.00');
+	await expect(transfer.getByRole('button', { name: /^(Edit|Trash|Restore)$/ })).toHaveCount(0);
+	await expect(page.getByText(privateIdentity, { exact: false })).toHaveCount(0);
+});
+
 test('completes the personal account and manual ledger workflow', async ({ page }) => {
 	await mockLedger(page);
 	await page.goto('/dashboard');
 
 	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Create account' }).click();
-	await page.getByLabel('Name').fill('Everyday account');
-	await page.getByLabel('Type').selectOption('current');
-	await expect(page.getByLabel('Currency')).toContainText('USD');
-	await page.getByLabel('Currency').click();
+	const accountDialog = page.getByRole('dialog');
+	await accountDialog.getByLabel('Name', { exact: true }).fill('Everyday account');
+	await accountDialog.getByLabel('Type', { exact: true }).selectOption('current');
+	await expect(accountDialog.getByLabel('Currency', { exact: true })).toContainText('USD');
+	await accountDialog.getByLabel('Currency', { exact: true }).click();
 	const currencyOptions = page.getByRole('listbox').getByRole('option');
 	await expect(currencyOptions).toHaveCount(14);
 	await currencyOptions.filter({ hasText: 'USD — US dollar' }).click();
-	await page.getByLabel('Opening balance').fill('100.00');
+	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
 	await expect(page.getByText('Everyday account', { exact: true }).last()).toBeVisible();
 	await expect(page.getByText('$100.00', { exact: true }).last()).toBeVisible();
@@ -364,8 +494,8 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(page.getByText('$5.00', { exact: true }).last()).toBeVisible();
 
 	await page.getByRole('button', { name: 'Edit account' }).click();
-	await page.getByLabel('Name').fill('Household account');
-	await page.getByLabel('Type').selectOption('savings');
+	await accountDialog.getByLabel('Name', { exact: true }).fill('Household account');
+	await accountDialog.getByLabel('Type', { exact: true }).selectOption('savings');
 	await submitDialog(page);
 	await expect(page.getByText('Household account', { exact: true }).last()).toBeVisible();
 
@@ -382,8 +512,8 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(page.getByRole('button', { name: 'Trash' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeHidden();
 	await page.getByRole('button', { name: 'Edit account' }).click();
-	await expect(page.getByLabel('Currency')).toBeDisabled();
-	await expect(page.getByLabel('Opening balance')).toBeDisabled();
+	await expect(accountDialog.getByLabel('Currency', { exact: true })).toBeDisabled();
+	await expect(accountDialog.getByLabel('Opening balance', { exact: true })).toBeDisabled();
 	await page.getByRole('button', { name: 'Close' }).click();
 	await page.getByRole('button', { name: 'Restore account' }).click();
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeVisible();
@@ -442,8 +572,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 		const body = request.postDataJSON?.() as Record<string, unknown>;
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
-		if (path === '/api/workspaces')
-			return json(route, [{ id: workspaceId, name: 'Personal', type: 'personal' }]);
+		if (path === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (path === `/api/workspaces/${workspaceId}/accounts`)
 			return json(route, accounts.map(accountResponse));
 		if (method === 'GET' && path.endsWith('/transactions')) return json(route, transactions);
@@ -458,7 +587,18 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 				description: 'Move to savings',
 				idempotencyKey: key
 			});
-			transfers.push({ id: 'transfer-e2e', ...body, version: 1, trashedAt: null });
+			transfers.push({
+				id: 'transfer-e2e',
+				amountMinor: body.amountMinor,
+				date: body.date,
+				description: body.description,
+				localSide: 'from',
+				counterparty: { visibility: 'full', accountId: 'savings', name: 'Savings' },
+				canManage: true,
+				detachedAt: null,
+				version: 1,
+				trashedAt: null
+			});
 			return json(route, transfers[0]);
 		}
 		if (method === 'POST' && path.endsWith('/accounts/checking/transactions')) {

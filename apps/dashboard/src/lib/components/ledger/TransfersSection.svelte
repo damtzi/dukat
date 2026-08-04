@@ -6,7 +6,6 @@
   let {
     account,
     transfers,
-    accounts,
     pending,
     canCreate,
     onnew,
@@ -16,7 +15,6 @@
   }: {
     account: Account
     transfers: Transfer[]
-    accounts: Account[]
     pending: boolean
     canCreate: boolean
     onnew: () => void
@@ -24,8 +22,12 @@
     onaction: (item: Transfer, action: 'trash' | 'restore') => void
     onhistory: (item: Transfer) => void
   } = $props()
-  const accountName = (id: string) =>
-    accounts.find((item) => item.id === id)?.name ?? 'Unknown account'
+  const counterpartyName = (item: Transfer) =>
+    item.counterparty.visibility === 'full'
+      ? item.counterparty.name
+      : item.counterparty.visibility === 'private'
+        ? 'Private personal account'
+        : 'Deleted account'
 </script>
 
 <div class="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
@@ -45,7 +47,7 @@
     ></Card.Root
   >{:else}<div class="space-y-3">
     {#each transfers as item}{@const outgoing =
-        item.fromAccountId === account.id}<Card.Root
+        item.localSide === 'from'}<Card.Root
         class={item.trashedAt ? 'opacity-60' : ''}
         ><Card.Content
           class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center"
@@ -55,7 +57,7 @@
             >
             <p>
               {outgoing ? 'To' : 'From'}
-              {accountName(outgoing ? item.toAccountId : item.fromAccountId)} · {item.date}
+              {counterpartyName(item)} · {item.date}
             </p>
             <p class="text-sm text-muted-foreground">
               {item.description || 'No note'}
@@ -70,7 +72,7 @@
           <div class="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onclick={() => onhistory(item)}
               >History</Button
-            >{#if !account.archivedAt}{#if item.trashedAt}<Button
+            >{#if !account.archivedAt && item.canManage && !item.detachedAt}{#if item.trashedAt}<Button
                   size="sm"
                   variant="outline"
                   disabled={pending}

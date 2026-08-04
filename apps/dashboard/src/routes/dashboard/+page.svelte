@@ -1,5 +1,5 @@
 <script lang="ts">
-  /* global crypto, fetch, confirm, RequestInit, SubmitEvent */
+  /* global crypto, fetch, confirm, RequestInit, SubmitEvent, location */
   /* eslint-disable svelte/require-each-key */
   import { onMount } from 'svelte'
   import type {
@@ -10,7 +10,7 @@
     Transaction,
     Transfer,
   } from '@dukat/core/ledger'
-  import { Alert, Button, Card, Label } from '@dukat/ui'
+  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
   import { minorToDecimal, parseAmount } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import AccountNavigation from '$lib/components/ledger/AccountNavigation.svelte'
@@ -23,8 +23,17 @@
   import TransferDialog from '$lib/components/ledger/TransferDialog.svelte'
   import BalanceCheckDialog from '$lib/components/ledger/BalanceCheckDialog.svelte'
   import HistoryDialog from '$lib/components/ledger/HistoryDialog.svelte'
+  import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
 
-  type Workspace = { id: string; name: string; type: string }
+  type Workspace = {
+    id: string
+    name: string
+    type: 'personal' | 'household'
+    reportingCurrency: string | null
+    version: number
+    role: 'owner' | 'member' | null
+  }
+  type PickerAccount = Account & { workspaceId: string; workspaceLabel: string }
 
   const currencies = [
     { code: 'PLN', name: 'Polish złoty' },
@@ -47,6 +56,13 @@
   let workspaces: Workspace[] = []
   let workspaceId = ''
   let accounts: Account[] = []
+  let pickerAccounts: PickerAccount[] = []
+  let recoverable: Workspace[] = []
+  let householdName = ''
+  let householdCurrency = 'USD'
+  let accountPassword = ''
+  let accountConfirmation = false
+  let deletionBlockers: { id: string; name: string }[] | null = null
   let selectedId = ''
   let transactions: Transaction[] = []
   let transfers: Transfer[] = []
@@ -116,16 +132,16 @@
     }
     return response.status === 204 ? null : response.json()
   }
-  async function load() {
+  async function load(preferredId = workspaceId) {
     state = 'loading'
     message = ''
     try {
       const response = await fetch('/api/workspaces')
       if (!response.ok) throw new Error('Could not load your workspaces.')
-      workspaces = ((await response.json()) as Workspace[]).filter(
-        (workspace) => workspace.type === 'personal',
-      )
-      workspaceId = workspaces[0]?.id ?? ''
+      workspaces = (await response.json()) as Workspace[]
+      workspaceId = workspaces.some(({ id }) => id === preferredId)
+        ? preferredId
+        : (workspaces[0]?.id ?? '')
       if (workspaceId) await loadAccounts()
       state = 'ready'
     } catch (error) {
@@ -139,6 +155,83 @@
       selectedId =
         accounts.find((a) => !a.archivedAt)?.id ?? accounts[0]?.id ?? ''
     await loadLedger()
+  }
+  async function loadPickerAccounts() {
+    pickerAccounts = (
+      await Promise.all(
+        workspaces.map(async (workspace) =>
+          (
+            (await api(`/workspaces/${workspace.id}/accounts`)) as Account[]
+          ).map((account) => ({
+            ...account,
+            workspaceId: workspace.id,
+            workspaceLabel: `${workspace.name} (${workspace.type === 'household' ? 'Household' : 'Personal'})`,
+          })),
+        ),
+      )
+    ).flat()
+  }
+  async function createHousehold(event: SubmitEvent) {
+    event.preventDefault()
+    message = ''
+    try {
+      const created = await api('/workspaces', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: householdName.trim(),
+          reportingCurrency: householdCurrency.toUpperCase(),
+        }),
+      })
+      householdName = ''
+      workspaces = [...workspaces, created]
+      workspaceId = created.id
+      await loadAccounts()
+    } catch (error) {
+      message = (error as Error).message
+    }
+  }
+  async function loadRecoverable() {
+    try {
+      recoverable = await api('/workspaces/recoverable')
+    } catch (error) {
+      message = (error as Error).message
+    }
+  }
+  async function restoreWorkspace(workspace: Workspace) {
+    try {
+      await api(`/workspaces/${workspace.id}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({ version: workspace.version }),
+      })
+      await load(workspace.id)
+      await loadRecoverable()
+    } catch (error) {
+      message = (error as Error).message
+    }
+  }
+  async function checkDeletion() {
+    try {
+      deletionBlockers = (await api('/account/deletion-preflight'))
+        .blockingHouseholds
+    } catch (error) {
+      message = (error as Error).message
+    }
+  }
+  async function deleteAccount(event: SubmitEvent) {
+    event.preventDefault()
+    if (!accountConfirmation) return
+    try {
+      await api('/account/delete', {
+        method: 'POST',
+        body: JSON.stringify({
+          password: accountPassword,
+          confirmation: 'DELETE',
+        }),
+      })
+      location.href = '/sign-in'
+    } catch (error) {
+      message = (error as Error).message
+    }
   }
   async function loadLedger() {
     if (!selectedId) {
@@ -319,17 +412,19 @@
     }
   }
   const transferDestinations = (sourceId: string) => {
-    const source = accounts.find((account) => account.id === sourceId)
-    return accounts.filter(
-      (account) =>
-        !account.archivedAt &&
-        account.id !== sourceId &&
-        account.currency === source?.currency,
+    return pickerAccounts.filter(
+      (account) => !account.archivedAt && account.id !== sourceId,
     )
   }
-  function newTransfer() {
+  async function newTransfer() {
     const source = selected()
     if (!source || feeIntent) return
+    try {
+      await loadPickerAccounts()
+    } catch (error) {
+      message = (error as Error).message
+      return
+    }
     editingTransfer = null
     transferIntentKey = key()
     transferForm = {
@@ -343,12 +438,28 @@
     }
     transferOpen = true
   }
-  function editTransfer(item: Transfer) {
+  async function editTransfer(item: Transfer) {
+    try {
+      await loadPickerAccounts()
+    } catch (error) {
+      message = (error as Error).message
+      return
+    }
     editingTransfer = item
     transferIntentKey = key()
     transferForm = {
-      fromAccountId: item.fromAccountId,
-      toAccountId: item.toAccountId,
+      fromAccountId:
+        item.localSide === 'from'
+          ? item.accountId
+          : item.counterparty.visibility === 'full'
+            ? item.counterparty.accountId
+            : '',
+      toAccountId:
+        item.localSide === 'to'
+          ? item.accountId
+          : item.counterparty.visibility === 'full'
+            ? item.counterparty.accountId
+            : '',
       amount: minorToDecimal(item.amountMinor, selected()!.currency),
       date: item.date,
       description: item.description ?? '',
@@ -359,10 +470,10 @@
   }
   async function saveTransfer(event: SubmitEvent) {
     event.preventDefault()
-    const source = accounts.find(
+    const source = pickerAccounts.find(
       (item) => item.id === transferForm.fromAccountId,
     )
-    const destination = accounts.find(
+    const destination = pickerAccounts.find(
       (item) => item.id === transferForm.toAccountId,
     )
     if (!source || !destination || pending) return
@@ -370,13 +481,8 @@
     pending = true
     let transferAcknowledged = false
     try {
-      if (
-        source.id === destination.id ||
-        source.currency !== destination.currency
-      )
-        throw new Error(
-          'Choose a different destination with the same currency.',
-        )
+      if (source.id === destination.id)
+        throw new Error('Choose a different destination.')
       if (transferForm.date > todayInWarsaw())
         throw new Error('Date cannot be in the future.')
       const body = {
@@ -619,7 +725,8 @@
   {:else if state === 'error'}<Alert.Root variant="destructive"
       ><Alert.Title>Dashboard unavailable</Alert.Title><Alert.Description
         >{message}</Alert.Description
-      ><Button class="mt-3" variant="outline" onclick={load}>Try again</Button
+      ><Button class="mt-3" variant="outline" onclick={() => load()}
+        >Try again</Button
       ></Alert.Root
     >
   {:else}
@@ -646,10 +753,93 @@
             >{/if}
         </div></Alert.Root
       >{/if}
+    <Card.Root class="mb-6"
+      ><Card.Header
+        ><Card.Title>Create a household</Card.Title><Card.Description
+          >Share a workspace with household members.</Card.Description
+        ></Card.Header
+      ><Card.Content
+        ><form
+          class="flex flex-wrap items-end gap-3"
+          onsubmit={createHousehold}
+        >
+          <div>
+            <Label for="new-household-name">Name</Label><Input
+              id="new-household-name"
+              bind:value={householdName}
+              required
+            />
+          </div>
+          <div>
+            <Label for="new-household-currency">Reporting currency</Label><Input
+              id="new-household-currency"
+              bind:value={householdCurrency}
+              minlength={3}
+              maxlength={3}
+              pattern={'[A-Za-z]{3}'}
+              required
+            />
+          </div>
+          <Button type="submit">Create household</Button>
+        </form></Card.Content
+      ></Card.Root
+    >
+    <div class="mb-6 flex flex-wrap gap-2">
+      <Button variant="outline" onclick={loadRecoverable}
+        >Recover deleted households</Button
+      ><Button variant="outline" onclick={checkDeletion}
+        >Account deletion settings</Button
+      >
+    </div>
+    {#if recoverable.length > 0}<Card.Root class="mb-6"
+        ><Card.Header><Card.Title>Deleted households</Card.Title></Card.Header
+        ><Card.Content
+          >{#each recoverable as workspace}<div
+              class="flex items-center justify-between border-b py-2"
+            >
+              <span>{workspace.name}</span><Button
+                variant="outline"
+                onclick={() => restoreWorkspace(workspace)}>Restore</Button
+              >
+            </div>{/each}</Card.Content
+        ></Card.Root
+      >{/if}
+    {#if deletionBlockers !== null}<Card.Root class="mb-6"
+        ><Card.Header
+          ><Card.Title>Delete your account</Card.Title><Card.Description
+            >This is permanent. Sole-member households are permanently deleted
+            with your account.</Card.Description
+          ></Card.Header
+        ><Card.Content
+          >{#if deletionBlockers.length > 0}<Alert.Root variant="destructive"
+              ><Alert.Title>Transfer ownership first</Alert.Title
+              ><Alert.Description
+                >You are the sole owner of: {deletionBlockers
+                  .map(({ name }) => name)
+                  .join(', ')}.</Alert.Description
+              ></Alert.Root
+            >{:else}<form class="space-y-3" onsubmit={deleteAccount}>
+              <Label for="account-password">Current password</Label><Input
+                id="account-password"
+                type="password"
+                autocomplete="current-password"
+                bind:value={accountPassword}
+                required
+              /><label class="flex gap-2"
+                ><input type="checkbox" bind:checked={accountConfirmation} /> I understand
+                my account and sole-member households will be permanently deleted.</label
+              ><Button
+                type="submit"
+                variant="destructive"
+                disabled={!accountConfirmation}>Delete my account</Button
+              >
+            </form>{/if}</Card.Content
+        ></Card.Root
+      >{/if}
     {#if workspaces.length === 0}<Card.Root
         ><Card.Header
-          ><Card.Title>No personal workspace</Card.Title><Card.Description
-            >A personal workspace is required to manage your accounts.</Card.Description
+          ><Card.Title>No workspace</Card.Title><Card.Description
+            >Create a household to begin.</Card.Description
           ></Card.Header
         ></Card.Root
       >
@@ -661,10 +851,17 @@
           bind:value={workspaceId}
           onchange={loadAccounts}
           >{#each workspaces as workspace}<option value={workspace.id}
-              >{workspace.name}</option
+              >{workspace.name} — {workspace.type === 'household'
+                ? 'Household'
+                : 'Personal'}</option
             >{/each}</select
         >
       </div>
+      {#if workspaces.find(({ id }) => id === workspaceId)?.type === 'household'}{@const activeWorkspace =
+          workspaces.find(({ id }) => id === workspaceId)!}<WorkspaceSettings
+          workspace={activeWorkspace}
+          onchanged={() => load(activeWorkspace.id)}
+        />{/if}
       {#if accounts.length === 0}<Card.Root
           ><Card.Header
             ><Card.Title>No accounts</Card.Title><Card.Description
@@ -702,11 +899,9 @@
               />
               <TransfersSection
                 {account}
-                {accounts}
                 {transfers}
                 {pending}
-                canCreate={transferDestinations(account.id).length > 0 &&
-                  !feeIntent}
+                canCreate={!feeIntent}
                 onnew={newTransfer}
                 onedit={editTransfer}
                 onaction={(item, action) =>
@@ -765,7 +960,7 @@
   {editingTransfer}
   error={transactionError}
   {pending}
-  {accounts}
+  accounts={pickerAccounts}
   {transferDestinations}
   onsubmit={saveTransfer}
 />
