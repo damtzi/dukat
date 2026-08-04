@@ -21,9 +21,10 @@ function createServices(): APIServices {
 			api: {
 				async getSession({ headers }) {
 					return headers.get('authorization') === 'Session test'
-						? { user: { id: 'user-1' } }
+						? { user: { id: 'user-1', email: 'user@example.com', emailVerified: true } }
 						: null;
-				}
+				},
+				async verifyPassword() {}
 			}
 		},
 		async readiness() {},
@@ -79,7 +80,7 @@ function createServices(): APIServices {
 			async findAuthorized() {
 				return undefined;
 			}
-		}
+		} as unknown as APIServices['workspaces']
 	};
 }
 
@@ -184,7 +185,9 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 		);
 		const workspaceId = String(workspaces.rows[0].id);
 		const services = createServices();
-		services.auth.api.getSession = async () => ({ user: { id: 'integration-owner' } });
+		services.auth.api.getSession = async () => ({
+			user: { id: 'integration-owner', email: 'owner@example.com', emailVerified: true }
+		});
 		services.ledger = createLedgerRepository(financial.db);
 		const app = createAPI(services);
 

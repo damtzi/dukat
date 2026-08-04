@@ -127,6 +127,14 @@ export async function assertDatabaseIntegrity(client: Client) {
 	if (invalidPersonalWorkspaceCounts.rows.length > 0) {
 		throw new Error('Personal workspace ownership check failed');
 	}
+	const invalidTransfers = await client.execute(`
+		SELECT t.id FROM ledger_transfer t
+		LEFT JOIN ledger_transaction l ON l.transfer_id = t.id AND l.source = 'transfer'
+		GROUP BY t.id
+		HAVING (t.detached_at IS NULL AND (COUNT(l.id) != 2 OR COUNT(DISTINCT l.transfer_side) != 2 OR MIN(l.amount_minor) != MAX(l.amount_minor)))
+			OR (t.detached_at IS NOT NULL AND COUNT(l.id) != 1)
+	`);
+	if (invalidTransfers.rows.length > 0) throw new Error('Transfer canonical shape check failed');
 }
 
 export async function backupDatabase(

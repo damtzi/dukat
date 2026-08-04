@@ -29,6 +29,20 @@
 			"when": 1785758002578,
 			"tag": "0003_watery_ricochet",
 			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1785844672301,
+			"tag": "0004_past_loners",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1785846918422,
+			"tag": "0005_regular_nova",
+			"breakpoints": true
 		}
 	]
 }

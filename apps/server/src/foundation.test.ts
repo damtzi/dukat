@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createAPI } from '@dukat/api';
 import { createAuth } from '@dukat/auth/create-auth';
-import type { TransactionalEmail } from '@dukat/auth/email';
+import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/email';
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
 import { backupDatabase, restoreDatabase } from '@dukat/db/recovery';
 import { session, user } from '@dukat/db/schema/auth';
@@ -337,4 +337,30 @@ test('dashboard directory uses the server package as its development base', () =
 		() => resolveDashboardDirectory('../dashboard/build', { production: true }),
 		/DASHBOARD_DIRECTORY must be absolute/
 	);
+});
+
+test('Resend delivery uses a stable idempotency header without leaking it into the payload', async () => {
+	const originalFetch = globalThis.fetch;
+	let request: Request | undefined;
+	globalThis.fetch = async (input, init) => {
+		request = new Request(input, init);
+		return new Response('{}', { status: 200 });
+	};
+	try {
+		await createResendEmailSender('test-key', 'Dukat <test@example.com>').send({
+			to: 'member@example.com',
+			subject: 'Invitation',
+			text: 'Join',
+			idempotencyKey: 'dukat-invitation/outbox-1'
+		});
+		assert.equal(request?.headers.get('idempotency-key'), 'dukat-invitation/outbox-1');
+		assert.deepEqual(await request?.json(), {
+			from: 'Dukat <test@example.com>',
+			to: 'member@example.com',
+			subject: 'Invitation',
+			text: 'Join'
+		});
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });
