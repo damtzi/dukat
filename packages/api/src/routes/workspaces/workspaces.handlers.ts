@@ -110,11 +110,10 @@ export const remove: AppRouteHandler<typeof Routes.remove> = async (c) => {
 };
 export const recoverable: AppRouteHandler<typeof Routes.recoverable> = async (c) =>
 	c.json(await c.var.services.workspaces.listRecoverable(c.var.userId), 200);
-export const restore: AppRouteHandler<typeof Routes.restore> = async (c) =>
-	c.json(
-		await c.var.services.workspaces.restoreHousehold(context(c), c.req.valid('json').version),
-		200
-	);
+export const restore: AppRouteHandler<typeof Routes.restore> = async (c) => {
+	await c.var.services.workspaces.restoreHousehold(context(c), c.req.valid('json').version);
+	return c.json({ restored: true }, 200);
+};
 export const deletionPreflight: AppRouteHandler<typeof Routes.deletionPreflight> = async (c) =>
 	c.json(
 		{ blockingHouseholds: await c.var.services.workspaces.accountDeletionPreflight(c.var.userId) },

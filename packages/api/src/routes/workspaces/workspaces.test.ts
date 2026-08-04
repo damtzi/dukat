@@ -167,6 +167,32 @@ test('delete confirmation precedes password verification and strips password fro
 	assert.deepEqual(deleted, { version: 1, idempotencyKey: 'key' });
 });
 
+test('restore returns JSON when the repository operation has no return value', async () => {
+	let restored: unknown;
+	const client = testClient(
+		createAPI(
+			createServices({
+				workspace: {
+					async restoreHousehold(context, version) {
+						restored = { context, version };
+					}
+				}
+			})
+		)
+	);
+	const response = await client.api.workspaces[':workspaceId'].restore.$post(
+		{ param: { workspaceId: 'workspace-1' }, json: { version: 2 } },
+		{ headers: { authorization: 'Session test' } }
+	);
+
+	assert.equal(response.status, 200);
+	assert.deepEqual(await response.json(), { restored: true });
+	assert.deepEqual(restored, {
+		context: { userId: 'user-1', workspaceId: 'workspace-1' },
+		version: 2
+	});
+});
+
 test('account deletion requires server confirmation and deletes only after password verification', async () => {
 	let verified = 0,
 		deletedUserId: string | undefined;
