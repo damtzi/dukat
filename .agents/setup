@@ -83,4 +83,7 @@ fi
 echo "Installing workspace dependencies..."
 pnpm install --frozen-lockfile
 
+echo "Installing Playwright Chromium..."
+pnpm exec playwright install chromium
+
 echo "Orb setup complete: $(node --version), pnpm $(pnpm --version)"

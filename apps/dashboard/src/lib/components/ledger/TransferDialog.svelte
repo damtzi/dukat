@@ -60,7 +60,9 @@
             (form.toAccountId =
               transferDestinations(form.fromAccountId)[0]?.id ?? '')}
           >{#each accounts.filter((item) => !item.archivedAt) as item}<option
-              value={item.id}>{item.name} ({item.currency})</option
+              value={item.id}
+              >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
+                — {item.workspaceLabel}{/if}</option
             >{/each}</select
         >
       </div>
@@ -71,12 +73,14 @@
           bind:value={form.toAccountId}
           required
           >{#each transferDestinations(form.fromAccountId) as item}<option
-              value={item.id}>{item.name} ({item.currency})</option
+              value={item.id}
+              >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
+                — {item.workspaceLabel}{/if}</option
             >{/each}</select
         >{#if transferDestinations(form.fromAccountId).length === 0}<p
             class="text-sm text-destructive"
           >
-            No active same-currency destination is available.
+            No active destination is available.
           </p>{/if}
       </div>
       <div class="space-y-2">
