@@ -2,6 +2,7 @@ export interface TransactionalEmail {
 	to: string;
 	subject: string;
 	text: string;
+	idempotencyKey?: string;
 }
 
 export interface TransactionalEmailSender {
@@ -26,13 +27,15 @@ export const authEmailMessages = {
 export function createResendEmailSender(apiKey: string, from: string): TransactionalEmailSender {
 	return {
 		async send(message) {
+			const { idempotencyKey, ...payload } = message;
 			const response = await fetch('https://api.resend.com/emails', {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${apiKey}`,
-					'Content-Type': 'application/json'
+					'Content-Type': 'application/json',
+					...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
 				},
-				body: JSON.stringify({ from, ...message })
+				body: JSON.stringify({ from, ...payload })
 			});
 
 			if (!response.ok) {

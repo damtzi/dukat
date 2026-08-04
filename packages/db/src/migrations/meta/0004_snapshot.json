@@ -1,0 +1,1686 @@
+{
+	"version": "6",
+	"dialect": "sqlite",
+	"id": "30e91e33-50f4-47aa-ac3b-e3c90629169c",
+	"prevId": "39ec930f-9c30-4918-bacc-4df830c98e0e",
+	"tables": {
+		"account": {
+			"name": "account",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"provider_id": {
+					"name": "provider_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"access_token": {
+					"name": "access_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"refresh_token": {
+					"name": "refresh_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"id_token": {
+					"name": "id_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"access_token_expires_at": {
+					"name": "access_token_expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"refresh_token_expires_at": {
+					"name": "refresh_token_expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"scope": {
+					"name": "scope",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"password": {
+					"name": "password",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"account_userId_idx": {
+					"name": "account_userId_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"account_user_id_user_id_fk": {
+					"name": "account_user_id_user_id_fk",
+					"tableFrom": "account",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"session": {
+			"name": "session",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"token": {
+					"name": "token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"ip_address": {
+					"name": "ip_address",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"user_agent": {
+					"name": "user_agent",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"session_token_unique": {
+					"name": "session_token_unique",
+					"columns": ["token"],
+					"isUnique": true
+				},
+				"session_userId_idx": {
+					"name": "session_userId_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"session_user_id_user_id_fk": {
+					"name": "session_user_id_user_id_fk",
+					"tableFrom": "session",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"user": {
+			"name": "user",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email_verified": {
+					"name": "email_verified",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": false
+				},
+				"image": {
+					"name": "image",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"user_email_unique": {
+					"name": "user_email_unique",
+					"columns": ["email"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"verification": {
+			"name": "verification",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"identifier": {
+					"name": "identifier",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"value": {
+					"name": "value",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"verification_identifier_idx": {
+					"name": "verification_identifier_idx",
+					"columns": ["identifier"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"financial_account": {
+			"name": "financial_account",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"opening_balance_minor": {
+					"name": "opening_balance_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"activity_started_at": {
+					"name": "activity_started_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"financial_account_workspace_idx": {
+					"name": "financial_account_workspace_idx",
+					"columns": ["workspace_id"],
+					"isUnique": false
+				},
+				"financial_account_workspace_id_unique": {
+					"name": "financial_account_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"financial_account_workspace_id_workspace_id_fk": {
+					"name": "financial_account_workspace_id_workspace_id_fk",
+					"tableFrom": "financial_account",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"financial_account_type_check": {
+					"name": "financial_account_type_check",
+					"value": "\"financial_account\".\"type\" IN ('current', 'savings', 'cash')"
+				},
+				"financial_account_opening_int64_check": {
+					"name": "financial_account_opening_int64_check",
+					"value": "\"financial_account\".\"opening_balance_minor\" BETWEEN -9223372036854775808 AND 9223372036854775807"
+				},
+				"financial_account_version_check": {
+					"name": "financial_account_version_check",
+					"value": "\"financial_account\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_audit": {
+			"name": "ledger_audit",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"actor_display": {
+					"name": "actor_display",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"entity_type": {
+					"name": "entity_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"entity_id": {
+					"name": "entity_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"before_json": {
+					"name": "before_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"after_json": {
+					"name": "after_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_audit_entity_idx": {
+					"name": "ledger_audit_entity_idx",
+					"columns": ["workspace_id", "entity_type", "entity_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"ledger_audit_workspace_id_workspace_id_fk": {
+					"name": "ledger_audit_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_audit",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_audit_actor_user_id_user_id_fk": {
+					"name": "ledger_audit_actor_user_id_user_id_fk",
+					"tableFrom": "ledger_audit",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"ledger_balance_check": {
+			"name": "ledger_balance_check",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"observed_balance_minor": {
+					"name": "observed_balance_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ledger_balance_check_workspace_id_workspace_id_fk": {
+					"name": "ledger_balance_check_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_balance_check",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_balance_check_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_balance_check_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_balance_check",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_balance_check_version_check": {
+					"name": "ledger_balance_check_version_check",
+					"value": "\"ledger_balance_check\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_balance_correction": {
+			"name": "ledger_balance_correction",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ledger_balance_correction_workspace_id_workspace_id_fk": {
+					"name": "ledger_balance_correction_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_balance_correction",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_balance_correction_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_balance_correction_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_balance_correction",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_balance_correction_amount_check": {
+					"name": "ledger_balance_correction_amount_check",
+					"value": "\"ledger_balance_correction\".\"amount_minor\" <> '0' AND ((\"ledger_balance_correction\".\"amount_minor\" NOT GLOB '*[^0-9]*' AND substr(\"ledger_balance_correction\".\"amount_minor\", 1, 1) BETWEEN '1' AND '9') OR (substr(\"ledger_balance_correction\".\"amount_minor\", 1, 1) = '-' AND substr(\"ledger_balance_correction\".\"amount_minor\", 2) NOT GLOB '*[^0-9]*' AND substr(\"ledger_balance_correction\".\"amount_minor\", 2, 1) BETWEEN '1' AND '9'))"
+				},
+				"ledger_balance_correction_version_check": {
+					"name": "ledger_balance_correction_version_check",
+					"value": "\"ledger_balance_correction\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_transaction": {
+			"name": "ledger_transaction",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'manual'"
+				},
+				"transfer_id": {
+					"name": "transfer_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"transfer_side": {
+					"name": "transfer_side",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_transaction_account_idx": {
+					"name": "ledger_transaction_account_idx",
+					"columns": ["account_id"],
+					"isUnique": false
+				},
+				"ledger_transaction_trash_idx": {
+					"name": "ledger_transaction_trash_idx",
+					"columns": ["trashed_at"],
+					"isUnique": false
+				},
+				"ledger_transaction_transfer_side_unique": {
+					"name": "ledger_transaction_transfer_side_unique",
+					"columns": ["workspace_id", "transfer_id", "transfer_side"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"ledger_transaction_workspace_id_workspace_id_fk": {
+					"name": "ledger_transaction_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_transaction_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_workspace_transfer_fk": {
+					"name": "ledger_transaction_workspace_transfer_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "ledger_transfer",
+					"columnsFrom": ["workspace_id", "transfer_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_transaction_kind_check": {
+					"name": "ledger_transaction_kind_check",
+					"value": "\"ledger_transaction\".\"kind\" IN ('income', 'expense')"
+				},
+				"ledger_transaction_amount_check": {
+					"name": "ledger_transaction_amount_check",
+					"value": "\"ledger_transaction\".\"amount_minor\" > 0"
+				},
+				"ledger_transaction_amount_int64_check": {
+					"name": "ledger_transaction_amount_int64_check",
+					"value": "\"ledger_transaction\".\"amount_minor\" <= 9223372036854775807"
+				},
+				"ledger_transaction_date_check": {
+					"name": "ledger_transaction_date_check",
+					"value": "\"ledger_transaction\".\"date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+				},
+				"ledger_transaction_version_check": {
+					"name": "ledger_transaction_version_check",
+					"value": "\"ledger_transaction\".\"version\" > 0"
+				},
+				"ledger_transaction_transfer_check": {
+					"name": "ledger_transaction_transfer_check",
+					"value": "(\"ledger_transaction\".\"source\" = 'manual' AND \"ledger_transaction\".\"transfer_id\" IS NULL AND \"ledger_transaction\".\"transfer_side\" IS NULL) OR (\"ledger_transaction\".\"source\" = 'transfer' AND \"ledger_transaction\".\"transfer_id\" IS NOT NULL AND ((\"ledger_transaction\".\"transfer_side\" = 'from' AND \"ledger_transaction\".\"kind\" = 'expense') OR (\"ledger_transaction\".\"transfer_side\" = 'to' AND \"ledger_transaction\".\"kind\" = 'income')))"
+				}
+			}
+		},
+		"ledger_transfer": {
+			"name": "ledger_transfer",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"from_account_id": {
+					"name": "from_account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"to_account_id": {
+					"name": "to_account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_transfer_workspace_id_unique": {
+					"name": "ledger_transfer_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"ledger_transfer_workspace_id_workspace_id_fk": {
+					"name": "ledger_transfer_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_transfer",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_transfer_workspace_id_from_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_transfer_workspace_id_from_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_transfer",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "from_account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transfer_workspace_id_to_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_transfer_workspace_id_to_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_transfer",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "to_account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_transfer_accounts_check": {
+					"name": "ledger_transfer_accounts_check",
+					"value": "\"ledger_transfer\".\"from_account_id\" <> \"ledger_transfer\".\"to_account_id\""
+				},
+				"ledger_transfer_amount_check": {
+					"name": "ledger_transfer_amount_check",
+					"value": "\"ledger_transfer\".\"amount_minor\" > 0"
+				},
+				"ledger_transfer_version_check": {
+					"name": "ledger_transfer_version_check",
+					"value": "\"ledger_transfer\".\"version\" > 0"
+				}
+			}
+		},
+		"mutation_receipt": {
+			"name": "mutation_receipt",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"operation": {
+					"name": "operation",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"idempotency_key": {
+					"name": "idempotency_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"request_json": {
+					"name": "request_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"response_json": {
+					"name": "response_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"mutation_receipt_scope_unique": {
+					"name": "mutation_receipt_scope_unique",
+					"columns": ["workspace_id", "actor_user_id", "operation", "idempotency_key"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"mutation_receipt_workspace_id_workspace_id_fk": {
+					"name": "mutation_receipt_workspace_id_workspace_id_fk",
+					"tableFrom": "mutation_receipt",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"mutation_receipt_actor_user_id_user_id_fk": {
+					"name": "mutation_receipt_actor_user_id_user_id_fk",
+					"tableFrom": "mutation_receipt",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"email_outbox": {
+			"name": "email_outbox",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"invitation_id": {
+					"name": "invitation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"to": {
+					"name": "to",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"body": {
+					"name": "body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"attempts": {
+					"name": "attempts",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"next_attempt_at": {
+					"name": "next_attempt_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"sent_at": {
+					"name": "sent_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"email_outbox_delivery_idx": {
+					"name": "email_outbox_delivery_idx",
+					"columns": ["sent_at", "next_attempt_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"email_outbox_invitation_id_workspace_invitation_id_fk": {
+					"name": "email_outbox_invitation_id_workspace_invitation_id_fk",
+					"tableFrom": "email_outbox",
+					"tableTo": "workspace_invitation",
+					"columnsFrom": ["invitation_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace": {
+			"name": "workspace",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"personal_owner_user_id": {
+					"name": "personal_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"reporting_currency": {
+					"name": "reporting_currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_personal_owner_unique": {
+					"name": "workspace_personal_owner_unique",
+					"columns": ["personal_owner_user_id"],
+					"isUnique": true
+				},
+				"workspace_deleted_at_idx": {
+					"name": "workspace_deleted_at_idx",
+					"columns": ["deleted_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_personal_owner_user_id_user_id_fk": {
+					"name": "workspace_personal_owner_user_id_user_id_fk",
+					"tableFrom": "workspace",
+					"tableTo": "user",
+					"columnsFrom": ["personal_owner_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"workspace_version_check": {
+					"name": "workspace_version_check",
+					"value": "\"workspace\".\"version\" > 0"
+				},
+				"workspace_personal_owner_check": {
+					"name": "workspace_personal_owner_check",
+					"value": "(\"workspace\".\"type\" = 'personal' AND \"workspace\".\"personal_owner_user_id\" IS NOT NULL) OR (\"workspace\".\"type\" = 'household' AND \"workspace\".\"personal_owner_user_id\" IS NULL)"
+				}
+			}
+		},
+		"workspace_audit": {
+			"name": "workspace_audit",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"target_user_id": {
+					"name": "target_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"details_json": {
+					"name": "details_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_audit_workspace_idx": {
+					"name": "workspace_audit_workspace_idx",
+					"columns": ["workspace_id", "created_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_audit_workspace_id_workspace_id_fk": {
+					"name": "workspace_audit_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_audit",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace_invitation": {
+			"name": "workspace_invitation",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email_normalized": {
+					"name": "email_normalized",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"token_hash": {
+					"name": "token_hash",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"inviter_user_id": {
+					"name": "inviter_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"generation": {
+					"name": "generation",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"resends_invitation_id": {
+					"name": "resends_invitation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"accepted_at": {
+					"name": "accepted_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"accepted_by_user_id": {
+					"name": "accepted_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"revoked_at": {
+					"name": "revoked_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_invitation_token_unique": {
+					"name": "workspace_invitation_token_unique",
+					"columns": ["token_hash"],
+					"isUnique": true
+				},
+				"workspace_invitation_workspace_idx": {
+					"name": "workspace_invitation_workspace_idx",
+					"columns": ["workspace_id"],
+					"isUnique": false
+				},
+				"workspace_invitation_email_idx": {
+					"name": "workspace_invitation_email_idx",
+					"columns": ["email_normalized"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_invitation_workspace_id_workspace_id_fk": {
+					"name": "workspace_invitation_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"workspace_invitation_inviter_user_id_user_id_fk": {
+					"name": "workspace_invitation_inviter_user_id_user_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "user",
+					"columnsFrom": ["inviter_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"workspace_invitation_accepted_by_user_id_user_id_fk": {
+					"name": "workspace_invitation_accepted_by_user_id_user_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "user",
+					"columnsFrom": ["accepted_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace_membership": {
+			"name": "workspace_membership",
+			"columns": {
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"role": {
+					"name": "role",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_membership_workspace_user_unique": {
+					"name": "workspace_membership_workspace_user_unique",
+					"columns": ["workspace_id", "user_id"],
+					"isUnique": true
+				},
+				"workspace_membership_user_idx": {
+					"name": "workspace_membership_user_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_membership_workspace_id_workspace_id_fk": {
+					"name": "workspace_membership_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_membership",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"workspace_membership_user_id_user_id_fk": {
+					"name": "workspace_membership_user_id_user_id_fk",
+					"tableFrom": "workspace_membership",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		}
+	},
+	"views": {},
+	"enums": {},
+	"_meta": {
+		"schemas": {},
+		"tables": {},
+		"columns": {}
+	},
+	"internal": {
+		"indexes": {}
+	}
+}

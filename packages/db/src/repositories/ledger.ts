@@ -9,7 +9,8 @@ import {
 	ledgerTransfer,
 	ledgerTransaction,
 	mutationReceipt,
-	workspace
+	workspace,
+	workspaceMembership
 } from '../schema';
 
 export type LedgerErrorCode = 'not_found' | 'conflict' | 'invalid';
@@ -127,10 +128,6 @@ const publicTransaction = (row: typeof ledgerTransaction.$inferSelect) => ({
 	...row,
 	amountMinor: row.amountMinor.toString()
 });
-const publicTransfer = (row: typeof ledgerTransfer.$inferSelect) => ({
-	...row,
-	amountMinor: row.amountMinor.toString()
-});
 const publicCorrection = (row: typeof ledgerBalanceCorrection.$inferSelect) => ({
 	...row,
 	amountMinor: row.amountMinor
@@ -214,36 +211,101 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			.select()
 			.from(ledgerTransaction)
 			.where(
-				and(
-					eq(ledgerTransaction.workspaceId, transfer.workspaceId),
-					eq(ledgerTransaction.transferId, transfer.id)
-				)
+				and(eq(ledgerTransaction.source, 'transfer'), eq(ledgerTransaction.transferId, transfer.id))
 			);
 		const from = sides.find((side) => side.transferSide === 'from');
 		const to = sides.find((side) => side.transferSide === 'to');
-		const matches = (
-			side: typeof ledgerTransaction.$inferSelect,
-			accountId: string,
-			kind: string
-		) =>
+		const matches = (side: typeof ledgerTransaction.$inferSelect, kind: string) =>
 			side.source === 'transfer' &&
-			side.accountId === accountId &&
 			side.kind === kind &&
-			side.amountMinor === transfer.amountMinor &&
 			side.date === transfer.date &&
 			side.description === transfer.description &&
 			side.version === transfer.version &&
 			Number(side.trashedAt) === Number(transfer.trashedAt);
+		if (transfer.detachedAt) {
+			if (
+				sides.length !== 1 ||
+				!matches(sides[0], sides[0].transferSide === 'from' ? 'expense' : 'income')
+			)
+				throw new LedgerError('conflict', 'Detached transfer is corrupt');
+			return { from, to };
+		}
 		if (
 			!from ||
 			!to ||
 			sides.length !== 2 ||
-			!matches(from, transfer.fromAccountId, 'expense') ||
-			!matches(to, transfer.toAccountId, 'income')
+			from.amountMinor !== to.amountMinor ||
+			!matches(from, 'expense') ||
+			!matches(to, 'income')
 		)
 			throw new LedgerError('conflict', 'Transfer sides are corrupt or incomplete');
 		return { from, to };
 	}
+	async function canAccess(tx: Transaction, userId: string, workspaceId: string) {
+		try {
+			await authorizedPersonal(tx, { userId, workspaceId });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+	async function transferView(
+		tx: Transaction,
+		context: Context,
+		transfer: typeof ledgerTransfer.$inferSelect,
+		localAccountId?: string
+	) {
+		const sides = await canonicalTransferSides(tx, transfer);
+		const local = [sides.from, sides.to].find((side) =>
+			localAccountId
+				? side?.workspaceId === context.workspaceId && side.accountId === localAccountId
+				: side?.workspaceId === context.workspaceId
+		);
+		if (!local) throw new LedgerError('not_found', 'Transfer not found');
+		const publicTransfer = {
+			...transfer,
+			trashedAt: transfer.trashedAt?.toISOString() ?? null,
+			detachedAt: transfer.detachedAt?.toISOString() ?? null,
+			createdAt: transfer.createdAt.toISOString(),
+			updatedAt: transfer.updatedAt.toISOString()
+		};
+		const counterpart = local.transferSide === 'from' ? sides.to : sides.from;
+		if (!counterpart)
+			return {
+				...publicTransfer,
+				localSide: local.transferSide!,
+				accountId: local.accountId,
+				amountMinor: local.amountMinor.toString(),
+				canManage: false,
+				counterparty: { visibility: 'deleted' as const }
+			};
+		const full = await canAccess(tx, context.userId, counterpart.workspaceId);
+		const [account] = full
+			? await tx
+					.select()
+					.from(financialAccount)
+					.where(eq(financialAccount.id, counterpart.accountId))
+					.limit(1)
+			: [];
+		return {
+			...publicTransfer,
+			localSide: local.transferSide!,
+			accountId: local.accountId,
+			amountMinor: local.amountMinor.toString(),
+			canManage: full,
+			counterparty:
+				full && account
+					? {
+							visibility: 'full' as const,
+							workspaceId: counterpart.workspaceId,
+							accountId: counterpart.accountId,
+							name: account.name
+						}
+					: { visibility: 'private' as const }
+		};
+	}
+	// Despite the historical name, this is the common financial authorization boundary.
+	// Household members and owners deliberately have identical ledger rights.
 	async function authorizedPersonal(
 		tx: Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0],
 		context: Context
@@ -254,8 +316,20 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			.where(
 				and(
 					eq(workspace.id, context.workspaceId),
-					eq(workspace.type, 'personal'),
-					eq(workspace.personalOwnerUserId, context.userId)
+					isNull(workspace.deletedAt),
+					or(
+						and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, context.userId)),
+						and(
+							eq(workspace.type, 'household'),
+							inArray(
+								workspace.id,
+								tx
+									.select({ id: workspaceMembership.workspaceId })
+									.from(workspaceMembership)
+									.where(eq(workspaceMembership.userId, context.userId))
+							)
+						)
+					)
 				)
 			)
 			.limit(1);
@@ -305,6 +379,30 @@ export function createLedgerRepository(database: FinancialDatabase) {
 		});
 		return result;
 	}
+	async function transferIdempotent(
+		tx: Transaction,
+		context: Context,
+		operation: string,
+		key: string,
+		request: unknown,
+		mutation: () => Promise<string>
+	) {
+		const transferId = await idempotent(tx, context, operation, key, request, mutation);
+		const [transfer] = await tx
+			.select()
+			.from(ledgerTransfer)
+			.where(eq(ledgerTransfer.id, transferId));
+		if (!transfer) throw new LedgerError('not_found', 'Transfer not found');
+		const { from, to } = await canonicalTransferSides(tx, transfer);
+		if (!from || !to || ![from.workspaceId, to.workspaceId].includes(context.workspaceId))
+			throw new LedgerError('not_found', 'Transfer not found');
+		if (
+			!(await canAccess(tx, context.userId, from.workspaceId)) ||
+			!(await canAccess(tx, context.userId, to.workspaceId))
+		)
+			throw new LedgerError('not_found', 'Transfer not found');
+		return transferView(tx, context, transfer);
+	}
 	async function audit(
 		tx: Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0],
 		context: Context,
@@ -318,6 +416,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			id: crypto.randomUUID(),
 			workspaceId: context.workspaceId,
 			actorUserId: context.userId,
+			actorDisplay: context.userId,
 			entityType,
 			entityId,
 			action,
@@ -528,36 +627,50 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			});
 		},
 		async listTransactions(context: Context, accountId: string, includeTrashed = false) {
-			await database.transaction((tx) => authorizedPersonal(tx, context));
-			const rows = await database
-				.select()
-				.from(ledgerTransaction)
-				.where(
-					and(
-						eq(ledgerTransaction.workspaceId, context.workspaceId),
-						eq(ledgerTransaction.accountId, accountId),
-						eq(ledgerTransaction.source, 'manual'),
-						includeTrashed ? undefined : isNull(ledgerTransaction.trashedAt)
-					)
-				);
-			return rows.map(publicTransaction);
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const rows = await tx
+					.select()
+					.from(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.workspaceId, context.workspaceId),
+							eq(ledgerTransaction.accountId, accountId),
+							eq(ledgerTransaction.source, 'manual'),
+							includeTrashed ? undefined : isNull(ledgerTransaction.trashedAt)
+						)
+					);
+				return rows.map(publicTransaction);
+			});
 		},
 		async listTransfers(context: Context, accountId: string, includeTrashed = false) {
-			await database.transaction((tx) => authorizedPersonal(tx, context));
-			const rows = await database
-				.select()
-				.from(ledgerTransfer)
-				.where(
-					and(
-						eq(ledgerTransfer.workspaceId, context.workspaceId),
-						or(
-							eq(ledgerTransfer.fromAccountId, accountId),
-							eq(ledgerTransfer.toAccountId, accountId)
-						),
-						includeTrashed ? undefined : isNull(ledgerTransfer.trashedAt)
-					)
-				);
-			return rows.map(publicTransfer);
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const local = await tx
+					.select({ transferId: ledgerTransaction.transferId })
+					.from(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.workspaceId, context.workspaceId),
+							eq(ledgerTransaction.accountId, accountId),
+							eq(ledgerTransaction.source, 'transfer')
+						)
+					);
+				if (!local.length) return [];
+				const rows = await tx
+					.select()
+					.from(ledgerTransfer)
+					.where(
+						and(
+							inArray(
+								ledgerTransfer.id,
+								local.map((row) => row.transferId!)
+							),
+							includeTrashed ? undefined : isNull(ledgerTransfer.trashedAt)
+						)
+					);
+				return Promise.all(rows.map((row) => transferView(tx, context, row, accountId)));
+			});
 		},
 		async createTransaction(context: Context, accountId: string, input: CreateTransaction) {
 			return database.transaction(async (tx) => {
@@ -627,79 +740,100 @@ export function createLedgerRepository(database: FinancialDatabase) {
 		async createTransfer(context: Context, input: CreateTransfer) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
-				return idempotent(tx, context, 'transfer.create', input.idempotencyKey, input, async () => {
-					if (input.fromAccountId === input.toAccountId)
-						throw new LedgerError('invalid', 'Transfer accounts must be different');
-					const accounts = await tx
-						.select()
-						.from(financialAccount)
-						.where(and(eq(financialAccount.workspaceId, context.workspaceId)));
-					const from = accounts.find((a) => a.id === input.fromAccountId),
-						to = accounts.find((a) => a.id === input.toAccountId);
-					if (!from || !to) throw new LedgerError('not_found', 'Transfer account not found');
-					if (from.archivedAt || to.archivedAt)
-						throw new LedgerError('conflict', 'Archived accounts do not accept transfers');
-					if (from.currency !== to.currency)
-						throw new LedgerError('invalid', 'Transfer accounts must use the same currency');
-					const id = crypto.randomUUID(),
-						amount = parsePositiveMinor(input.amountMinor),
-						now = new Date();
-					await tx.insert(ledgerTransfer).values({
-						id,
-						workspaceId: context.workspaceId,
-						fromAccountId: from.id,
-						toAccountId: to.id,
-						amountMinor: amount,
-						date: input.date,
-						description: input.description ?? null
-					});
-					await tx.insert(ledgerTransaction).values([
-						{
-							id: crypto.randomUUID(),
-							workspaceId: context.workspaceId,
-							accountId: from.id,
-							kind: 'expense',
-							amountMinor: amount,
+				return transferIdempotent(
+					tx,
+					context,
+					'transfer.create',
+					input.idempotencyKey,
+					input,
+					async () => {
+						if (input.fromAccountId === input.toAccountId)
+							throw new LedgerError('invalid', 'Transfer accounts must be different');
+						const accounts = await tx
+							.select()
+							.from(financialAccount)
+							.where(inArray(financialAccount.id, [input.fromAccountId, input.toAccountId]));
+						const from = accounts.find((a) => a.id === input.fromAccountId),
+							to = accounts.find((a) => a.id === input.toAccountId);
+						if (!from || !to) throw new LedgerError('not_found', 'Transfer account not found');
+						if (context.workspaceId !== from.workspaceId && context.workspaceId !== to.workspaceId)
+							throw new LedgerError('not_found', 'Transfer account not found');
+						if (
+							!(await canAccess(tx, context.userId, from.workspaceId)) ||
+							!(await canAccess(tx, context.userId, to.workspaceId))
+						)
+							throw new LedgerError('not_found', 'Transfer account not found');
+						if (from.archivedAt || to.archivedAt)
+							throw new LedgerError('conflict', 'Archived accounts do not accept transfers');
+						if (from.currency !== to.currency)
+							throw new LedgerError('invalid', 'Transfer accounts must use the same currency');
+						const id = crypto.randomUUID(),
+							amount = parsePositiveMinor(input.amountMinor),
+							now = new Date();
+						await tx.insert(ledgerTransfer).values({
+							id,
 							date: input.date,
-							description: input.description ?? null,
-							source: 'transfer',
-							transferId: id,
-							transferSide: 'from'
-						},
-						{
-							id: crypto.randomUUID(),
-							workspaceId: context.workspaceId,
-							accountId: to.id,
-							kind: 'income',
-							amountMinor: amount,
-							date: input.date,
-							description: input.description ?? null,
-							source: 'transfer',
-							transferId: id,
-							transferSide: 'to'
-						}
-					]);
-					await tx
-						.update(financialAccount)
-						.set({ activityStartedAt: now })
-						.where(
-							and(
-								eq(financialAccount.workspaceId, context.workspaceId),
-								inArray(financialAccount.id, [from.id, to.id]),
-								isNull(financialAccount.activityStartedAt)
-							)
-						);
-					const [created] = await tx.select().from(ledgerTransfer).where(eq(ledgerTransfer.id, id));
-					await audit(tx, context, 'transfer', id, 'created', null, created);
-					await assertBalances(tx, context.workspaceId, [from.id, to.id]);
-					return publicTransfer(created);
-				});
+							description: input.description ?? null
+						});
+						await tx.insert(ledgerTransaction).values([
+							{
+								id: crypto.randomUUID(),
+								workspaceId: from.workspaceId,
+								accountId: from.id,
+								kind: 'expense',
+								amountMinor: amount,
+								date: input.date,
+								description: input.description ?? null,
+								source: 'transfer',
+								transferId: id,
+								transferSide: 'from'
+							},
+							{
+								id: crypto.randomUUID(),
+								workspaceId: to.workspaceId,
+								accountId: to.id,
+								kind: 'income',
+								amountMinor: amount,
+								date: input.date,
+								description: input.description ?? null,
+								source: 'transfer',
+								transferId: id,
+								transferSide: 'to'
+							}
+						]);
+						await tx
+							.update(financialAccount)
+							.set({ activityStartedAt: now })
+							.where(
+								and(
+									inArray(financialAccount.id, [from.id, to.id]),
+									isNull(financialAccount.activityStartedAt)
+								)
+							);
+						const [created] = await tx
+							.select()
+							.from(ledgerTransfer)
+							.where(eq(ledgerTransfer.id, id));
+						for (const workspaceId of new Set([from.workspaceId, to.workspaceId]))
+							await audit(tx, { ...context, workspaceId }, 'transfer', id, 'created', null, {
+								id,
+								side: workspaceId === from.workspaceId ? 'from' : 'to',
+								counterparty:
+									from.workspaceId === to.workspaceId
+										? { accountId: workspaceId === from.workspaceId ? to.id : from.id }
+										: { visibility: 'private' }
+							});
+						await assertBalances(tx, from.workspaceId, [from.id]);
+						await assertBalances(tx, to.workspaceId, [to.id]);
+						return created.id;
+					}
+				);
 			});
 		},
 		async updateTransfer(context: Context, transferId: string, input: UpdateTransfer) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
-				return idempotent(
+				return transferIdempotent(
 					tx,
 					context,
 					`transfer.update:${transferId}`,
@@ -709,50 +843,44 @@ export function createLedgerRepository(database: FinancialDatabase) {
 						const [before] = await tx
 							.select()
 							.from(ledgerTransfer)
-							.where(
-								and(
-									eq(ledgerTransfer.id, transferId),
-									eq(ledgerTransfer.workspaceId, context.workspaceId)
-								)
-							);
+							.where(eq(ledgerTransfer.id, transferId));
 						if (!before) throw new LedgerError('not_found', 'Transfer not found');
+						if (before.detachedAt)
+							throw new LedgerError('conflict', 'Detached transfers are immutable');
 						if (before.version !== input.version)
 							throw new LedgerError('conflict', 'Transfer version is stale');
 						if (before.trashedAt)
 							throw new LedgerError('conflict', 'Trashed transfers cannot be edited');
-						await canonicalTransferSides(tx, before);
-						if (input.toAccountId === before.fromAccountId)
+						const { from, to: oldTo } = await canonicalTransferSides(tx, before);
+						if (
+							!from ||
+							!oldTo ||
+							!(await canAccess(tx, context.userId, from.workspaceId)) ||
+							!(await canAccess(tx, context.userId, oldTo.workspaceId)) ||
+							![from.workspaceId, oldTo.workspaceId].includes(context.workspaceId)
+						)
+							throw new LedgerError('not_found', 'Transfer not found');
+						if (input.toAccountId === from.accountId)
 							throw new LedgerError('invalid', 'Transfer accounts must be different');
 						const [to] = await tx
 							.select()
 							.from(financialAccount)
-							.where(
-								and(
-									eq(financialAccount.id, input.toAccountId),
-									eq(financialAccount.workspaceId, context.workspaceId)
-								)
-							);
-						const [from] = await tx
+							.where(eq(financialAccount.id, input.toAccountId));
+						const [fromAccount] = await tx
 							.select()
 							.from(financialAccount)
-							.where(
-								and(
-									eq(financialAccount.id, before.fromAccountId),
-									eq(financialAccount.workspaceId, context.workspaceId)
-								)
-							);
-						if (!to || !from) throw new LedgerError('not_found', 'Transfer account not found');
-						if (to.archivedAt || from.archivedAt)
+							.where(eq(financialAccount.id, from.accountId));
+						if (!to || !fromAccount || !(await canAccess(tx, context.userId, to.workspaceId)))
+							throw new LedgerError('not_found', 'Transfer account not found');
+						if (to.archivedAt || fromAccount.archivedAt)
 							throw new LedgerError('conflict', 'Archived accounts do not allow transfer changes');
-						if (to.currency !== from.currency)
+						if (to.currency !== fromAccount.currency)
 							throw new LedgerError('invalid', 'Transfer accounts must use the same currency');
 						const amount = parsePositiveMinor(input.amountMinor),
 							now = new Date();
 						const updatedAggregates = await tx
 							.update(ledgerTransfer)
 							.set({
-								toAccountId: to.id,
-								amountMinor: amount,
 								date: input.date,
 								description: input.description ?? null,
 								version: before.version + 1,
@@ -761,7 +889,6 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							.where(
 								and(
 									eq(ledgerTransfer.id, transferId),
-									eq(ledgerTransfer.workspaceId, context.workspaceId),
 									eq(ledgerTransfer.version, input.version),
 									isNull(ledgerTransfer.trashedAt)
 								)
@@ -781,7 +908,6 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							})
 							.where(
 								and(
-									eq(ledgerTransaction.workspaceId, context.workspaceId),
 									eq(ledgerTransaction.transferId, transferId),
 									eq(ledgerTransaction.version, input.version)
 								)
@@ -791,10 +917,9 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Transfer sides changed concurrently');
 						const movedSide = await tx
 							.update(ledgerTransaction)
-							.set({ accountId: to.id })
+							.set({ accountId: to.id, workspaceId: to.workspaceId })
 							.where(
 								and(
-									eq(ledgerTransaction.workspaceId, context.workspaceId),
 									eq(ledgerTransaction.transferId, transferId),
 									eq(ledgerTransaction.transferSide, 'to')
 								)
@@ -808,17 +933,28 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							.where(
 								and(
 									eq(financialAccount.id, to.id),
-									eq(financialAccount.workspaceId, context.workspaceId),
+									eq(financialAccount.workspaceId, to.workspaceId),
 									isNull(financialAccount.activityStartedAt)
 								)
 							);
-						await assertBalances(tx, context.workspaceId, [
-							before.fromAccountId,
-							before.toAccountId,
-							to.id
-						]);
-						await audit(tx, context, 'transfer', transferId, 'updated', before, after);
-						return publicTransfer(after);
+						await assertBalances(tx, from.workspaceId, [from.accountId]);
+						await assertBalances(tx, oldTo.workspaceId, [oldTo.accountId]);
+						await assertBalances(tx, to.workspaceId, [to.id]);
+						for (const workspaceId of new Set([
+							from.workspaceId,
+							oldTo.workspaceId,
+							to.workspaceId
+						]))
+							await audit(
+								tx,
+								{ ...context, workspaceId },
+								'transfer',
+								transferId,
+								'updated',
+								{ id: transferId },
+								{ id: transferId }
+							);
+						return after.id;
 					}
 				);
 			});
@@ -831,7 +967,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 		) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
-				return idempotent(
+				return transferIdempotent(
 					tx,
 					context,
 					`transfer.${action}:${transferId}`,
@@ -841,13 +977,10 @@ export function createLedgerRepository(database: FinancialDatabase) {
 						const [before] = await tx
 							.select()
 							.from(ledgerTransfer)
-							.where(
-								and(
-									eq(ledgerTransfer.id, transferId),
-									eq(ledgerTransfer.workspaceId, context.workspaceId)
-								)
-							);
+							.where(eq(ledgerTransfer.id, transferId));
 						if (!before) throw new LedgerError('not_found', 'Transfer not found');
+						if (before.detachedAt)
+							throw new LedgerError('conflict', 'Detached transfers are immutable');
 						if (before.version !== input.version)
 							throw new LedgerError('conflict', 'Transfer version is stale');
 						if ((action === 'trash') === !!before.trashedAt)
@@ -855,15 +988,22 @@ export function createLedgerRepository(database: FinancialDatabase) {
 								'conflict',
 								`Transfer is ${action === 'trash' ? 'already trashed' : 'not trashed'}`
 							);
-						await canonicalTransferSides(tx, before);
+						const { from, to } = await canonicalTransferSides(tx, before);
+						if (
+							!from ||
+							!to ||
+							!(await canAccess(tx, context.userId, from.workspaceId)) ||
+							!(await canAccess(tx, context.userId, to.workspaceId)) ||
+							![from.workspaceId, to.workspaceId].includes(context.workspaceId)
+						)
+							throw new LedgerError('not_found', 'Transfer not found');
 						const accounts = await tx
 							.select()
 							.from(financialAccount)
-							.where(and(eq(financialAccount.workspaceId, context.workspaceId)));
+							.where(inArray(financialAccount.id, [from.accountId, to.accountId]));
 						if (
 							accounts.some(
-								(a) =>
-									(a.id === before.fromAccountId || a.id === before.toAccountId) && a.archivedAt
+								(a) => (a.id === from.accountId || a.id === to.accountId) && a.archivedAt
 							)
 						)
 							throw new LedgerError('conflict', 'Archived accounts do not allow transfer changes');
@@ -878,7 +1018,6 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							.where(
 								and(
 									eq(ledgerTransfer.id, transferId),
-									eq(ledgerTransfer.workspaceId, context.workspaceId),
 									eq(ledgerTransfer.version, input.version),
 									action === 'trash'
 										? isNull(ledgerTransfer.trashedAt)
@@ -898,7 +1037,6 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							})
 							.where(
 								and(
-									eq(ledgerTransaction.workspaceId, context.workspaceId),
 									eq(ledgerTransaction.transferId, transferId),
 									eq(ledgerTransaction.version, input.version),
 									action === 'trash'
@@ -909,12 +1047,19 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							.returning({ id: ledgerTransaction.id });
 						if (updatedSides.length !== 2)
 							throw new LedgerError('conflict', 'Transfer sides changed concurrently');
-						await assertBalances(tx, context.workspaceId, [
-							before.fromAccountId,
-							before.toAccountId
-						]);
-						await audit(tx, context, 'transfer', transferId, action, before, after);
-						return publicTransfer(after);
+						await assertBalances(tx, from.workspaceId, [from.accountId]);
+						await assertBalances(tx, to.workspaceId, [to.accountId]);
+						for (const workspaceId of new Set([from.workspaceId, to.workspaceId]))
+							await audit(
+								tx,
+								{ ...context, workspaceId },
+								'transfer',
+								transferId,
+								action,
+								{ id: transferId },
+								{ id: transferId }
+							);
+						return after.id;
 					}
 				);
 			});
@@ -1015,28 +1160,30 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			});
 		},
 		async listBalanceCorrections(context: Context, accountId: string, includeTrashed = false) {
-			await database.transaction((tx) => authorizedPersonal(tx, context));
-			const [account] = await database
-				.select({ id: financialAccount.id })
-				.from(financialAccount)
-				.where(
-					and(
-						eq(financialAccount.id, accountId),
-						eq(financialAccount.workspaceId, context.workspaceId)
-					)
-				);
-			if (!account) throw new LedgerError('not_found', 'Account not found');
-			const rows = await database
-				.select()
-				.from(ledgerBalanceCorrection)
-				.where(
-					and(
-						eq(ledgerBalanceCorrection.workspaceId, context.workspaceId),
-						eq(ledgerBalanceCorrection.accountId, accountId),
-						includeTrashed ? undefined : isNull(ledgerBalanceCorrection.trashedAt)
-					)
-				);
-			return rows.map(publicCorrection);
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const [account] = await tx
+					.select({ id: financialAccount.id })
+					.from(financialAccount)
+					.where(
+						and(
+							eq(financialAccount.id, accountId),
+							eq(financialAccount.workspaceId, context.workspaceId)
+						)
+					);
+				if (!account) throw new LedgerError('not_found', 'Account not found');
+				const rows = await tx
+					.select()
+					.from(ledgerBalanceCorrection)
+					.where(
+						and(
+							eq(ledgerBalanceCorrection.workspaceId, context.workspaceId),
+							eq(ledgerBalanceCorrection.accountId, accountId),
+							includeTrashed ? undefined : isNull(ledgerBalanceCorrection.trashedAt)
+						)
+					);
+				return rows.map(publicCorrection);
+			});
 		},
 		async updateBalanceCheck(context: Context, checkId: string, input: UpdateBalanceCheck) {
 			return database.transaction(async (tx) => {
@@ -1406,18 +1553,20 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction',
 			entityId: string
 		) {
-			await database.transaction((tx) => authorizedPersonal(tx, context));
-			return database
-				.select()
-				.from(ledgerAudit)
-				.where(
-					and(
-						eq(ledgerAudit.workspaceId, context.workspaceId),
-						eq(ledgerAudit.entityType, entityType),
-						eq(ledgerAudit.entityId, entityId)
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return tx
+					.select()
+					.from(ledgerAudit)
+					.where(
+						and(
+							eq(ledgerAudit.workspaceId, context.workspaceId),
+							eq(ledgerAudit.entityType, entityType),
+							eq(ledgerAudit.entityId, entityId)
+						)
 					)
-				)
-				.orderBy(desc(ledgerAudit.createdAt), desc(ledgerAudit.id));
+					.orderBy(desc(ledgerAudit.createdAt), desc(ledgerAudit.id));
+			});
 		},
 		async purgeTrashed(before = new Date(Date.now() - 30 * 86_400_000)) {
 			const deleted = await database

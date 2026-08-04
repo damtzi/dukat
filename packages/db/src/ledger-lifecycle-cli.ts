@@ -1,8 +1,10 @@
 import { createLedgerRepository } from './repositories/ledger';
-import { financialClient, financialDb } from './index';
+import { createWorkspaceRepository } from './repositories/workspaces';
+import { db, financialClient, financialDb } from './index';
 
-const purged = await createLedgerRepository(financialDb).purgeLifecycle();
+const ledger = await createLedgerRepository(financialDb).purgeLifecycle();
+const households = await createWorkspaceRepository(db).purgeExpired();
 process.stdout.write(
-	`${JSON.stringify({ level: 'info', event: 'ledger.lifecycle.purged', ...purged })}\n`
+	`${JSON.stringify({ level: 'info', event: 'lifecycle.purged', ledger, households: households.length })}\n`
 );
 financialClient.close();

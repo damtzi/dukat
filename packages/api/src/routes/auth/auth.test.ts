@@ -15,7 +15,8 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 			api: {
 				async getSession() {
 					return null;
-				}
+				},
+				async verifyPassword() {}
 			}
 		},
 		async readiness() {},
@@ -27,7 +28,7 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 			async findAuthorized() {
 				return undefined;
 			}
-		}
+		} as unknown as APIServices['workspaces']
 	};
 
 	const response = await createAPI(services).request(

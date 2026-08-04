@@ -160,16 +160,27 @@ export const transactionSchema = z.object({
 });
 export const transferSchema = z.object({
 	id: z.string(),
-	workspaceId: z.string(),
-	fromAccountId: z.string(),
-	toAccountId: z.string(),
+	localSide: z.enum(['from', 'to']),
+	accountId: z.string(),
 	amountMinor: positiveMinorUnitsSchema,
 	date: z.string(),
 	description: z.string().nullable(),
 	version: z.number(),
 	trashedAt: nullableTimestampSchema,
+	detachedAt: nullableTimestampSchema,
 	createdAt: z.string(),
-	updatedAt: z.string()
+	updatedAt: z.string(),
+	canManage: z.boolean(),
+	counterparty: z.discriminatedUnion('visibility', [
+		z.object({
+			visibility: z.literal('full'),
+			workspaceId: z.string(),
+			accountId: z.string(),
+			name: z.string()
+		}),
+		z.object({ visibility: z.literal('private') }),
+		z.object({ visibility: z.literal('deleted') })
+	])
 });
 export const balanceCheckSchema = z.object({
 	id: z.string(),

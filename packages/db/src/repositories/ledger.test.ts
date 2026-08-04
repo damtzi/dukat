@@ -9,14 +9,130 @@ import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createDatabase, createFinancialDatabase } from '../connection';
 import {
+	financialAccount,
 	ledgerAudit,
 	ledgerBalanceCorrection,
 	ledgerTransaction,
 	ledgerTransfer,
 	mutationReceipt,
-	user
+	user,
+	workspace,
+	workspaceMembership
 } from '../schema';
 import { createLedgerRepository, LedgerError } from './ledger';
+
+test('cross-workspace transfers project private counterpart data and require access to both sides', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-cross-transfer-'));
+	const url = `file:${join(directory, 'ledger.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db.insert(user).values([
+			{ id: 'cross-owner', name: 'Owner', email: 'cross-owner@example.com' },
+			{ id: 'house-member', name: 'Member', email: 'member@example.com' }
+		]);
+		const [personal] = await connection.db
+			.select()
+			.from(workspace)
+			.where(eq(workspace.personalOwnerUserId, 'cross-owner'));
+		await connection.db
+			.insert(workspace)
+			.values({ id: 'cross-house', name: 'House', type: 'household' });
+		await connection.db.insert(workspaceMembership).values([
+			{ workspaceId: 'cross-house', userId: 'cross-owner', role: 'owner' },
+			{ workspaceId: 'cross-house', userId: 'house-member', role: 'member' }
+		]);
+		await financial.db.insert(financialAccount).values([
+			{
+				id: 'private-account',
+				workspaceId: personal.id,
+				name: 'Secret personal account',
+				type: 'cash',
+				currency: 'EUR',
+				openingBalanceMinor: 1000n
+			},
+			{
+				id: 'house-account',
+				workspaceId: 'cross-house',
+				name: 'Shared',
+				type: 'cash',
+				currency: 'EUR',
+				openingBalanceMinor: 0n
+			}
+		]);
+		const ledger = createLedgerRepository(financial.db);
+		const created = await ledger.createTransfer(
+			{ userId: 'cross-owner', workspaceId: 'cross-house' },
+			{
+				idempotencyKey: 'cross-create',
+				fromAccountId: 'private-account',
+				toAccountId: 'house-account',
+				amountMinor: '250',
+				date: '2026-07-30'
+			}
+		);
+		assert.equal(created.counterparty.visibility, 'full');
+		assert.equal(created.canManage, true);
+		const [limited] = await ledger.listTransfers(
+			{ userId: 'house-member', workspaceId: 'cross-house' },
+			'house-account'
+		);
+		assert.equal(limited.localSide, 'to');
+		assert.equal(limited.amountMinor, '250');
+		assert.deepEqual(limited.counterparty, { visibility: 'private' });
+		assert.equal(limited.canManage, false);
+		const serialized = JSON.stringify(limited);
+		assert.ok(!serialized.includes(personal.id));
+		assert.ok(!serialized.includes('private-account'));
+		assert.ok(!serialized.includes('Secret personal account'));
+		await assert.rejects(
+			() =>
+				ledger.transferAction(
+					{ userId: 'house-member', workspaceId: 'cross-house' },
+					created.id,
+					'trash',
+					{ idempotencyKey: 'limited-trash', version: 1 }
+				),
+			(error) => error instanceof LedgerError && error.code === 'not_found'
+		);
+
+		await connection.db.delete(workspace).where(eq(workspace.id, 'cross-house'));
+		const [detached] = await ledger.listTransfers(
+			{ userId: 'cross-owner', workspaceId: personal.id },
+			'private-account'
+		);
+		assert.equal(detached.localSide, 'from');
+		assert.deepEqual(detached.counterparty, { visibility: 'deleted' });
+		assert.equal(detached.canManage, false);
+		assert.equal((await financial.db.select().from(ledgerTransfer)).length, 1);
+		const survivingLegs = await financial.db
+			.select()
+			.from(ledgerTransaction)
+			.where(eq(ledgerTransaction.transferId, created.id));
+		assert.deepEqual(
+			survivingLegs.map((leg) => [leg.workspaceId, leg.accountId, leg.transferSide]),
+			[[personal.id, 'private-account', 'from']]
+		);
+		await assert.rejects(
+			() =>
+				ledger.updateTransfer({ userId: 'cross-owner', workspaceId: personal.id }, created.id, {
+					idempotencyKey: 'detached-update',
+					version: 1,
+					toAccountId: 'house-account',
+					amountMinor: '300',
+					date: '2026-07-30'
+				}),
+			(error) => error instanceof LedgerError && error.code === 'conflict'
+		);
+	} finally {
+		financial.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
 
 test('personal manual ledger balances, versions, idempotency, trash and audit lifecycle', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-ledger-'));
@@ -377,10 +493,13 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 		);
 		assert.equal(
 			(
-				await financial.db.select().from(ledgerTransfer).where(eq(ledgerTransfer.id, transfer.id))
+				await financial.db
+					.select()
+					.from(ledgerTransaction)
+					.where(eq(ledgerTransaction.id, corruptSide.id))
 			)[0].amountMinor,
 			300n,
-			'corruption rolls back the aggregate edit'
+			'corruption rolls back the leg edit'
 		);
 		await financial.db
 			.update(ledgerTransaction)
@@ -400,7 +519,7 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 		});
 		assert.equal((await ledger.listTransfers(context, from.id)).length, 0);
 		assert.equal(
-			(await ledger.listTransfers(context, from.id, true))[0].trashedAt instanceof Date,
+			typeof (await ledger.listTransfers(context, from.id, true))[0].trashedAt === 'string',
 			true,
 			'trashed transfers can be reloaded for restore'
 		);

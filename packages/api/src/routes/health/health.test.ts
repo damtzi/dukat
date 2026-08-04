@@ -13,7 +13,8 @@ function createServices(readiness: () => Promise<unknown>): APIServices {
 			api: {
 				async getSession() {
 					return null;
-				}
+				},
+				async verifyPassword() {}
 			}
 		},
 		readiness,
@@ -25,7 +26,7 @@ function createServices(readiness: () => Promise<unknown>): APIServices {
 			async findAuthorized() {
 				return undefined;
 			}
-		}
+		} as unknown as APIServices['workspaces']
 	};
 }
 

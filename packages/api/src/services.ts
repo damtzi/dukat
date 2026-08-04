@@ -14,7 +14,10 @@ import type {
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
 	api: {
-		getSession(options: { headers: Headers }): Promise<{ user: { id: string } } | null>;
+		getSession(options: {
+			headers: Headers;
+		}): Promise<{ user: { id: string; email: string; emailVerified: boolean } } | null>;
+		verifyPassword(options: { body: { password: string }; headers: Headers }): Promise<unknown>;
 	};
 }
 
@@ -22,6 +25,9 @@ export interface WorkspaceSummary {
 	id: string;
 	name: string;
 	type: 'personal' | 'household';
+	reportingCurrency: string | null;
+	version: number;
+	role?: 'owner' | 'member' | null;
 }
 
 export interface WorkspaceService {
@@ -30,6 +36,47 @@ export interface WorkspaceService {
 		userId: string;
 		workspaceId: string;
 	}): Promise<WorkspaceSummary | undefined>;
+	createHousehold(
+		userId: string,
+		input: { name: string; reportingCurrency: string }
+	): Promise<unknown>;
+	updateHousehold(
+		context: WorkspaceContext,
+		input: { name?: string; reportingCurrency?: string; version: number }
+	): Promise<unknown>;
+	listMembers(context: WorkspaceContext): Promise<unknown>;
+	listInvitations(context: WorkspaceContext): Promise<unknown>;
+	invite(
+		context: WorkspaceContext,
+		input: { email: string; version: number; invitationUrl(token: string): string }
+	): Promise<unknown>;
+	revokeInvitation(context: WorkspaceContext, id: string, version: number): Promise<unknown>;
+	resendInvitation(
+		context: WorkspaceContext,
+		id: string,
+		input: { version: number; invitationUrl(token: string): string }
+	): Promise<unknown>;
+	acceptInvitation(userId: string, email: string, token: string): Promise<unknown>;
+	changeMember(
+		context: WorkspaceContext,
+		userId: string,
+		input: { action: 'promote' | 'demote' | 'remove'; version: number }
+	): Promise<unknown>;
+	leaveHousehold(context: WorkspaceContext, version: number): Promise<unknown>;
+	deleteHousehold(
+		context: WorkspaceContext,
+		input: { version: number; idempotencyKey?: string }
+	): Promise<unknown>;
+	listRecoverable(userId: string): Promise<unknown>;
+	restoreHousehold(context: WorkspaceContext, version: number): Promise<unknown>;
+	accountDeletionPreflight(userId: string): Promise<unknown>;
+	deleteAccount(userId: string): Promise<void>;
+	deliverOutbox?(): Promise<void>;
+}
+
+export interface WorkspaceContext {
+	userId: string;
+	workspaceId: string;
 }
 
 export interface LedgerService {
