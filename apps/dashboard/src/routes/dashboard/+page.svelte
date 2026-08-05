@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* global crypto, fetch, confirm, RequestInit, SubmitEvent, location */
   /* eslint-disable svelte/require-each-key */
   import { onMount } from 'svelte'
   import type {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* global SubmitEvent */
   import type { BalanceCheck } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'

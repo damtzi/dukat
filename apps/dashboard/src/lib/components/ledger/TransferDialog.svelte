@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* global SubmitEvent */
   /* eslint-disable svelte/require-each-key */
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'

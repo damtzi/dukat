@@ -1,5 +1,6 @@
 import { defineConfig } from 'eslint/config';
 import svelte from 'eslint-plugin-svelte';
+import globals from 'globals';
 import ts from 'typescript-eslint';
 
 import { baseConfig, sharedRules } from './base.js';
@@ -12,6 +13,10 @@ export const webConfig = defineConfig([
 	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
+			globals: {
+				...globals.browser,
+				RequestInit: 'readonly'
+			},
 			parserOptions: {
 				parser: ts.parser,
 				extraFileExtensions: ['.svelte']

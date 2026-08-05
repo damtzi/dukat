@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* global fetch, SubmitEvent */
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'

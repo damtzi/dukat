@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* global fetch, crypto, SubmitEvent, RequestInit */
   /* eslint-disable svelte/require-each-key */
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
 
