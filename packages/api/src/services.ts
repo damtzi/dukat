@@ -10,6 +10,7 @@ import type {
 	UpdateBalanceCheck,
 	VersionedMutation
 } from '@dukat/core/ledger';
+import type { InsightsRepository } from '@dukat/db/repositories/insights';
 
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
@@ -178,5 +179,6 @@ export interface APIServices {
 	auth: AuthenticationService;
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
+	insights: InsightsRepository;
 	workspaces: WorkspaceService;
 }

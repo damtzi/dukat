@@ -73,6 +73,7 @@ function createServices(): APIServices {
 				return [];
 			}
 		},
+		insights: {} as APIServices['insights'],
 		workspaces: {
 			async listAuthorized() {
 				return [];
