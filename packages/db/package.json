@@ -24,6 +24,7 @@
 		}
 	},
 	"dependencies": {
+		"@dukat/core": "workspace:*",
 		"@libsql/client": "^0.17.4",
 		"@dukat/env": "workspace:*",
 		"better-auth": "^1.6.11",

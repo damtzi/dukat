@@ -13,13 +13,15 @@
 	},
 	"scripts": {
 		"build": "tsc",
-		"check-types": "tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"test": "tsx --test src/*.test.ts"
 	},
 	"dependencies": {
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@dukat/typescript-config": "workspace:*",
+		"tsx": "^4.21.0",
 		"typescript": "catalog:"
 	}
 }
