@@ -82,6 +82,7 @@ function createServices(
 		},
 		async readiness() {},
 		ledger: {} as APIServices['ledger'],
+		insights: {} as APIServices['insights'],
 		workspaces
 	};
 }

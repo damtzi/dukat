@@ -14,6 +14,7 @@ import { session, user } from '@dukat/db/schema/auth';
 import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
+import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
@@ -88,6 +89,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				auth,
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
+				insights: createInsightsRepository(sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory
@@ -260,6 +262,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				auth: productionAuth,
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
+				insights: createInsightsRepository(sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory

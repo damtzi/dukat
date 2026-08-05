@@ -3,6 +3,7 @@ import { auth, emailSender } from '@dukat/auth';
 import { db, financialDb } from '@dukat/db';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
+import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { serverEnv } from '@dukat/env/server';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
@@ -90,6 +91,7 @@ export async function shutdownOutbox() {
 const api = createAPI({
 	auth,
 	ledger: createLedgerRepository(financialDb),
+	insights: createInsightsRepository(financialDb),
 	readiness: () => db.run('select 1'),
 	workspaces: workspaceService
 });
