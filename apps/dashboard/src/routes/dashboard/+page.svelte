@@ -9,6 +9,7 @@
     Transaction,
     Transfer,
   } from '@dukat/core/ledger'
+  import type { Category } from '@dukat/core/csv-import'
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
   import { minorToDecimal, parseAmount } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
@@ -23,6 +24,9 @@
   import BalanceCheckDialog from '$lib/components/ledger/BalanceCheckDialog.svelte'
   import HistoryDialog from '$lib/components/ledger/HistoryDialog.svelte'
   import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
+  import CategoryManager from '$lib/components/insights/CategoryManager.svelte'
+  import SummarySection from '$lib/components/insights/SummarySection.svelte'
+  import CsvImports from '$lib/components/insights/CsvImports.svelte'
 
   type Workspace = {
     id: string
@@ -55,6 +59,8 @@
   let workspaces: Workspace[] = []
   let workspaceId = ''
   let accounts: Account[] = []
+  let categories: Category[] = []
+  let insightsVersion = 0
   let pickerAccounts: PickerAccount[] = []
   let recoverable: Workspace[] = []
   let deletionBlockers: { id: string; name: string }[] | null = null
@@ -97,6 +103,7 @@
     amount: '',
     date: todayInWarsaw(),
     description: '',
+    categoryId: '',
   }
   let transferForm = {
     fromAccountId: '',
@@ -108,6 +115,10 @@
     feeDescription: '',
   }
   let checkForm = { amount: '', date: todayInWarsaw() }
+  let workspaceLoadGeneration = 0
+  let accountLoadGeneration = 0
+  let ledgerLoadGeneration = 0
+  let accountsWorkspaceId = ''
 
   const selected = () => accounts.find((account) => account.id === selectedId)
   const key = () => `${Date.now()}-${crypto.randomUUID()}`
@@ -128,28 +139,81 @@
     return response.status === 204 ? null : response.json()
   }
   async function load(preferredId = workspaceId) {
+    const generation = ++workspaceLoadGeneration
     state = 'loading'
     message = ''
     try {
       const response = await fetch('/api/workspaces')
       if (!response.ok) throw new Error('Could not load your workspaces.')
-      workspaces = (await response.json()) as Workspace[]
-      workspaceId = workspaces.some(({ id }) => id === preferredId)
+      const loadedWorkspaces = (await response.json()) as Workspace[]
+      if (generation !== workspaceLoadGeneration) return
+      const targetWorkspaceId = loadedWorkspaces.some(
+        ({ id }) => id === preferredId,
+      )
         ? preferredId
-        : (workspaces[0]?.id ?? '')
-      if (workspaceId) await loadAccounts()
+        : (loadedWorkspaces[0]?.id ?? '')
+      workspaces = loadedWorkspaces
+      workspaceId = targetWorkspaceId
+      if (targetWorkspaceId) await loadAccounts(targetWorkspaceId)
+      if (
+        generation !== workspaceLoadGeneration ||
+        workspaceId !== targetWorkspaceId
+      )
+        return
       state = 'ready'
     } catch (error) {
+      if (generation !== workspaceLoadGeneration) return
       message = (error as Error).message
       state = 'error'
     }
   }
-  async function loadAccounts() {
-    accounts = await api(`/workspaces/${workspaceId}/accounts`)
-    if (!accounts.some((a) => a.id === selectedId))
-      selectedId =
-        accounts.find((a) => !a.archivedAt)?.id ?? accounts[0]?.id ?? ''
-    await loadLedger()
+  async function loadAccounts(targetWorkspaceId = workspaceId) {
+    const generation = ++accountLoadGeneration
+    ledgerLoadGeneration++
+    if (
+      targetWorkspaceId !== accountsWorkspaceId &&
+      workspaceId === targetWorkspaceId
+    ) {
+      accounts = []
+      categories = []
+      selectedId = ''
+      transactions = []
+      transfers = []
+      balanceChecks = []
+      corrections = []
+      insightsVersion++
+    }
+    const [loadedAccounts, loadedCategories] = await Promise.all([
+      api(`/workspaces/${targetWorkspaceId}/accounts`) as Promise<Account[]>,
+      api(`/workspaces/${targetWorkspaceId}/categories`) as Promise<Category[]>,
+    ])
+    if (
+      generation !== accountLoadGeneration ||
+      workspaceId !== targetWorkspaceId
+    )
+      return
+    accounts = loadedAccounts
+    categories = loadedCategories
+    accountsWorkspaceId = targetWorkspaceId
+    const targetAccountId = loadedAccounts.some(
+      (account) => account.id === selectedId,
+    )
+      ? selectedId
+      : (loadedAccounts.find((account) => !account.archivedAt)?.id ??
+        loadedAccounts[0]?.id ??
+        '')
+    selectedId = targetAccountId
+    await loadLedger(targetWorkspaceId, targetAccountId)
+    if (
+      generation !== accountLoadGeneration ||
+      workspaceId !== targetWorkspaceId
+    )
+      return
+    insightsVersion++
+  }
+  function chooseWorkspace(targetWorkspaceId: string) {
+    workspaceLoadGeneration++
+    void loadAccounts(targetWorkspaceId)
   }
   async function loadPickerAccounts() {
     pickerAccounts = (
@@ -184,7 +248,8 @@
       form.reset()
       workspaces = [...workspaces, created]
       workspaceId = created.id
-      await loadAccounts()
+      workspaceLoadGeneration++
+      await loadAccounts(created.id)
     } catch (error) {
       message = (error as Error).message
     }
@@ -232,26 +297,50 @@
       message = (error as Error).message
     }
   }
-  async function loadLedger() {
-    if (!selectedId) {
+  async function loadLedger(
+    targetWorkspaceId = workspaceId,
+    targetAccountId = selectedId,
+  ) {
+    const generation = ++ledgerLoadGeneration
+    if (!targetAccountId) {
+      if (
+        generation !== ledgerLoadGeneration ||
+        workspaceId !== targetWorkspaceId
+      )
+        return
       transactions = []
       transfers = []
       balanceChecks = []
       corrections = []
       return
     }
-    const base = `/workspaces/${workspaceId}/accounts/${selectedId}`
-    ;[transactions, transfers, balanceChecks, corrections] = await Promise.all([
+    const base = `/workspaces/${targetWorkspaceId}/accounts/${targetAccountId}`
+    const [
+      loadedTransactions,
+      loadedTransfers,
+      loadedChecks,
+      loadedCorrections,
+    ] = await Promise.all([
       api(`${base}/transactions?includeTrashed=true`),
       api(`${base}/transfers?includeTrashed=true`),
       api(`${base}/balance-checks?includeTrashed=true`),
       api(`${base}/corrections?includeTrashed=true`),
     ])
+    if (
+      generation !== ledgerLoadGeneration ||
+      workspaceId !== targetWorkspaceId ||
+      selectedId !== targetAccountId
+    )
+      return
+    transactions = loadedTransactions
+    transfers = loadedTransfers
+    balanceChecks = loadedChecks
+    corrections = loadedCorrections
   }
   async function choose(id: string) {
     selectedId = id
     message = ''
-    await loadLedger()
+    await loadLedger(workspaceId, id)
   }
   function newAccount() {
     editingAccount = null
@@ -336,6 +425,7 @@
       amount: '',
       date: todayInWarsaw(),
       description: '',
+      categoryId: '',
     }
     transactionOpen = true
   }
@@ -348,6 +438,7 @@
       amount: minorToDecimal(item.amountMinor, selected()!.currency),
       date: item.date,
       description: item.description ?? '',
+      categoryId: item.categoryId ?? '',
     }
     transactionOpen = true
   }
@@ -365,6 +456,7 @@
         amountMinor: parseAmount(transactionForm.amount, account.currency),
         date: transactionForm.date,
         description: transactionForm.description.trim() || null,
+        categoryId: transactionForm.categoryId || null,
         idempotencyKey: transactionIntentKey,
         ...(editingTransaction ? { version: editingTransaction.version } : {}),
       }
@@ -852,7 +944,7 @@
           id="workspace"
           class="mt-1 h-9 rounded-md border bg-transparent px-3"
           bind:value={workspaceId}
-          onchange={loadAccounts}
+          onchange={() => chooseWorkspace(workspaceId)}
           >{#each workspaces as workspace}<option value={workspace.id}
               >{workspace.name} — {workspace.type === 'household'
                 ? 'Household'
@@ -865,6 +957,26 @@
           workspace={activeWorkspace}
           onchanged={() => load(activeWorkspace.id)}
         />{/if}
+      {#key `${workspaceId}-${insightsVersion}`}
+        <SummarySection
+          {accounts}
+          api={(path, options) =>
+            api(`/workspaces/${workspaceId}/summary${path}`, options)}
+        />
+        <CategoryManager
+          {categories}
+          api={(path, options) =>
+            api(`/workspaces/${workspaceId}/categories${path}`, options)}
+          onchanged={loadAccounts}
+        />
+        <CsvImports
+          {accounts}
+          {categories}
+          api={(path, options) =>
+            api(`/workspaces/${workspaceId}/imports${path}`, options)}
+          onchanged={loadAccounts}
+        />
+      {/key}
       {#if accounts.length === 0}<Card.Root
           ><Card.Header
             ><Card.Title>No accounts</Card.Title><Card.Description
@@ -955,6 +1067,7 @@
   {editingTransaction}
   error={transactionError}
   {pending}
+  {categories}
   onsubmit={saveTransaction}
 />
 <TransferDialog
