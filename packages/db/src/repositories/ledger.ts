@@ -6,6 +6,7 @@ import {
 	ledgerAudit,
 	ledgerBalanceCheck,
 	ledgerBalanceCorrection,
+	ledgerCategory,
 	ledgerTransfer,
 	ledgerTransaction,
 	mutationReceipt,
@@ -48,6 +49,7 @@ interface CreateTransaction extends Mutation {
 	amountMinor: string;
 	date: string;
 	description?: string | null;
+	categoryId?: string | null;
 }
 interface UpdateTransaction extends CreateTransaction {
 	version: number;
@@ -145,6 +147,22 @@ const viewAccount = (account: typeof financialAccount.$inferSelect, balanceMinor
 
 export function createLedgerRepository(database: FinancialDatabase) {
 	type Transaction = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
+	async function validateSelectedCategory(
+		tx: Transaction,
+		workspaceId: string,
+		categoryId: string | null | undefined,
+		retainedCategoryId?: string | null
+	) {
+		if (!categoryId || categoryId === retainedCategoryId) return;
+		const [category] = await tx
+			.select({ archivedAt: ledgerCategory.archivedAt })
+			.from(ledgerCategory)
+			.where(and(eq(ledgerCategory.id, categoryId), eq(ledgerCategory.workspaceId, workspaceId)))
+			.limit(1);
+		if (!category) throw new LedgerError('not_found', 'Category not found');
+		if (category.archivedAt)
+			throw new LedgerError('conflict', 'Archived categories cannot be selected');
+	}
 	async function balance(
 		workspaceId: string,
 		accountId: string,
@@ -694,6 +712,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 						if (!account) throw new LedgerError('not_found', 'Account not found');
 						if (account.archivedAt)
 							throw new LedgerError('conflict', 'Archived accounts do not accept transactions');
+						await validateSelectedCategory(tx, context.workspaceId, input.categoryId);
 						if (!account.activityStartedAt) {
 							const marked = await tx
 								.update(financialAccount)
@@ -717,7 +736,8 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							kind: input.kind,
 							amountMinor: parsePositiveMinor(input.amountMinor),
 							date: input.date,
-							description: input.description ?? null
+							description: input.description ?? null,
+							categoryId: input.categoryId ?? null
 						};
 						await tx.insert(ledgerTransaction).values(row);
 						const [created] = await tx
@@ -1433,6 +1453,12 @@ export function createLedgerRepository(database: FinancialDatabase) {
 								'conflict',
 								'Archived accounts do not allow transaction changes'
 							);
+						await validateSelectedCategory(
+							tx,
+							context.workspaceId,
+							input.categoryId,
+							before.categoryId
+						);
 						const [after] = await tx
 							.update(ledgerTransaction)
 							.set({
@@ -1440,6 +1466,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 								amountMinor: parsePositiveMinor(input.amountMinor),
 								date: input.date,
 								description: input.description ?? null,
+								categoryId: input.categoryId ?? null,
 								version: before.version + 1,
 								updatedAt: new Date()
 							})

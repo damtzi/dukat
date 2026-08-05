@@ -53,7 +53,7 @@ export const positiveMinorUnitsSchema = minorUnitsSchema.refine(
 	'Amount must be positive'
 );
 
-export const calendarDateSchema = z.string().superRefine((value, context) => {
+export const isoCalendarDateSchema = z.string().superRefine((value, context) => {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
 		context.addIssue({ code: 'custom', message: 'Date must use YYYY-MM-DD' });
 		return;
@@ -68,6 +68,8 @@ export const calendarDateSchema = z.string().superRefine((value, context) => {
 		context.addIssue({ code: 'custom', message: 'Date must be a valid calendar date' });
 		return;
 	}
+});
+export const calendarDateSchema = isoCalendarDateSchema.superRefine((value, context) => {
 	if (value > todayInDefaultTimeZone()) {
 		context.addIssue({ code: 'custom', message: 'Date cannot be in the future' });
 	}
@@ -94,7 +96,8 @@ export const createTransactionSchema = mutationSchema.extend({
 	kind: transactionKindSchema,
 	amountMinor: positiveMinorUnitsSchema,
 	date: calendarDateSchema,
-	description: z.string().trim().max(500).nullable().optional()
+	description: z.string().trim().max(500).nullable().optional(),
+	categoryId: z.string().min(1).nullable().optional()
 });
 export const updateTransactionSchema = createTransactionSchema.extend({
 	version: z.number().int().positive()
@@ -152,6 +155,7 @@ export const transactionSchema = z.object({
 	amountMinor: positiveMinorUnitsSchema,
 	date: z.string(),
 	description: z.string().nullable(),
+	categoryId: z.string().nullable(),
 	source: z.literal('manual'),
 	version: z.number().int(),
 	trashedAt: nullableTimestampSchema,

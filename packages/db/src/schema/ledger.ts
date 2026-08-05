@@ -93,6 +93,9 @@ export const ledgerTransaction = sqliteTable(
 			.notNull()
 			.references(() => workspace.id, { onDelete: 'cascade' }),
 		accountId: text('account_id').notNull(),
+		categoryId: text('category_id'),
+		importBatchId: text('import_batch_id'),
+		importSourceRow: safeInteger('import_source_row'),
 		kind: text('kind', { enum: ['income', 'expense'] }).notNull(),
 		amountMinor: int64('amount_minor').notNull(),
 		date: text('date').notNull(),
@@ -117,12 +120,29 @@ export const ledgerTransaction = sqliteTable(
 			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
 		}).onDelete('restrict'),
 		foreignKey({
+			columns: [table.workspaceId, table.categoryId],
+			foreignColumns: [ledgerCategory.workspaceId, ledgerCategory.id]
+		}).onDelete('restrict'),
+		foreignKey({
+			columns: [table.workspaceId, table.accountId, table.importBatchId],
+			foreignColumns: [
+				ledgerImportBatch.workspaceId,
+				ledgerImportBatch.accountId,
+				ledgerImportBatch.id
+			]
+		}).onDelete('restrict'),
+		foreignKey({
 			columns: [table.transferId],
 			foreignColumns: [ledgerTransfer.id],
 			name: 'ledger_transaction_transfer_fk'
 		}).onDelete('cascade'),
 		index('ledger_transaction_account_idx').on(table.accountId),
+		index('ledger_transaction_workspace_date_idx').on(table.workspaceId, table.date),
 		index('ledger_transaction_trash_idx').on(table.trashedAt),
+		uniqueIndex('ledger_transaction_import_source_unique').on(
+			table.importBatchId,
+			table.importSourceRow
+		),
 		uniqueIndex('ledger_transaction_transfer_side_unique').on(table.transferId, table.transferSide),
 		check('ledger_transaction_kind_check', sql`${table.kind} IN ('income', 'expense')`),
 		check('ledger_transaction_amount_check', sql`${table.amountMinor} > 0`),
@@ -136,9 +156,71 @@ export const ledgerTransaction = sqliteTable(
 		),
 		check('ledger_transaction_version_check', sql`${table.version} > 0`),
 		check(
+			'ledger_transaction_import_source_check',
+			sql`(${table.importBatchId} IS NULL) = (${table.importSourceRow} IS NULL)`
+		),
+		check(
 			'ledger_transaction_transfer_check',
 			sql`(${table.source} = 'manual' AND ${table.transferId} IS NULL AND ${table.transferSide} IS NULL) OR (${table.source} = 'transfer' AND ${table.transferId} IS NOT NULL AND ((${table.transferSide} = 'from' AND ${table.kind} = 'expense') OR (${table.transferSide} = 'to' AND ${table.kind} = 'income')))`
 		)
+	]
+);
+
+export const ledgerCategory = sqliteTable(
+	'ledger_category',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		normalizedName: text('normalized_name').notNull(),
+		version: safeInteger('version').default(1).notNull(),
+		archivedAt: secondsTimestamp('archived_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		uniqueIndex('ledger_category_workspace_name_unique').on(
+			table.workspaceId,
+			table.normalizedName
+		),
+		uniqueIndex('ledger_category_workspace_id_unique').on(table.workspaceId, table.id),
+		check('ledger_category_version_check', sql`${table.version} > 0`)
+	]
+);
+
+export const ledgerImportBatch = sqliteTable(
+	'ledger_import_batch',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		accountId: text('account_id').notNull(),
+		filename: text('filename').notNull(),
+		actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		trashedAt: secondsTimestamp('trashed_at')
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.accountId],
+			foreignColumns: [financialAccount.workspaceId, financialAccount.id]
+		}).onDelete('restrict'),
+		uniqueIndex('ledger_import_batch_workspace_id_unique').on(table.workspaceId, table.id),
+		uniqueIndex('ledger_import_batch_workspace_account_id_unique').on(
+			table.workspaceId,
+			table.accountId,
+			table.id
+		),
+		index('ledger_import_batch_workspace_created_idx').on(table.workspaceId, table.createdAt)
 	]
 );
 
@@ -213,7 +295,15 @@ export const ledgerAudit = sqliteTable(
 		actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
 		actorDisplay: text('actor_display').notNull(),
 		entityType: text('entity_type', {
-			enum: ['transaction', 'account', 'transfer', 'balance_check', 'correction']
+			enum: [
+				'transaction',
+				'account',
+				'transfer',
+				'balance_check',
+				'correction',
+				'category',
+				'import_batch'
+			]
 		}).notNull(),
 		entityId: text('entity_id').notNull(),
 		action: text('action').notNull(),
