@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { todayInWarsaw } from './date'
+import { calendarMonthRange, shiftCalendarMonth, todayInWarsaw } from './date'
 
-describe('todayInWarsaw', () => {
-  it('uses the Warsaw calendar date around UTC midnight', () => {
-    expect(todayInWarsaw(new Date('2026-07-31T22:30:00Z'))).toBe('2026-08-01')
+describe('Warsaw calendar helpers', () => {
+  it('uses Warsaw rather than UTC at the day boundary', () => {
+    expect(todayInWarsaw(new Date('2026-03-31T22:30:00Z'))).toBe('2026-04-01')
   })
-
-  it('uses the previous Warsaw date before local midnight', () => {
-    expect(todayInWarsaw(new Date('2026-01-01T22:30:00Z'))).toBe('2026-01-01')
+  it('handles leap years and month shifts', () => {
+    expect(calendarMonthRange('2024-02-10')).toEqual({
+      startDate: '2024-02-01',
+      endDate: '2024-02-29',
+    })
+    expect(shiftCalendarMonth('2026-01-15', -1)).toEqual({
+      startDate: '2025-12-01',
+      endDate: '2025-12-31',
+    })
   })
 })
