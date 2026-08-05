@@ -963,6 +963,8 @@
           api={(path, options) =>
             api(`/workspaces/${workspaceId}/summary${path}`, options)}
         />
+      {/key}
+      {#key workspaceId}
         <CategoryManager
           {categories}
           api={(path, options) =>
