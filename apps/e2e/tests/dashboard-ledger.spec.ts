@@ -36,6 +36,13 @@ function json(route: Route, body: unknown, status = 200) {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+function emptyInsightsResponse(path: string, method: string): unknown | undefined {
+	if (method !== 'GET' || !path.startsWith('/api/workspaces/')) return undefined;
+	if (path.endsWith('/categories') || path.endsWith('/imports')) return [];
+	if (path.endsWith('/summary')) return { currencies: [] };
+	return undefined;
+}
+
 async function mockLedger(page: Page) {
 	let account: Account | undefined;
 	const transactions: Transaction[] = [];
@@ -70,6 +77,15 @@ async function mockLedger(page: Page) {
 		}
 		if (pathname === '/api/workspaces' && method === 'GET') {
 			return json(route, [personalWorkspace]);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/categories` && method === 'GET') {
+			return json(route, []);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/summary` && method === 'GET') {
+			return json(route, { currencies: [] });
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/imports` && method === 'GET') {
+			return json(route, []);
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
 			return json(route, account ? [accountResponse()] : []);
@@ -149,6 +165,7 @@ async function mockLedger(page: Page) {
 							kind: 'expense',
 							amountMinor: '12500',
 							description: 'Rent',
+							categoryId: null,
 							date: body!.date,
 							idempotencyKey: key
 						}
@@ -156,6 +173,7 @@ async function mockLedger(page: Page) {
 							kind: 'income',
 							amountMinor: '2500',
 							description: 'Refund',
+							categoryId: null,
 							date: body!.date,
 							idempotencyKey: key
 						};
@@ -186,6 +204,7 @@ async function mockLedger(page: Page) {
 				kind: 'expense',
 				amountMinor: item.version === 1 ? '12000' : '12500',
 				description: 'Rent corrected',
+				categoryId: null,
 				date: body!.date,
 				version: item.version,
 				idempotencyKey: key
@@ -273,6 +292,8 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 			return json(route, { user: { id: 'user-e2e' }, token: 'session-e2e' });
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
+		const insights = emptyInsightsResponse(pathname, request.method());
+		if (insights !== undefined) return json(route, insights);
 
 		return json(
 			route,
@@ -348,6 +369,8 @@ test('creates and selects a household workspace', async ({ page }) => {
 				{ userId: 'user-e2e', name: 'Ada', email: 'ada@example.com', role: 'owner' }
 			]);
 		if (path === `/api/workspaces/${householdId}/invitations`) return json(route, []);
+		const insights = emptyInsightsResponse(path, method);
+		if (insights !== undefined) return json(route, insights);
 		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
 	});
 
@@ -363,6 +386,73 @@ test('creates and selects a household workspace', async ({ page }) => {
 	await expect(selector).toHaveValue(householdId);
 	await expect(selector.locator('option:checked')).toHaveText('Lovelace household — Household');
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
+});
+
+test('discards stale responses after rapid workspace switches', async ({ page }) => {
+	const secondWorkspaceId = 'workspace-second';
+	const workspaces = [
+		personalWorkspace,
+		{
+			...personalWorkspace,
+			id: secondWorkspaceId,
+			name: 'Second workspace'
+		}
+	];
+	const accountFor = (id: string, name: string): Account & Record<string, unknown> => ({
+		id,
+		name,
+		type: 'current',
+		currency: 'USD',
+		openingBalanceMinor: '0',
+		balanceMinor: '0',
+		negativeBalance: false,
+		version: 1,
+		archivedAt: null,
+		canDelete: true,
+		canArchive: true,
+		canRestore: false
+	});
+	const firstAccount = accountFor('account-first', 'First account');
+	const secondAccount = accountFor('account-second', 'Second account');
+	let releaseSecond!: () => void;
+	const secondResponseGate = new Promise<void>((resolve) => {
+		releaseSecond = resolve;
+	});
+	let delayedResponses = 0;
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		const method = request.method();
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces') return json(route, workspaces);
+		if (
+			path === `/api/workspaces/${secondWorkspaceId}/accounts` ||
+			path === `/api/workspaces/${secondWorkspaceId}/categories`
+		) {
+			await secondResponseGate;
+			delayedResponses++;
+			return json(route, path.endsWith('/accounts') ? [secondAccount] : []);
+		}
+		if (path === `/api/workspaces/${workspaceId}/accounts`) return json(route, [firstAccount]);
+		if (path === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
+		if (path.includes('/accounts/account-first/') && method === 'GET') return json(route, []);
+		const insights = emptyInsightsResponse(path, method);
+		if (insights !== undefined) return json(route, insights);
+		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
+	});
+
+	await page.goto('/dashboard');
+	const selector = page.getByLabel('Workspace', { exact: true });
+	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
+	await selector.selectOption(secondWorkspaceId);
+	await selector.selectOption(workspaceId);
+	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
+	releaseSecond();
+	await expect.poll(() => delayedResponses).toBe(2);
+	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Second account/ })).toHaveCount(0);
 });
 
 test('renders a private incoming cross-workspace transfer without management controls', async ({
@@ -422,6 +512,8 @@ test('renders a private incoming cross-workspace transfer without management con
 				}
 			]);
 		if (path.endsWith('/balance-checks') || path.endsWith('/corrections')) return json(route, []);
+		const insights = emptyInsightsResponse(path, request.method());
+		if (insights !== undefined) return json(route, insights);
 		return json(route, { message: `Unexpected mocked request: ${request.method()} ${path}` }, 500);
 	});
 
@@ -517,6 +609,334 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Close' }).click();
 	await page.getByRole('button', { name: 'Restore account' }).click();
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeVisible();
+});
+
+test('categorizes spending and completes a reviewed CSV import batch', async ({ page }) => {
+	const salaryId = 'category-salary';
+	const groceriesId = 'category-groceries';
+	const csv = [
+		'date,kind,amount,description,category',
+		'2026-08-01,expense,12.34,Market,Groceries',
+		'2026-08-01,expense,12.34,Market duplicate,Groceries',
+		'not-a-date,expense,nope,Broken row,Groceries',
+		'2026-08-03,income,50.00,Side job,Freelance'
+	].join('\n');
+	const categories = [
+		{
+			id: salaryId,
+			workspaceId,
+			name: 'Salary',
+			archivedAt: null,
+			createdAt: '2026-08-01T00:00:00.000Z',
+			updatedAt: '2026-08-01T00:00:00.000Z'
+		},
+		{
+			id: groceriesId,
+			workspaceId,
+			name: 'Groceries',
+			archivedAt: null,
+			createdAt: '2026-08-01T00:00:00.000Z',
+			updatedAt: '2026-08-01T00:00:00.000Z'
+		}
+	];
+	const account = {
+		id: accountId,
+		name: 'Everyday account',
+		type: 'current',
+		currency: 'USD',
+		openingBalanceMinor: '10000',
+		balanceMinor: '10000',
+		negativeBalance: false,
+		version: 1,
+		archivedAt: null,
+		canDelete: false,
+		canArchive: false,
+		canRestore: false
+	};
+	const manualTransaction = {
+		id: 'manual-groceries',
+		kind: 'expense',
+		amountMinor: '2500',
+		date: '2026-08-02',
+		description: 'Weekly shop',
+		categoryId: groceriesId,
+		categoryName: 'Groceries',
+		version: 1,
+		trashedAt: null
+	};
+	const importedTransactions = [
+		{
+			...manualTransaction,
+			id: 'import-known',
+			date: '2026-08-01',
+			amountMinor: '1234',
+			description: 'Market',
+			importSourceRow: 2
+		},
+		{
+			...manualTransaction,
+			id: 'import-duplicate',
+			date: '2026-08-01',
+			amountMinor: '1234',
+			description: 'Market duplicate',
+			importSourceRow: 3
+		},
+		{
+			...manualTransaction,
+			id: 'import-unknown',
+			date: '2026-08-03',
+			kind: 'income',
+			amountMinor: '5000',
+			description: 'Side job',
+			categoryId: null,
+			categoryName: null,
+			importSourceRow: 5
+		}
+	];
+	const batch = {
+		id: 'import-batch-e2e',
+		workspaceId,
+		accountId,
+		filename: 'august.csv',
+		actorUserId: 'user-e2e',
+		createdAt: '2026-08-05T12:00:00.000Z',
+		trashedAt: null
+	};
+	let manualCreated = false;
+	let imported = false;
+	let trashed = false;
+	let ledgerReads = 0;
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const { pathname } = new URL(request.url());
+		const method = request.method();
+		const body = request.postDataJSON?.() as Record<string, any>;
+		if (pathname === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (pathname === '/api/workspaces') return json(route, [personalWorkspace]);
+		if (pathname.endsWith('/categories') && method === 'GET') return json(route, categories);
+		if (pathname.endsWith('/accounts') && method === 'GET') return json(route, [account]);
+		if (pathname.endsWith('/summary') && method === 'GET')
+			return json(route, {
+				currencies: [
+					{
+						currency: 'USD',
+						incomeMinor: '0',
+						spendingMinor: '2500',
+						uncategorizedMinor: '0',
+						groups: [
+							{
+								kind: 'expense',
+								categoryId: groceriesId,
+								categoryName: 'Groceries',
+								amountMinor: '2500',
+								transactions: [
+									{
+										id: manualTransaction.id,
+										accountId,
+										date: manualTransaction.date,
+										kind: 'expense',
+										amountMinor: '2500',
+										description: 'Weekly shop'
+									}
+								]
+							}
+						]
+					}
+				]
+			});
+		if (pathname.endsWith(`/accounts/${accountId}/transactions`) && method === 'GET') {
+			ledgerReads++;
+			return json(route, [
+				...(manualCreated ? [manualTransaction] : []),
+				...(imported
+					? importedTransactions.map((item) => ({
+							...item,
+							trashedAt: trashed ? '2026-08-05T13:00:00.000Z' : null
+						}))
+					: [])
+			]);
+		}
+		if (method === 'GET' && /(transfers|balance-checks|corrections)$/.test(pathname))
+			return json(route, []);
+		if (pathname.endsWith(`/accounts/${accountId}/transactions`) && method === 'POST') {
+			expect(body).toMatchObject({
+				kind: 'expense',
+				amountMinor: '2500',
+				description: 'Weekly shop',
+				categoryId: groceriesId,
+				idempotencyKey: key
+			});
+			manualCreated = true;
+			return json(
+				route,
+				{ transaction: manualTransaction, balanceMinor: '7500', negativeBalance: false },
+				201
+			);
+		}
+		if (pathname.endsWith('/imports') && method === 'GET')
+			return json(
+				route,
+				imported ? [{ ...batch, trashedAt: trashed ? '2026-08-05T13:00:00.000Z' : null }] : []
+			);
+		if (pathname.endsWith('/imports/preview') && method === 'POST') {
+			expect(body).toEqual({ filename: 'august.csv', accountId, csv });
+			return json(route, {
+				rows: [
+					{
+						sourceRow: 2,
+						date: '2026-08-01',
+						kind: 'expense',
+						amount: '12.34',
+						amountMinor: '1234',
+						description: 'Market',
+						category: 'Groceries',
+						categoryId: groceriesId,
+						categoryStatus: 'existing',
+						errors: [],
+						duplicateReason: null,
+						selected: true
+					},
+					{
+						sourceRow: 3,
+						date: '2026-08-01',
+						kind: 'expense',
+						amount: '12.34',
+						amountMinor: '1234',
+						description: 'Market duplicate',
+						category: 'Groceries',
+						categoryId: groceriesId,
+						categoryStatus: 'existing',
+						errors: [],
+						duplicateReason: 'Same date and amount',
+						selected: false
+					},
+					{
+						sourceRow: 4,
+						date: 'not-a-date',
+						kind: 'expense',
+						amount: 'nope',
+						amountMinor: '',
+						description: 'Broken row',
+						category: 'Groceries',
+						categoryId: groceriesId,
+						categoryStatus: 'existing',
+						errors: ['Invalid date', 'Invalid amount'],
+						duplicateReason: null,
+						selected: false
+					},
+					{
+						sourceRow: 5,
+						date: '2026-08-03',
+						kind: 'income',
+						amount: '50.00',
+						amountMinor: '5000',
+						description: 'Side job',
+						category: 'Freelance',
+						categoryId: null,
+						categoryStatus: 'unknown',
+						errors: [],
+						duplicateReason: null,
+						selected: true
+					}
+				]
+			});
+		}
+		if (pathname.endsWith('/imports/confirm') && method === 'POST') {
+			expect(body).toEqual({
+				filename: 'august.csv',
+				accountId,
+				csv,
+				idempotencyKey: expect.any(String),
+				rows: [
+					{
+						sourceRow: 2,
+						include: true,
+						duplicateAcknowledged: false,
+						categoryId: groceriesId
+					},
+					{
+						sourceRow: 3,
+						include: true,
+						duplicateAcknowledged: true,
+						categoryId: groceriesId
+					},
+					{
+						sourceRow: 4,
+						include: false,
+						duplicateAcknowledged: false,
+						categoryId: groceriesId
+					},
+					{ sourceRow: 5, include: true, duplicateAcknowledged: false }
+				]
+			});
+			imported = true;
+			return json(route, { ...batch, count: 3 }, 201);
+		}
+		if (pathname.endsWith(`/imports/${batch.id}`) && method === 'GET')
+			return json(route, { ...batch, transactions: importedTransactions });
+		if (pathname.endsWith(`/imports/${batch.id}/trash`) && method === 'POST') {
+			expect(body).toEqual({ idempotencyKey: expect.any(String) });
+			trashed = true;
+			return json(route, { trashed: 3 });
+		}
+		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
+	});
+
+	await page.goto('/dashboard');
+	await page.getByRole('button', { name: 'Add transaction' }).click();
+	await page.getByLabel('Amount').fill('25.00');
+	await page.getByLabel('Description').fill('Weekly shop');
+	await page.getByLabel('Category', { exact: true }).selectOption(groceriesId);
+	await submitDialog(page);
+	await expect(
+		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
+	).toBeVisible();
+
+	const summaryGroup = page.getByRole('button', { name: 'Groceries · expense 25.00' });
+	await expect(summaryGroup).toBeVisible();
+	await summaryGroup.click();
+	await expect(
+		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25.00 USD', { exact: true })
+	).toBeVisible();
+
+	await page
+		.getByLabel('CSV file')
+		.setInputFiles({ name: 'august.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+	await page.getByRole('button', { name: 'Preview', exact: true }).click();
+	for (const sourceRow of [2, 3, 4, 5]) {
+		await expect(page.getByLabel(`Select row ${sourceRow}`)).toBeVisible();
+	}
+	await expect(page.getByText('Invalid: Invalid date; Invalid amount')).toBeVisible();
+	await expect(page.getByText('Duplicate warning: Same date and amount')).toBeVisible();
+	await expect(page.getByLabel('Select row 4')).toBeDisabled();
+	await expect(page.getByLabel('Select row 3')).not.toBeChecked();
+	await page.getByLabel('Select row 3').check();
+	await expect(page.getByLabel('Category resolution row 2')).toHaveValue(groceriesId);
+	await expect(page.getByLabel('Category resolution row 5')).toHaveValue('blank');
+	await page.getByRole('button', { name: 'Confirm selected rows' }).click();
+	await expect(page.getByText('Imported 3 transactions from august.csv.')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Import history' })).toBeVisible();
+	await expect(page.getByText('august.csv', { exact: true })).toBeVisible();
+
+	await page.getByRole('button', { name: 'Details' }).click();
+	await expect(page.getByRole('heading', { name: 'august.csv details' })).toBeVisible();
+	await expect(
+		page.getByText('Row 2 · 2026-08-01 · expense · 1234 · Market', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('Row 3 · 2026-08-01 · expense · 1234 · Market duplicate', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('Row 5 · 2026-08-03 · income · 5000 · Side job', { exact: true })
+	).toBeVisible();
+	const readsBeforeTrash = ledgerReads;
+	page.once('dialog', (dialog) => dialog.accept());
+	await page.getByRole('button', { name: 'Trash batch' }).click();
+	await expect(page.getByText('Trashed 3 imported transactions.')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Trash batch' })).toHaveCount(0);
+	expect(ledgerReads).toBeGreaterThan(readsBeforeTrash);
 });
 
 test('transfers with a separate fee and explicitly reconciles a balance', async ({ page }) => {
@@ -664,6 +1084,8 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 					afterJson: JSON.stringify({ amountMinor: '2000' })
 				}
 			]);
+		const insights = emptyInsightsResponse(path, method);
+		if (insights !== undefined) return json(route, insights);
 		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
 	});
 
