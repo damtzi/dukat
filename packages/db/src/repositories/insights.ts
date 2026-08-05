@@ -5,6 +5,7 @@ import {
 	normalizeCategoryName,
 	parseCsv
 } from '@dukat/core';
+import type { Summary } from '@dukat/core';
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
@@ -391,7 +392,12 @@ export function createInsightsRepository(db: FinancialDatabase) {
 				}
 				const currencies = new Map<
 					string,
-					{ income: bigint; spending: bigint; uncategorized: bigint; groups: unknown[] }
+					{
+						income: bigint;
+						spending: bigint;
+						uncategorized: bigint;
+						groups: Summary['currencies'][number]['groups'];
+					}
 				>();
 				for (const [key, group] of [...map].sort(([a], [b]) => a.localeCompare(b))) {
 					const [currency, kind, categoryId, categoryName] = JSON.parse(key);
