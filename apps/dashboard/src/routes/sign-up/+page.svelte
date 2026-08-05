@@ -1,9 +1,6 @@
 <script lang="ts">
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
 
-  let name = ''
-  let email = ''
-  let password = ''
   let error = ''
   let notice = ''
   let pending = false
@@ -11,6 +8,8 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault()
     if (pending) return
+    const form = event.currentTarget as HTMLFormElement
+    const data = new FormData(form)
     error = ''
     notice = ''
     pending = true
@@ -19,9 +18,9 @@
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          password,
+          name: String(data.get('name') ?? '').trim(),
+          email: String(data.get('email') ?? '').trim(),
+          password: String(data.get('password') ?? ''),
           callbackURL: '/',
         }),
       })
@@ -31,7 +30,7 @@
           body.message || `Authentication failed (${response.status}).`,
         )
       notice = 'Check your email to verify your account, then sign in.'
-      password = ''
+      form.reset()
     } catch (cause) {
       error = (cause as Error).message
     } finally {
@@ -63,27 +62,27 @@
         <div class="space-y-2">
           <Label for="name">Name</Label><Input
             id="name"
+            name="name"
             autocomplete="name"
-            bind:value={name}
             required
           />
         </div>
         <div class="space-y-2">
           <Label for="email">Email</Label><Input
             id="email"
+            name="email"
             type="email"
             autocomplete="email"
-            bind:value={email}
             required
           />
         </div>
         <div class="space-y-2">
           <Label for="password">Password</Label><Input
             id="password"
+            name="password"
             type="password"
             autocomplete="new-password"
             minlength={8}
-            bind:value={password}
             required
           />
         </div>

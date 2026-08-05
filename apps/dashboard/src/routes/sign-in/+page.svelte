@@ -4,8 +4,6 @@
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
   import { getBrowserSession } from '$lib/session'
 
-  let email = ''
-  let password = ''
   let error = ''
   let pending = false
 
@@ -18,13 +16,17 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault()
     if (pending) return
+    const data = new FormData(event.currentTarget as HTMLFormElement)
     error = ''
     pending = true
     try {
       const response = await fetch('/api/auth/sign-in/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: String(data.get('email') ?? '').trim(),
+          password: String(data.get('password') ?? ''),
+        }),
       })
       const body = await response.json().catch(() => ({}))
       if (!response.ok)
@@ -59,19 +61,19 @@
         <div class="space-y-2">
           <Label for="email">Email</Label><Input
             id="email"
+            name="email"
             type="email"
             autocomplete="email"
-            bind:value={email}
             required
           />
         </div>
         <div class="space-y-2">
           <Label for="password">Password</Label><Input
             id="password"
+            name="password"
             type="password"
             autocomplete="current-password"
             minlength={8}
-            bind:value={password}
             required
           />
         </div>

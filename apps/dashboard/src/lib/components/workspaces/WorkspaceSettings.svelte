@@ -22,10 +22,6 @@
   }: { workspace: Workspace; onchanged: () => Promise<void> } = $props()
   let members: Member[] = $state([])
   let invitations: Invitation[] = $state([])
-  let name = $state('')
-  let currency = $state('')
-  let email = $state('')
-  let password = $state('')
   let confirmation = $state('')
   let error = $state('')
   let pending = $state(false)
@@ -63,14 +59,17 @@
       await request(path, { method: 'POST', body: JSON.stringify(body) })
       await onchanged()
       await load()
+      return true
     } catch (cause) {
       error = (cause as Error).message
+      return false
     } finally {
       pending = false
     }
   }
   async function save(event: SubmitEvent) {
     event.preventDefault()
+    const data = new FormData(event.currentTarget as HTMLFormElement)
     pending = true
     error = ''
     try {
@@ -78,8 +77,10 @@
         method: 'PATCH',
         body: JSON.stringify({
           version: workspace.version,
-          name: name.trim(),
-          reportingCurrency: currency.toUpperCase(),
+          name: String(data.get('name') ?? '').trim(),
+          reportingCurrency: String(
+            data.get('reportingCurrency') ?? '',
+          ).toUpperCase(),
         }),
       })
       await onchanged()
@@ -91,16 +92,18 @@
   }
   async function invite(event: SubmitEvent) {
     event.preventDefault()
-    await act(`/workspaces/${workspace.id}/invitations`, {
-      version: workspace.version,
-      email: email.trim(),
-    })
-    email = ''
+    const form = event.currentTarget as HTMLFormElement
+    const data = new FormData(form)
+    if (
+      await act(`/workspaces/${workspace.id}/invitations`, {
+        version: workspace.version,
+        email: String(data.get('email') ?? '').trim(),
+      })
+    )
+      form.reset()
   }
   $effect(() => {
     const id = workspace.id
-    name = workspace.name
-    currency = workspace.reportingCurrency ?? ''
     if (id) void load()
   })
 </script>
@@ -160,11 +163,13 @@
         <h3 class="font-semibold">Details</h3>
         <Label for="household-name">Household name</Label><Input
           id="household-name"
-          bind:value={name}
+          name="name"
+          value={workspace.name}
           required
         /><Label for="household-currency">Reporting currency</Label><Input
           id="household-currency"
-          bind:value={currency}
+          name="reportingCurrency"
+          value={workspace.reportingCurrency ?? ''}
           minlength={3}
           maxlength={3}
           pattern={'[A-Za-z]{3}'}
@@ -175,8 +180,8 @@
         <h3 class="font-semibold">Invite member</h3>
         <Label for="invite-email">Email</Label><Input
           id="invite-email"
+          name="email"
           type="email"
-          bind:value={email}
           required
         /><Button type="submit" disabled={pending}>Send invitation</Button>
       </form>
@@ -214,9 +219,10 @@
         class="space-y-2 rounded-md border border-destructive p-3"
         onsubmit={(event) => {
           event.preventDefault()
+          const data = new FormData(event.currentTarget as HTMLFormElement)
           void act(`/workspaces/${workspace.id}/delete`, {
             version: workspace.version,
-            password,
+            password: String(data.get('password') ?? ''),
             confirmation,
             idempotencyKey: crypto.randomUUID(),
           })
@@ -232,9 +238,9 @@
           required
         /><Label for="delete-password">Current password</Label><Input
           id="delete-password"
+          name="password"
           type="password"
           autocomplete="current-password"
-          bind:value={password}
           required
         /><Button
           type="submit"

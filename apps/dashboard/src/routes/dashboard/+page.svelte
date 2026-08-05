@@ -57,10 +57,6 @@
   let accounts: Account[] = []
   let pickerAccounts: PickerAccount[] = []
   let recoverable: Workspace[] = []
-  let householdName = ''
-  let householdCurrency = 'USD'
-  let accountPassword = ''
-  let accountConfirmation = false
   let deletionBlockers: { id: string; name: string }[] | null = null
   let selectedId = ''
   let transactions: Transaction[] = []
@@ -172,16 +168,20 @@
   }
   async function createHousehold(event: SubmitEvent) {
     event.preventDefault()
+    const form = event.currentTarget as HTMLFormElement
+    const data = new FormData(form)
     message = ''
     try {
       const created = await api('/workspaces', {
         method: 'POST',
         body: JSON.stringify({
-          name: householdName.trim(),
-          reportingCurrency: householdCurrency.toUpperCase(),
+          name: String(data.get('name') ?? '').trim(),
+          reportingCurrency: String(
+            data.get('reportingCurrency') ?? '',
+          ).toUpperCase(),
         }),
       })
-      householdName = ''
+      form.reset()
       workspaces = [...workspaces, created]
       workspaceId = created.id
       await loadAccounts()
@@ -218,13 +218,13 @@
   }
   async function deleteAccount(event: SubmitEvent) {
     event.preventDefault()
-    if (!accountConfirmation) return
+    const data = new FormData(event.currentTarget as HTMLFormElement)
     try {
       await api('/account/delete', {
         method: 'POST',
         body: JSON.stringify({
-          password: accountPassword,
-          confirmation: 'DELETE',
+          password: String(data.get('password') ?? ''),
+          confirmation: String(data.get('confirmation') ?? ''),
         }),
       })
       location.href = '/sign-in'
@@ -765,14 +765,15 @@
           <div>
             <Label for="new-household-name">Name</Label><Input
               id="new-household-name"
-              bind:value={householdName}
+              name="name"
               required
             />
           </div>
           <div>
             <Label for="new-household-currency">Reporting currency</Label><Input
               id="new-household-currency"
-              bind:value={householdCurrency}
+              name="reportingCurrency"
+              value="USD"
               minlength={3}
               maxlength={3}
               pattern={'[A-Za-z]{3}'}
@@ -820,17 +821,20 @@
             >{:else}<form class="space-y-3" onsubmit={deleteAccount}>
               <Label for="account-password">Current password</Label><Input
                 id="account-password"
+                name="password"
                 type="password"
                 autocomplete="current-password"
-                bind:value={accountPassword}
                 required
               /><label class="flex gap-2"
-                ><input type="checkbox" bind:checked={accountConfirmation} /> I understand
-                my account and sole-member households will be permanently deleted.</label
-              ><Button
-                type="submit"
-                variant="destructive"
-                disabled={!accountConfirmation}>Delete my account</Button
+                ><input
+                  type="checkbox"
+                  name="confirmation"
+                  value="DELETE"
+                  required
+                /> I understand my account and sole-member households will be permanently
+                deleted.</label
+              ><Button type="submit" variant="destructive"
+                >Delete my account</Button
               >
             </form>{/if}</Card.Content
         ></Card.Root
