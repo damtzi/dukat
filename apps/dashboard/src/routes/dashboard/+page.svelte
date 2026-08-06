@@ -28,6 +28,7 @@
   import CategoryManager from '$lib/components/insights/CategoryManager.svelte'
   import SummarySection from '$lib/components/insights/SummarySection.svelte'
   import CsvImports from '$lib/components/insights/CsvImports.svelte'
+  import PlanningSection from '$lib/components/planning/PlanningSection.svelte'
 
   type Workspace = {
     id: string
@@ -48,6 +49,25 @@
     totalMinor: string | null
     missingRate: boolean
     rates: RateProvenance[]
+  }
+  type WorkspaceForecast = {
+    estimate: true
+    reportingCurrency: string | null
+    missingRate: boolean
+    startingBalanceMinor: string | null
+    endingBalanceMinor: string | null
+    occurrences: unknown[]
+  }
+  type ArchiveImpact = {
+    accountVersion: number
+    date: string
+    impactToken: string
+    plans: Array<{
+      id: string
+      action: 'stop' | 'cancel'
+      description?: string | null
+      date: string
+    }>
   }
   type RateProvenance = {
     currency: string
@@ -101,6 +121,7 @@
   let categories: Category[] = []
   let rateStatus: RateStatus | null = null
   let convertedBalances: ConvertedBalances | null = null
+  let workspaceForecast: WorkspaceForecast | null = null
   let insightsVersion = 0
   let pickerAccounts: PickerAccount[] = []
   let recoverable: Workspace[] = []
@@ -126,7 +147,7 @@
   let transactionIntentKey = ''
   let transferIntentKey = ''
   let checkIntentKey = ''
-  let actionIntent: { name: string; key: string } | null = null
+  let actionIntent: { name: string; key: string; body?: string } | null = null
   type RetainedIntent = { path: string; body: string }
   let correctionIntent: (RetainedIntent & { checkId: string }) | null = null
   let feeIntent: RetainedIntent | null = null
@@ -219,6 +240,7 @@
       accounts = []
       categories = []
       convertedBalances = null
+      workspaceForecast = null
       selectedId = ''
       transactions = []
       transfers = []
@@ -252,6 +274,19 @@
           rateStatus = loadedRateStatus
           convertedBalances = loadedConvertedBalances
         }
+      })
+      .catch(() => undefined)
+    void (
+      api(
+        `/workspaces/${targetWorkspaceId}/forecast`,
+      ) as Promise<WorkspaceForecast>
+    )
+      .then((loadedWorkspaceForecast) => {
+        if (
+          generation === accountLoadGeneration &&
+          workspaceId === targetWorkspaceId
+        )
+          workspaceForecast = loadedWorkspaceForecast
       })
       .catch(() => undefined)
     const targetAccountId = loadedAccounts.some(
@@ -460,17 +495,38 @@
     const name = `${account.id}:${action}`
     if (actionIntent?.name !== name) actionIntent = { name, key: key() }
     try {
-      await api(`/workspaces/${workspaceId}/accounts/${account.id}/${action}`, {
-        method: 'POST',
-        body: JSON.stringify({
+      if (!actionIntent.body) {
+        let impact: ArchiveImpact | null = null
+        if (action === 'archive') {
+          impact = (await api(
+            `/workspaces/${workspaceId}/accounts/${account.id}/archive-impact`,
+          )) as ArchiveImpact
+          const details = impact.plans.length
+            ? `\n\nAffected plans:\n${impact.plans
+                .map(
+                  (plan) =>
+                    `• ${plan.action === 'stop' ? 'Stop' : 'Cancel'} ${plan.description || `plan from ${plan.date}`}`,
+                )
+                .join('\n')}`
+            : '\n\nNo plans are affected.'
+          if (!confirm(`Archive ${account.name}?${details}`)) return
+        }
+        actionIntent.body = JSON.stringify({
           version: account.version,
           idempotencyKey: actionIntent.key,
-        }),
+          ...(impact ? { impactToken: impact.impactToken } : {}),
+        })
+      }
+      await api(`/workspaces/${workspaceId}/accounts/${account.id}/${action}`, {
+        method: 'POST',
+        body: actionIntent.body,
       })
       actionIntent = null
       await loadAccounts()
     } catch (error) {
       message = (error as Error).message
+      if (message.toLowerCase().includes('archive impact changed'))
+        actionIntent = null
     } finally {
       pending = false
     }
@@ -1081,6 +1137,30 @@
                 </p>{/if}</Card.Content
             ></Card.Root
           >{/if}
+        {#if workspaceForecast}<Card.Root class="mb-6"
+            ><Card.Header
+              ><Card.Title>12-month workspace forecast</Card.Title
+              ><Card.Description
+                >Estimated in {workspaceForecast.reportingCurrency ??
+                  'reporting currency'} using latest rates.</Card.Description
+              ></Card.Header
+            ><Card.Content
+              >{#if workspaceForecast.endingBalanceMinor !== null && workspaceForecast.reportingCurrency}<b
+                  >Projected balance: {minorToDecimal(
+                    workspaceForecast.endingBalanceMinor,
+                    workspaceForecast.reportingCurrency,
+                  )}
+                  {workspaceForecast.reportingCurrency}</b
+                >
+                <p class="mt-1 text-sm text-muted-foreground">
+                  {workspaceForecast.occurrences.length} unmatched planned occurrences
+                  included.
+                </p>{:else}<p class="text-sm text-muted-foreground">
+                  The workspace forecast is unavailable because an exchange rate
+                  is missing. Account forecasts remain available.
+                </p>{/if}</Card.Content
+            ></Card.Root
+          >{/if}
         <SummarySection
           {accounts}
           api={(path, options) =>
@@ -1127,6 +1207,11 @@
                   )}
                 onaction={accountAction}
               />
+              {#key `${workspaceId}:${account.id}`}<PlanningSection
+                  {workspaceId}
+                  {account}
+                  {api}
+                />{/key}
               <TransactionsSection
                 {account}
                 {transactions}
