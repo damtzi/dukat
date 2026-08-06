@@ -1,4 +1,5 @@
 import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
+import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 
 import type { Database } from '../connection';
 import {
@@ -152,8 +153,11 @@ export function createWorkspaceRepository(database: Database) {
 		findAuthorized: (context: WorkspaceAuthorizationContext) =>
 			findAuthorizedWorkspace(database, context),
 		createHousehold(userId: string, input: { name: string; reportingCurrency: string }) {
-			if (!/^[A-Z]{3}$/.test(input.reportingCurrency))
-				throw new WorkspaceError('invalid', 'Reporting currency must be a 3-letter uppercase code');
+			if (!supportedCurrencySchema.safeParse(input.reportingCurrency).success)
+				throw new WorkspaceError(
+					'invalid',
+					'Reporting currency must be PLN or an NBP Table A currency'
+				);
 			return database.transaction(async (tx) => {
 				const id = crypto.randomUUID();
 				await tx.insert(workspace).values({
@@ -178,13 +182,25 @@ export function createWorkspaceRepository(database: Database) {
 			context: WorkspaceAuthorizationContext,
 			input: { name?: string; reportingCurrency?: string; version: number }
 		) {
-			if (input.reportingCurrency && !/^[A-Z]{3}$/.test(input.reportingCurrency))
-				throw new WorkspaceError('invalid', 'Reporting currency must be a 3-letter uppercase code');
 			return database.transaction(async (tx) => {
 				await owner(tx, context.userId, context.workspaceId);
+				const [before] = await tx
+					.select({ reportingCurrency: workspace.reportingCurrency })
+					.from(workspace)
+					.where(eq(workspace.id, context.workspaceId));
+				const requestedCurrency = input.reportingCurrency?.toUpperCase();
+				if (
+					requestedCurrency &&
+					requestedCurrency !== before.reportingCurrency &&
+					!supportedCurrencySchema.safeParse(requestedCurrency).success
+				)
+					throw new WorkspaceError(
+						'invalid',
+						'New reporting currency must be PLN or a current NBP Table A currency'
+					);
 				const version = await bump(tx, context.workspaceId, input.version, {
 					name: input.name,
-					reportingCurrency: input.reportingCurrency?.toUpperCase()
+					reportingCurrency: requestedCurrency
 				});
 				await audit(tx, context.workspaceId, context.userId, 'household.updated');
 				return { version };

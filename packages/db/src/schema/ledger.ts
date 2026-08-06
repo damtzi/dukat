@@ -70,6 +70,8 @@ export const ledgerTransfer = sqliteTable(
 	'ledger_transfer',
 	{
 		id: text('id').primaryKey(),
+		sentAmountMinor: int64('sent_amount_minor').notNull(),
+		receivedAmountMinor: int64('received_amount_minor').notNull(),
 		date: text('date').notNull(),
 		description: text('description'),
 		version: safeInteger('version').default(1).notNull(),
@@ -82,7 +84,17 @@ export const ledgerTransfer = sqliteTable(
 			.default(sql`(unixepoch())`)
 			.notNull()
 	},
-	(table) => [check('ledger_transfer_version_check', sql`${table.version} > 0`)]
+	(table) => [
+		check('ledger_transfer_version_check', sql`${table.version} > 0`),
+		check(
+			'ledger_transfer_sent_amount_check',
+			sql`${table.sentAmountMinor} BETWEEN 1 AND 9223372036854775807`
+		),
+		check(
+			'ledger_transfer_received_amount_check',
+			sql`${table.receivedAmountMinor} BETWEEN 1 AND 9223372036854775807`
+		)
+	]
 );
 
 export const ledgerTransaction = sqliteTable(

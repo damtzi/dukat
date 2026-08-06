@@ -18,8 +18,10 @@ import {
 	mutationReceipt,
 	user,
 	workspace,
+	workspaceManualRate,
 	workspaceMembership
 } from '../schema';
+import { createExchangeRateRepository, createNbpAdapter } from './exchange-rates';
 import { createInsightsRepository, STARTER_CATEGORIES } from './insights';
 import { createLedgerRepository, LedgerError } from './ledger';
 
@@ -84,6 +86,253 @@ test('migration seeds exactly the twelve starter categories for every future wor
 		).map((row) => row.name);
 		assert.equal(names.length, 12);
 		assert.deepEqual(new Set(names), new Set(STARTER_CATEGORIES));
+	} finally {
+		await f.close();
+	}
+});
+
+test('NBP cache, effective-date lookup, manual override and removal stay reproducible', async () => {
+	const f = await fixture();
+	try {
+		const rates = createExchangeRateRepository(f.financial.db);
+		await rates.cacheTables([
+			{
+				table: 'A',
+				no: '001/A/NBP/2026',
+				effectiveDate: '2026-07-31',
+				rates: [
+					{ code: 'EUR', mid: '4' },
+					{ code: 'USD', mid: '3' }
+				]
+			},
+			{
+				table: 'A',
+				no: '002/A/NBP/2026',
+				effectiveDate: '2026-08-03',
+				rates: [
+					{ code: 'EUR', mid: '5' },
+					{ code: 'USD', mid: '4' }
+				]
+			}
+		]);
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02'))?.rateToPln, '4');
+		await rates.addOverride('owner', f.context.workspaceId, {
+			currency: 'EUR',
+			rateToPln: '99',
+			effectiveDate: '2099-01-01',
+			reason: 'Future contract rate'
+		});
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR'))?.rateToPln, '5');
+		const manual = await rates.addOverride('owner', f.context.workspaceId, {
+			currency: 'EUR',
+			rateToPln: '6',
+			effectiveDate: '2026-08-01',
+			reason: 'Bank statement rate'
+		});
+		assert.equal(
+			(await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02'))?.source,
+			'manual'
+		);
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-03'))?.rateToPln, '5');
+		const summary = await rates.reportingSummary(f.context.workspaceId, {
+			currencies: [
+				{
+					currency: 'EUR',
+					incomeMinor: '100',
+					spendingMinor: '0',
+					uncategorizedMinor: '100',
+					groups: [
+						{
+							kind: 'income',
+							categoryId: null,
+							categoryName: 'Uncategorized',
+							amountMinor: '100',
+							transactions: [
+								{
+									id: 'summary-transaction',
+									accountId: 'eur',
+									date: '2026-08-02',
+									kind: 'income',
+									amountMinor: '100',
+									description: null
+								}
+							]
+						}
+					]
+				}
+			]
+		});
+		assert.equal(summary.reporting.incomeMinor, '600');
+		assert.deepEqual(
+			summary.reporting.rates.map((rate) => [rate.currency, rate.source, rate.effectiveDate]),
+			[
+				['EUR', 'manual', '2026-08-01'],
+				['PLN', 'identity', '2026-08-02']
+			]
+		);
+		await f.financial.db
+			.update(workspace)
+			.set({ reportingCurrency: 'USD' })
+			.where(eq(workspace.id, f.context.workspaceId));
+		const balances = await rates.currentBalances('owner', f.context.workspaceId, {
+			async listAccounts() {
+				return [{ id: 'eur', currency: 'EUR', balanceMinor: '100' }];
+			}
+		});
+		assert.deepEqual(
+			balances.accounts[0].rates.map((rate) => rate.currency),
+			['EUR', 'USD']
+		);
+		const quote = await rates.quote('owner', f.context.workspaceId, {
+			fromCurrency: 'EUR',
+			toCurrency: 'USD',
+			date: '2026-08-02',
+			amountMinor: '100'
+		});
+		assert.equal(quote.suggestedAmountMinor, '200');
+		assert.deepEqual(
+			quote.rates.map((rate) => [rate.currency, rate.source]),
+			[
+				['EUR', 'manual'],
+				['USD', 'NBP']
+			]
+		);
+		await rates.removeOverride('owner', f.context.workspaceId, manual.id);
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02'))?.rateToPln, '4');
+		const [audit] = await f.financial.db
+			.select()
+			.from(workspaceManualRate)
+			.where(eq(workspaceManualRate.id, manual.id));
+		assert.equal(audit.removedByUserId, 'owner');
+		assert.ok(audit.removedAt);
+		const replacement = await rates.addOverride('owner', f.context.workspaceId, {
+			currency: 'EUR',
+			rateToPln: '6.1',
+			effectiveDate: '2026-08-01',
+			reason: 'Corrected bank statement rate'
+		});
+		assert.notEqual(replacement.id, manual.id);
+	} finally {
+		await f.close();
+	}
+});
+
+test('NBP historical adapter splits requests into at most 93-day windows', async () => {
+	const urls: string[] = [];
+	const adapter = createNbpAdapter(async (input) => {
+		urls.push(String(input));
+		return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+	});
+	await adapter.historical('2026-01-01', '2026-07-31');
+	assert.equal(urls.length, 3);
+	assert.match(urls[0], /2026-01-01\/2026-04-03/);
+});
+
+test('NBP adapter aborts a request that does not respond', async () => {
+	const adapter = createNbpAdapter(
+		((_input, init) =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+			})) as typeof fetch,
+		0,
+		10
+	);
+	await assert.rejects(
+		() => adapter.latest(),
+		(error) => error instanceof DOMException
+	);
+});
+
+test('dated lookups backfill each missing historical period', async () => {
+	const f = await fixture();
+	try {
+		const requested: string[] = [];
+		const rates = createExchangeRateRepository(f.financial.db, {
+			async historical(_from, to) {
+				requested.push(to);
+				return [
+					{
+						table: 'A',
+						no: `${to}/A/NBP`,
+						effectiveDate: to,
+						rates: [{ code: 'EUR', mid: to.startsWith('2024') ? '4' : '5' }]
+					}
+				];
+			}
+		});
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2024-01-15'))?.rateToPln, '4');
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2025-01-15'))?.rateToPln, '4');
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		assert.equal((await rates.lookup(f.context.workspaceId, 'EUR', '2025-01-15'))?.rateToPln, '5');
+		assert.deepEqual(requested, ['2024-01-15', '2025-01-15']);
+	} finally {
+		await f.close();
+	}
+});
+
+test('dated lookup records short-gap non-publication coverage', async () => {
+	const f = await fixture();
+	try {
+		let requests = 0;
+		const rates = createExchangeRateRepository(f.financial.db, {
+			async historical() {
+				requests++;
+				return [];
+			}
+		});
+		await rates.cacheTables([
+			{
+				table: 'A',
+				no: 'short-gap/A/NBP',
+				effectiveDate: '2026-07-31',
+				rates: [{ code: 'EUR', mid: '4.2' }]
+			}
+		]);
+		assert.equal(
+			(await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02'))?.rateToPln,
+			'4.2'
+		);
+		assert.equal(
+			(await rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02'))?.rateToPln,
+			'4.2'
+		);
+		assert.equal(requests, 1);
+	} finally {
+		await f.close();
+	}
+});
+
+test('cached dated rates return without waiting for background coverage refresh', async () => {
+	const f = await fixture();
+	try {
+		let requests = 0;
+		const rates = createExchangeRateRepository(f.financial.db, {
+			async historical() {
+				requests++;
+				await new Promise((resolve) => setTimeout(resolve, 300));
+				return [];
+			}
+		});
+		await rates.cacheTables([
+			{
+				table: 'A',
+				no: 'cached/A/NBP',
+				effectiveDate: '2026-07-31',
+				rates: [{ code: 'EUR', mid: '4.2' }]
+			}
+		]);
+		const started = Date.now();
+		const points = await Promise.all([
+			rates.lookup(f.context.workspaceId, 'EUR', '2026-08-01'),
+			rates.lookup(f.context.workspaceId, 'EUR', '2026-08-02')
+		]);
+		assert.ok(Date.now() - started < 150);
+		assert.deepEqual(
+			points.map((point) => point?.rateToPln),
+			['4.2', '4.2']
+		);
+		assert.equal(requests, 1);
+		await new Promise((resolve) => setTimeout(resolve, 320));
 	} finally {
 		await f.close();
 	}
@@ -281,7 +530,12 @@ test('summary filters date, account and workspace while grouping currencies and 
 	const f = await fixture();
 	try {
 		const category = (await f.repo.listCategories(f.context)).find((x) => x.name === 'Salary')!;
-		await f.financial.db.insert(ledgerTransfer).values({ id: 'synthetic', date: '2026-08-03' });
+		await f.financial.db.insert(ledgerTransfer).values({
+			id: 'synthetic',
+			sentAmountMinor: 999n,
+			receivedAmountMinor: 999n,
+			date: '2026-08-03'
+		});
 		await f.financial.db.insert(ledgerTransaction).values([
 			{
 				id: 'eur-income',
