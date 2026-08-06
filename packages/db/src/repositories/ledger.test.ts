@@ -15,12 +15,152 @@ import {
 	ledgerTransaction,
 	ledgerTransfer,
 	mutationReceipt,
+	plannedSeries,
 	user,
 	workspace,
 	workspaceMembership
 } from '../schema';
 import { createLedgerRepository, LedgerError } from './ledger';
+import { createPlanningRepository } from './planning';
 import { assertDatabaseIntegrity } from '../recovery';
+
+test('account archive preflight guards and atomically applies plan impact with audits', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-archive-impact-'));
+	const url = `file:${join(directory, 'ledger.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db
+			.insert(user)
+			.values({ id: 'archive-owner', name: 'Owner', email: 'archive@example.com' });
+		const [personal] = await connection.db
+			.select()
+			.from(workspace)
+			.where(eq(workspace.personalOwnerUserId, 'archive-owner'));
+		const context = { userId: 'archive-owner', workspaceId: personal.id };
+		await financial.db.insert(financialAccount).values({
+			id: 'archive-account',
+			workspaceId: personal.id,
+			name: 'Closing',
+			type: 'cash',
+			currency: 'PLN',
+			openingBalanceMinor: 0n,
+			activityStartedAt: new Date('2026-01-01T00:00:00Z')
+		});
+		await financial.db.insert(plannedSeries).values([
+			{
+				id: 'archive-recurring',
+				rootPlanId: 'archive-recurring',
+				workspaceId: personal.id,
+				accountId: 'archive-account',
+				kind: 'expense',
+				amountMinor: 100n,
+				date: '2026-01-01',
+				effectiveFrom: '2026-01-01',
+				status: 'expected',
+				description: 'Rent',
+				recurrenceFrequency: 'monthly',
+				recurrenceInterval: 1
+			},
+			{
+				id: 'archive-one-time',
+				rootPlanId: 'archive-one-time',
+				workspaceId: personal.id,
+				accountId: 'archive-account',
+				kind: 'income',
+				amountMinor: 200n,
+				date: '2999-01-01',
+				effectiveFrom: '2999-01-01',
+				status: 'tentative',
+				description: 'Refund'
+			},
+			{
+				id: 'archive-past',
+				rootPlanId: 'archive-past',
+				workspaceId: personal.id,
+				accountId: 'archive-account',
+				kind: 'expense',
+				amountMinor: 50n,
+				date: '2020-01-01',
+				effectiveFrom: '2020-01-01',
+				status: 'expected'
+			}
+		]);
+		const ledger = createLedgerRepository(financial.db);
+		const first = await ledger.accountArchiveImpact(context, 'archive-account');
+		assert.deepEqual(
+			first.plans.map((plan) => [plan.id, plan.action, plan.description]),
+			[
+				['archive-one-time', 'cancel', 'Refund'],
+				['archive-past', 'cancel', null],
+				['archive-recurring', 'stop', 'Rent']
+			]
+		);
+		assert.equal(
+			(await financial.db.select().from(plannedSeries)).every((plan) => plan.version === 1),
+			true
+		);
+		await financial.db
+			.update(plannedSeries)
+			.set({ version: 2 })
+			.where(eq(plannedSeries.id, 'archive-one-time'));
+		await assert.rejects(
+			() =>
+				ledger.accountAction(context, 'archive-account', 'archive', {
+					version: 1,
+					idempotencyKey: 'stale-archive-impact',
+					impactToken: first.impactToken
+				}),
+			(error) => error instanceof LedgerError && error.code === 'conflict'
+		);
+		assert.equal(
+			(
+				await financial.db
+					.select()
+					.from(financialAccount)
+					.where(eq(financialAccount.id, 'archive-account'))
+			)[0].archivedAt,
+			null
+		);
+		const current = await ledger.accountArchiveImpact(context, 'archive-account');
+		const archived = await ledger.accountAction(context, 'archive-account', 'archive', {
+			version: 1,
+			idempotencyKey: 'current-archive-impact',
+			impactToken: current.impactToken
+		});
+		assert.ok('planningImpact' in archived);
+		assert.deepEqual(archived.planningImpact, { stoppedRecurring: 1, cancelledOneTime: 2 });
+		const plans = await financial.db.select().from(plannedSeries);
+		assert.equal(plans.find((plan) => plan.id === 'archive-recurring')?.cutoffDate, current.date);
+		assert.equal(plans.find((plan) => plan.id === 'archive-one-time')?.cancelled, 1);
+		assert.equal(plans.find((plan) => plan.id === 'archive-past')?.cancelled, 1);
+		const planAudits = (await financial.db.select().from(ledgerAudit)).filter(
+			(entry) => entry.entityType === 'plan'
+		);
+		assert.deepEqual(planAudits.map((entry) => entry.action).sort(), ['cancel', 'cancel', 'stop']);
+		assert.equal(
+			planAudits.every((entry) => entry.actorUserId === 'archive-owner'),
+			true
+		);
+		const planning = createPlanningRepository(financial.db);
+		assert.deepEqual((await planning.accountForecast(context, 'archive-account')).occurrences, []);
+		await assert.rejects(
+			() =>
+				planning.occurrenceAction(context, 'archive-recurring', '2026-01-01', 'restore', {
+					version: 2,
+					idempotencyKey: 'archived-plan-change'
+				}),
+			(error) => error instanceof Error && error.message.includes('Archived account')
+		);
+	} finally {
+		financial.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
 
 test('cross-workspace transfers project private counterpart data and require access to both sides', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-cross-transfer-'));

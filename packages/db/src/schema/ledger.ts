@@ -12,12 +12,12 @@ import {
 import { user } from './auth';
 import { workspace } from './workspaces';
 
-const int64 = customType<{ data: bigint; driverData: bigint }>({
+export const int64 = customType<{ data: bigint; driverData: bigint }>({
 	dataType: () => 'integer',
 	toDriver: (value) => value,
 	fromDriver: (value) => value
 });
-const safeInteger = customType<{ data: number; driverData: bigint }>({
+export const safeInteger = customType<{ data: number; driverData: bigint }>({
 	dataType: () => 'integer',
 	toDriver: (value) => BigInt(value),
 	fromDriver: (value) => {
@@ -27,7 +27,7 @@ const safeInteger = customType<{ data: number; driverData: bigint }>({
 		return number;
 	}
 });
-const secondsTimestamp = customType<{ data: Date; driverData: bigint }>({
+export const secondsTimestamp = customType<{ data: Date; driverData: bigint }>({
 	dataType: () => 'integer',
 	toDriver: (value) => BigInt(Math.floor(value.getTime() / 1000)),
 	fromDriver: (value) => new Date(Number(value) * 1000)
@@ -149,6 +149,7 @@ export const ledgerTransaction = sqliteTable(
 			name: 'ledger_transaction_transfer_fk'
 		}).onDelete('cascade'),
 		index('ledger_transaction_account_idx').on(table.accountId),
+		uniqueIndex('ledger_transaction_workspace_id_unique').on(table.workspaceId, table.id),
 		index('ledger_transaction_workspace_date_idx').on(table.workspaceId, table.date),
 		index('ledger_transaction_trash_idx').on(table.trashedAt),
 		uniqueIndex('ledger_transaction_import_source_unique').on(
@@ -314,7 +315,10 @@ export const ledgerAudit = sqliteTable(
 				'balance_check',
 				'correction',
 				'category',
-				'import_batch'
+				'import_batch',
+				'plan',
+				'plan_occurrence',
+				'plan_match'
 			]
 		}).notNull(),
 		entityId: text('entity_id').notNull(),

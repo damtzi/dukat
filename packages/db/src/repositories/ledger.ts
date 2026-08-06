@@ -11,6 +11,10 @@ import {
 	ledgerTransfer,
 	ledgerTransaction,
 	mutationReceipt,
+	plannedOccurrenceException,
+	plannedOccurrenceMatch,
+	plannedSeries,
+	user,
 	workspace,
 	workspaceMembership
 } from '../schema';
@@ -35,6 +39,9 @@ interface Mutation {
 }
 interface VersionedMutation extends Mutation {
 	version: number;
+}
+interface ArchiveAccount extends VersionedMutation {
+	impactToken: string;
 }
 interface CreateAccount extends Mutation {
 	name: string;
@@ -453,23 +460,157 @@ export function createLedgerRepository(database: FinancialDatabase) {
 	async function audit(
 		tx: Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0],
 		context: Context,
-		entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction',
+		entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction' | 'plan',
 		entityId: string,
 		action: string,
 		before: unknown,
 		after: unknown
 	) {
+		const [actor] = await tx
+			.select({ name: user.name, email: user.email })
+			.from(user)
+			.where(eq(user.id, context.userId));
 		await tx.insert(ledgerAudit).values({
 			id: crypto.randomUUID(),
 			workspaceId: context.workspaceId,
 			actorUserId: context.userId,
-			actorDisplay: context.userId,
+			actorDisplay: actor?.name || actor?.email || context.userId,
 			entityType,
 			entityId,
 			action,
 			beforeJson: before == null ? null : json(before),
 			afterJson: after == null ? null : json(after)
 		});
+	}
+	const planAuditView = (plan: typeof plannedSeries.$inferSelect) => ({
+		id: plan.id,
+		rootPlanId: plan.rootPlanId,
+		workspaceId: plan.workspaceId,
+		accountId: plan.accountId,
+		kind: plan.kind,
+		amountMinor: plan.amountMinor.toString(),
+		date: plan.date,
+		effectiveFrom: plan.effectiveFrom,
+		status: plan.status,
+		description: plan.description,
+		categoryId: plan.categoryId,
+		cutoffDate: plan.cutoffDate,
+		cancelled: plan.cancelled === 1,
+		version: plan.version,
+		createdAt: plan.createdAt.toISOString(),
+		updatedAt: plan.updatedAt.toISOString(),
+		recurrence: plan.recurrenceFrequency
+			? {
+					frequency: plan.recurrenceFrequency,
+					interval: plan.recurrenceInterval!,
+					...(plan.recurrenceEndDate ? { endDate: plan.recurrenceEndDate } : {})
+				}
+			: undefined
+	});
+	function archiveImpact(
+		account: typeof financialAccount.$inferSelect,
+		plans: (typeof plannedSeries.$inferSelect)[],
+		date: string,
+		matchedPlanIds: ReadonlySet<string>,
+		skippedPlanIds: ReadonlySet<string>
+	) {
+		const affected = plans
+			.flatMap((plan) => {
+				const action = plan.recurrenceFrequency
+					? !plan.cutoffDate || plan.cutoffDate > date
+						? ('stop' as const)
+						: undefined
+					: plan.date >= date || (!matchedPlanIds.has(plan.id) && !skippedPlanIds.has(plan.id))
+						? ('cancel' as const)
+						: undefined;
+				return action
+					? [
+							{
+								id: plan.id,
+								version: plan.version,
+								action,
+								kind: plan.kind,
+								amountMinor: plan.amountMinor.toString(),
+								date: plan.date,
+								status: plan.status,
+								description: plan.description,
+								categoryId: plan.categoryId
+							}
+						]
+					: [];
+			})
+			.sort((a, b) => a.id.localeCompare(b.id));
+		const tokenPayload = {
+			accountId: account.id,
+			accountVersion: account.version,
+			date,
+			plans: affected.map(({ id, version, action }) => ({ id, version, action }))
+		};
+		return {
+			accountVersion: account.version,
+			date,
+			plans: affected,
+			impactToken: Buffer.from(JSON.stringify(tokenPayload)).toString('base64url')
+		};
+	}
+	async function loadArchiveImpact(
+		tx: Transaction,
+		context: Context,
+		accountId: string,
+		date: string
+	) {
+		const [account] = await tx
+			.select()
+			.from(financialAccount)
+			.where(
+				and(
+					eq(financialAccount.id, accountId),
+					eq(financialAccount.workspaceId, context.workspaceId)
+				)
+			)
+			.limit(1);
+		if (!account) throw new LedgerError('not_found', 'Account not found');
+		if (account.archivedAt) throw new LedgerError('conflict', 'Account is already archived');
+		const plans = await tx
+			.select()
+			.from(plannedSeries)
+			.where(
+				and(
+					eq(plannedSeries.workspaceId, context.workspaceId),
+					eq(plannedSeries.accountId, accountId),
+					eq(plannedSeries.cancelled, 0)
+				)
+			);
+		const activeMatches = await tx
+			.select({ planId: plannedOccurrenceMatch.planId })
+			.from(plannedOccurrenceMatch)
+			.innerJoin(
+				ledgerTransaction,
+				and(
+					eq(ledgerTransaction.id, plannedOccurrenceMatch.transactionId),
+					isNull(ledgerTransaction.trashedAt)
+				)
+			)
+			.where(eq(plannedOccurrenceMatch.workspaceId, context.workspaceId));
+		const skipped = await tx
+			.select({ planId: plannedOccurrenceException.planId })
+			.from(plannedOccurrenceException)
+			.where(
+				and(
+					eq(plannedOccurrenceException.workspaceId, context.workspaceId),
+					eq(plannedOccurrenceException.action, 'skip')
+				)
+			);
+		return {
+			account,
+			impact: archiveImpact(
+				account,
+				plans,
+				date,
+				new Set(activeMatches.map((match) => match.planId)),
+				new Set(skipped.map((exception) => exception.planId))
+			)
+		};
 	}
 
 	return {
@@ -598,11 +739,26 @@ export function createLedgerRepository(database: FinancialDatabase) {
 				);
 			});
 		},
+		async accountArchiveImpact(context: Context, accountId: string) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return (
+					await loadArchiveImpact(
+						tx,
+						context,
+						accountId,
+						new Intl.DateTimeFormat('en-CA', {
+							timeZone: 'Europe/Warsaw'
+						}).format(new Date())
+					)
+				).impact;
+			});
+		},
 		async accountAction(
 			context: Context,
 			accountId: string,
 			action: 'delete' | 'archive' | 'restore',
-			input: VersionedMutation
+			input: VersionedMutation | ArchiveAccount
 		) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
@@ -613,18 +769,33 @@ export function createLedgerRepository(database: FinancialDatabase) {
 					input.idempotencyKey,
 					input,
 					async () => {
-						const [row] = await tx
-							.select()
-							.from(financialAccount)
-							.where(
-								and(
-									eq(financialAccount.id, accountId),
-									eq(financialAccount.workspaceId, context.workspaceId)
-								)
-							);
+						const timestamp = new Date();
+						const today = new Intl.DateTimeFormat('en-CA', {
+							timeZone: 'Europe/Warsaw'
+						}).format(timestamp);
+						const loaded =
+							action === 'archive'
+								? await loadArchiveImpact(tx, context, accountId, today)
+								: undefined;
+						const [row] = loaded
+							? [loaded.account]
+							: await tx
+									.select()
+									.from(financialAccount)
+									.where(
+										and(
+											eq(financialAccount.id, accountId),
+											eq(financialAccount.workspaceId, context.workspaceId)
+										)
+									);
 						if (!row) throw new LedgerError('not_found', 'Account not found');
 						if (row.version !== input.version)
 							throw new LedgerError('conflict', 'Account version is stale');
+						if (
+							action === 'archive' &&
+							(!('impactToken' in input) || input.impactToken !== loaded!.impact.impactToken)
+						)
+							throw new LedgerError('conflict', 'Account archive impact changed');
 						if (action === 'delete') {
 							if (row.archivedAt || row.activityStartedAt)
 								throw new LedgerError('conflict', 'Only unused active accounts can be deleted');
@@ -659,9 +830,9 @@ export function createLedgerRepository(database: FinancialDatabase) {
 						const [updated] = await tx
 							.update(financialAccount)
 							.set({
-								archivedAt: action === 'archive' ? new Date() : null,
+								archivedAt: action === 'archive' ? timestamp : null,
 								version: row.version + 1,
-								updatedAt: new Date()
+								updatedAt: timestamp
 							})
 							.where(
 								and(
@@ -675,8 +846,59 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							)
 							.returning();
 						if (!updated) throw new LedgerError('conflict', 'Account changed concurrently');
+						const planningImpact = { stoppedRecurring: 0, cancelledOneTime: 0 };
+						if (action === 'archive') {
+							for (const impact of loaded!.impact.plans) {
+								const [plan] = await tx
+									.select()
+									.from(plannedSeries)
+									.where(
+										and(
+											eq(plannedSeries.workspaceId, context.workspaceId),
+											eq(plannedSeries.id, impact.id),
+											eq(plannedSeries.version, impact.version)
+										)
+									);
+								if (!plan) throw new LedgerError('conflict', 'Plan changed concurrently');
+								const changed = await tx
+									.update(plannedSeries)
+									.set({
+										cutoffDate:
+											impact.action === 'stop'
+												? today > plan.effectiveFrom
+													? today
+													: plan.effectiveFrom
+												: plan.cutoffDate,
+										cancelled: impact.action === 'cancel' ? 1 : plan.cancelled,
+										version: plan.version + 1,
+										updatedAt: timestamp
+									})
+									.where(
+										and(
+											eq(plannedSeries.workspaceId, context.workspaceId),
+											eq(plannedSeries.id, plan.id),
+											eq(plannedSeries.version, plan.version)
+										)
+									)
+									.returning();
+								if (changed.length !== 1)
+									throw new LedgerError('conflict', 'Plan changed concurrently');
+								planningImpact[
+									impact.action === 'stop' ? 'stoppedRecurring' : 'cancelledOneTime'
+								]++;
+								await audit(
+									tx,
+									context,
+									'plan',
+									plan.id,
+									impact.action,
+									planAuditView(plan),
+									planAuditView(changed[0]!)
+								);
+							}
+						}
 						await audit(tx, context, 'account', accountId, action, row, updated);
-						return viewAccount(updated, currentBalance);
+						return { ...viewAccount(updated, currentBalance), planningImpact };
 					}
 				);
 			});

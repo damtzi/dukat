@@ -82,6 +82,11 @@ export const updateAccountSchema = mutationSchema.extend({
 export const versionedMutationSchema = mutationSchema.extend({
 	version: z.number().int().positive()
 });
+export const archiveAccountSchema = versionedMutationSchema
+	.extend({
+		impactToken: z.string().min(1)
+	})
+	.strict();
 export const createTransactionSchema = mutationSchema.extend({
 	kind: transactionKindSchema,
 	amountMinor: positiveMinorUnitsSchema,
@@ -137,6 +142,23 @@ export const accountSchema = z.object({
 	canDelete: z.boolean(),
 	canArchive: z.boolean(),
 	canRestore: z.boolean()
+});
+export const accountArchiveImpactPlanSchema = z.object({
+	id: z.string(),
+	version: z.number().int().positive(),
+	action: z.enum(['stop', 'cancel']),
+	kind: transactionKindSchema,
+	amountMinor: positiveMinorUnitsSchema,
+	date: isoCalendarDateSchema,
+	status: z.enum(['expected', 'tentative']),
+	description: z.string().nullable(),
+	categoryId: z.string().nullable()
+});
+export const accountArchiveImpactSchema = z.object({
+	accountVersion: z.number().int().positive(),
+	date: isoCalendarDateSchema,
+	plans: z.array(accountArchiveImpactPlanSchema),
+	impactToken: z.string().min(1)
 });
 export const transactionSchema = z.object({
 	id: z.string(),
@@ -208,7 +230,16 @@ export const historyEntrySchema = z.object({
 	id: z.string(),
 	workspaceId: z.string(),
 	actorUserId: z.string(),
-	entityType: z.enum(['transaction', 'account', 'transfer', 'balance_check', 'correction']),
+	entityType: z.enum([
+		'transaction',
+		'account',
+		'transfer',
+		'balance_check',
+		'correction',
+		'plan',
+		'plan_occurrence',
+		'plan_match'
+	]),
 	entityId: z.string(),
 	action: z.string(),
 	beforeJson: z.string().nullable(),
@@ -219,6 +250,8 @@ export const historyEntrySchema = z.object({
 export type CreateAccount = z.infer<typeof createAccountSchema>;
 export type UpdateAccount = z.infer<typeof updateAccountSchema>;
 export type VersionedMutation = z.infer<typeof versionedMutationSchema>;
+export type ArchiveAccount = z.infer<typeof archiveAccountSchema>;
+export type AccountArchiveImpact = z.infer<typeof accountArchiveImpactSchema>;
 export type CreateTransaction = z.infer<typeof createTransactionSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
 export type CreateTransfer = z.infer<typeof createTransferSchema>;

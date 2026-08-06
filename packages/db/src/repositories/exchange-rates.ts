@@ -411,6 +411,125 @@ export function createExchangeRateRepository(
 				}
 			};
 		},
+		async workspaceForecast(
+			userId: string,
+			workspaceId: string,
+			forecasts: Array<{
+				id: string;
+				currency: string;
+				startingBalanceMinor: string;
+				endingBalanceMinor: string;
+				occurrences: Array<{
+					planId: string;
+					originalDate: string;
+					date: string;
+					kind: 'income' | 'expense';
+					status: 'expected' | 'tentative';
+					amountMinor: string;
+				}>;
+				[key: string]: unknown;
+			}>
+		) {
+			await authorized(userId, workspaceId);
+			const [ws] = await database
+				.select({ reportingCurrency: workspace.reportingCurrency })
+				.from(workspace)
+				.where(eq(workspace.id, workspaceId));
+			const reportingCurrency = ws.reportingCurrency ?? 'PLN';
+			const usedRates = new Map<string, ReturnType<typeof provenance>>();
+			const conversion = new Map<
+				string,
+				{
+					from: Awaited<ReturnType<typeof point>>;
+					to: Awaited<ReturnType<typeof point>>;
+				}
+			>();
+			let missingRate = false;
+			for (const currency of new Set(forecasts.map((forecast) => forecast.currency))) {
+				const sameCurrency = currency === reportingCurrency;
+				const from = sameCurrency ? null : await point(workspaceId, currency);
+				const to = sameCurrency ? null : await point(workspaceId, reportingCurrency);
+				if (!sameCurrency && (!from || !to)) missingRate = true;
+				conversion.set(currency, { from, to });
+				for (const rate of [from, to].filter((value) => value != null).map(provenance))
+					usedRates.set(
+						`${rate.currency}:${rate.source}:${rate.effectiveDate}:${rate.tableNumber ?? rate.manualOverrideId ?? ''}`,
+						rate
+					);
+			}
+			const unavailable = {
+				estimate: true as const,
+				reportingCurrency,
+				missingRate: true,
+				startingBalanceMinor: null,
+				endingBalanceMinor: null,
+				occurrences: [],
+				points: [],
+				accounts: forecasts,
+				rates: [...usedRates.values()]
+			};
+			if (missingRate) return unavailable;
+			const convert = (amountMinor: string, currency: string): Rational => {
+				if (currency === reportingCurrency)
+					return { numerator: BigInt(amountMinor), denominator: 1n };
+				const rates = conversion.get(currency)!;
+				return convertMinorRational(
+					BigInt(amountMinor),
+					currency,
+					reportingCurrency,
+					rates.from!.rateToPln,
+					rates.to!.rateToPln
+				);
+			};
+			let projected: Rational = { numerator: 0n, denominator: 1n };
+			for (const forecast of forecasts)
+				projected = addRational(
+					projected,
+					convert(forecast.startingBalanceMinor, forecast.currency)
+				);
+			const startingBalanceMinor = roundRational(projected).toString();
+			const occurrences = forecasts
+				.flatMap((forecast) =>
+					forecast.occurrences.map((occurrence) => ({
+						...occurrence,
+						accountId: forecast.id,
+						sourceCurrency: forecast.currency,
+						sourceAmountMinor: occurrence.amountMinor,
+						exactAmount: convert(occurrence.amountMinor, forecast.currency)
+					}))
+				)
+				.sort(
+					(left, right) =>
+						left.date.localeCompare(right.date) ||
+						`${left.planId}:${left.originalDate}`.localeCompare(
+							`${right.planId}:${right.originalDate}`
+						)
+				);
+			const points = occurrences.map(({ exactAmount, ...occurrence }) => {
+				projected = addRational(
+					projected,
+					occurrence.kind === 'income'
+						? exactAmount
+						: { numerator: -exactAmount.numerator, denominator: exactAmount.denominator }
+				);
+				return {
+					...occurrence,
+					amountMinor: roundRational(exactAmount).toString(),
+					projectedBalanceMinor: roundRational(projected).toString()
+				};
+			});
+			return {
+				estimate: true as const,
+				reportingCurrency,
+				missingRate: false,
+				startingBalanceMinor,
+				endingBalanceMinor: roundRational(projected).toString(),
+				occurrences: points.map(({ projectedBalanceMinor: _balance, ...occurrence }) => occurrence),
+				points,
+				accounts: forecasts,
+				rates: [...usedRates.values()]
+			};
+		},
 		async currentBalances(
 			userId: string,
 			workspaceId: string,
