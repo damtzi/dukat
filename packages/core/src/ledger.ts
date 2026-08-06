@@ -1,12 +1,5 @@
 import { z } from 'zod';
-
-const isoCurrencies = new Set(
-	(
-		Intl as typeof Intl & {
-			supportedValuesOf(key: 'currency'): string[];
-		}
-	).supportedValuesOf('currency')
-);
+import { legacyCurrencySchema, supportedCurrencySchema } from './exchange-rates';
 
 export function todayInDefaultTimeZone(now = new Date()) {
 	const parts = new Intl.DateTimeFormat('en-CA', {
@@ -22,10 +15,7 @@ export function todayInDefaultTimeZone(now = new Date()) {
 
 export const accountTypeSchema = z.enum(['current', 'savings', 'cash']);
 export const transactionKindSchema = z.enum(['income', 'expense']);
-export const currencySchema = z
-	.string()
-	.regex(/^[A-Z]{3}$/, 'Currency must be an uppercase ISO 4217 code')
-	.refine((currency) => isoCurrencies.has(currency), 'Currency must be a valid ISO 4217 code');
+export const currencySchema = supportedCurrencySchema;
 
 export const INT64_MIN = -(1n << 63n);
 export const INT64_MAX = (1n << 63n) - 1n;
@@ -86,7 +76,7 @@ export const updateAccountSchema = mutationSchema.extend({
 	version: z.number().int().positive(),
 	name: z.string().trim().min(1).max(120),
 	type: accountTypeSchema,
-	currency: currencySchema,
+	currency: legacyCurrencySchema,
 	openingBalanceMinor: minorUnitsSchema
 });
 export const versionedMutationSchema = mutationSchema.extend({
@@ -106,6 +96,7 @@ export const createTransferSchema = mutationSchema.extend({
 	fromAccountId: z.string().min(1),
 	toAccountId: z.string().min(1),
 	amountMinor: positiveMinorUnitsSchema,
+	receivedAmountMinor: positiveMinorUnitsSchema.optional(),
 	date: calendarDateSchema,
 	description: z.string().trim().max(500).nullable().optional()
 });
@@ -167,6 +158,8 @@ export const transferSchema = z.object({
 	localSide: z.enum(['from', 'to']),
 	accountId: z.string(),
 	amountMinor: positiveMinorUnitsSchema,
+	sentAmountMinor: positiveMinorUnitsSchema.nullable(),
+	receivedAmountMinor: positiveMinorUnitsSchema.nullable(),
 	date: z.string(),
 	description: z.string().nullable(),
 	version: z.number(),

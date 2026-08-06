@@ -127,7 +127,27 @@ export const summaryTransactionSchema = z.object({
 	amountMinor: positiveMinorUnitsSchema,
 	description: z.string().nullable()
 });
+export const exchangeRateProvenanceSchema = z.object({
+	currency: z.string().length(3),
+	rateToPln: z.string(),
+	source: z.enum(['identity', 'NBP', 'manual']),
+	effectiveDate: isoCalendarDateSchema,
+	tableNumber: z.string().nullable(),
+	manualOverrideId: z.string().nullable(),
+	reason: z.string().nullable(),
+	actorDisplay: z.string().nullable()
+});
 export const summarySchema = z.object({
+	reporting: z
+		.object({
+			currency: z.string().length(3),
+			incomeMinor: z.string().nullable(),
+			spendingMinor: z.string().nullable(),
+			uncategorizedMinor: z.string().nullable(),
+			missingRate: z.boolean(),
+			rates: z.array(exchangeRateProvenanceSchema)
+		})
+		.optional(),
 	currencies: z.array(
 		z.object({
 			currency: z.string().length(3),
