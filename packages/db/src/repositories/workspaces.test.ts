@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { createDatabase } from '../connection';
+import { createDatabase, createFinancialDatabase } from '../connection';
 import {
 	account,
 	emailOutbox,
@@ -18,6 +18,8 @@ import {
 	workspaceMembership
 } from '../schema';
 import { createWorkspaceRepository, findSoleOwnerBlockers, WorkspaceError } from './workspaces';
+import { createLedgerRepository } from './ledger';
+import { assertDatabaseIntegrity } from '../recovery';
 
 const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
 
@@ -54,6 +56,8 @@ test('full migrations through 0005 create global transfer shape; household creat
 			columns.rows.map((r) => r.name),
 			[
 				'id',
+				'sent_amount_minor',
+				'received_amount_minor',
 				'date',
 				'description',
 				'version',
@@ -84,6 +88,25 @@ test('full migrations through 0005 create global transfer shape; household creat
 			(await f.repo.listAuthorized('owner')).some(
 				(w) => w.id === created.id && w.reportingCurrency === 'EUR' && w.version === 1
 			)
+		);
+		await f.db
+			.update(workspace)
+			.set({ reportingCurrency: 'BGN' })
+			.where(eq(workspace.id, created.id));
+		assert.deepEqual(
+			await f.repo.updateHousehold(
+				{ userId: 'owner', workspaceId: created.id },
+				{ name: 'Renamed home', reportingCurrency: 'BGN', version: 1 }
+			),
+			{ version: 2 }
+		);
+		await assert.rejects(
+			() =>
+				f.repo.updateHousehold(
+					{ userId: 'owner', workspaceId: created.id },
+					{ reportingCurrency: 'XYZ', version: 2 }
+				),
+			(error) => error instanceof WorkspaceError && error.code === 'invalid'
 		);
 	} finally {
 		await f.close();
@@ -155,6 +178,55 @@ test('populated databases upgrade from 0003 without losing workspace or ledger d
 		const foreignKeys = await connection.client.execute('PRAGMA foreign_key_check');
 		assert.equal(foreignKeys.rows.length, 0);
 	} finally {
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test('detached legacy transfers backfill both aggregates before constraints apply', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-detached-upgrade-'));
+	const partialMigrations = join(directory, 'migrations');
+	const connection = createDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
+	let financial: ReturnType<typeof createFinancialDatabase> | undefined;
+	try {
+		await mkdir(join(partialMigrations, 'meta'), { recursive: true });
+		const journal = JSON.parse(
+			await readFile(join(migrationsFolder, 'meta/_journal.json'), 'utf8')
+		) as { entries: Array<{ idx: number; tag: string }> };
+		const beforeConstraints = journal.entries.slice(0, 11);
+		for (const entry of beforeConstraints)
+			await cp(
+				join(migrationsFolder, `${entry.tag}.sql`),
+				join(partialMigrations, `${entry.tag}.sql`)
+			);
+		await writeFile(
+			join(partialMigrations, 'meta/_journal.json'),
+			JSON.stringify({ ...journal, entries: beforeConstraints })
+		);
+		await migrate(connection.db, { migrationsFolder: partialMigrations });
+		await connection.db
+			.insert(user)
+			.values({ id: 'legacy-owner', name: 'Owner', email: 'legacy-owner@example.com' });
+		const personal = await connection.client.execute(
+			"SELECT id FROM workspace WHERE personal_owner_user_id = 'legacy-owner'"
+		);
+		const workspaceId = String(personal.rows[0].id);
+		await connection.client.batch([
+			`INSERT INTO financial_account (id,workspace_id,name,type,currency,opening_balance_minor) VALUES ('legacy-source','${workspaceId}','Source','current','EUR',2000)`,
+			`INSERT INTO ledger_transfer (id,sent_amount_minor,received_amount_minor,date,detached_at) VALUES ('legacy-detached',1250,NULL,'2026-08-01',unixepoch())`,
+			`INSERT INTO ledger_transaction (id,workspace_id,account_id,kind,amount_minor,date,source,transfer_id,transfer_side) VALUES ('legacy-leg','${workspaceId}','legacy-source','expense',1250,'2026-08-01','transfer','legacy-detached','from')`
+		]);
+		await migrate(connection.db, { migrationsFolder });
+		financial = createFinancialDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
+		const [transfer] = await createLedgerRepository(financial.db).listTransfers(
+			{ userId: 'legacy-owner', workspaceId },
+			'legacy-source'
+		);
+		assert.equal(transfer.sentAmountMinor, '1250');
+		assert.equal(transfer.receivedAmountMinor, null, 'missing side remains private after backfill');
+		await assertDatabaseIntegrity(financial.client);
+	} finally {
+		financial?.client.close();
 		connection.client.close();
 		await rm(directory, { recursive: true, force: true });
 	}

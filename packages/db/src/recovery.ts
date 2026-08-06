@@ -128,11 +128,22 @@ export async function assertDatabaseIntegrity(client: Client) {
 		throw new Error('Personal workspace ownership check failed');
 	}
 	const invalidTransfers = await client.execute(`
-		SELECT t.id FROM ledger_transfer t
-		LEFT JOIN ledger_transaction l ON l.transfer_id = t.id AND l.source = 'transfer'
-		GROUP BY t.id
-		HAVING (t.detached_at IS NULL AND (COUNT(l.id) != 2 OR COUNT(DISTINCT l.transfer_side) != 2 OR MIN(l.amount_minor) != MAX(l.amount_minor)))
-			OR (t.detached_at IS NOT NULL AND COUNT(l.id) != 1)
+		SELECT t.id
+		FROM ledger_transfer t
+		LEFT JOIN ledger_transaction lf
+			ON lf.transfer_id = t.id AND lf.source = 'transfer' AND lf.transfer_side = 'from'
+		LEFT JOIN ledger_transaction lt
+			ON lt.transfer_id = t.id AND lt.source = 'transfer' AND lt.transfer_side = 'to'
+		LEFT JOIN financial_account af ON af.id = lf.account_id
+		LEFT JOIN financial_account at ON at.id = lt.account_id
+		WHERE (t.detached_at IS NULL AND (lf.id IS NULL OR lt.id IS NULL))
+			OR (t.detached_at IS NOT NULL AND ((lf.id IS NULL) = (lt.id IS NULL)))
+			OR t.sent_amount_minor IS NULL OR t.received_amount_minor IS NULL
+			OR t.sent_amount_minor <= 0 OR t.received_amount_minor <= 0
+			OR (lf.id IS NOT NULL AND lf.amount_minor != t.sent_amount_minor)
+			OR (lt.id IS NOT NULL AND lt.amount_minor != t.received_amount_minor)
+			OR (lf.id IS NOT NULL AND lt.id IS NOT NULL AND af.currency = at.currency
+				AND t.sent_amount_minor != t.received_amount_minor)
 	`);
 	if (invalidTransfers.rows.length > 0) throw new Error('Transfer canonical shape check failed');
 }

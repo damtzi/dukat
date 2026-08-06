@@ -20,6 +20,7 @@ import {
 	workspaceMembership
 } from '../schema';
 import { createLedgerRepository, LedgerError } from './ledger';
+import { assertDatabaseIntegrity } from '../recovery';
 
 test('cross-workspace transfers project private counterpart data and require access to both sides', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-cross-transfer-'));
@@ -59,7 +60,7 @@ test('cross-workspace transfers project private counterpart data and require acc
 				workspaceId: 'cross-house',
 				name: 'Shared',
 				type: 'cash',
-				currency: 'EUR',
+				currency: 'USD',
 				openingBalanceMinor: 0n
 			}
 		]);
@@ -71,6 +72,7 @@ test('cross-workspace transfers project private counterpart data and require acc
 				fromAccountId: 'private-account',
 				toAccountId: 'house-account',
 				amountMinor: '250',
+				receivedAmountMinor: '200',
 				date: '2026-07-30'
 			}
 		);
@@ -81,13 +83,34 @@ test('cross-workspace transfers project private counterpart data and require acc
 			'house-account'
 		);
 		assert.equal(limited.localSide, 'to');
-		assert.equal(limited.amountMinor, '250');
+		assert.equal(limited.amountMinor, '200');
+		assert.equal(limited.sentAmountMinor, null);
+		assert.equal(limited.receivedAmountMinor, '200');
 		assert.deepEqual(limited.counterparty, { visibility: 'private' });
 		assert.equal(limited.canManage, false);
 		const serialized = JSON.stringify(limited);
+		assert.ok(!serialized.includes('250'));
 		assert.ok(!serialized.includes(personal.id));
 		assert.ok(!serialized.includes('private-account'));
 		assert.ok(!serialized.includes('Secret personal account'));
+		await financial.db
+			.update(ledgerTransfer)
+			.set({ sentAmountMinor: 251n })
+			.where(eq(ledgerTransfer.id, created.id));
+		await assert.rejects(
+			() =>
+				ledger.listTransfers(
+					{ userId: 'cross-owner', workspaceId: personal.id },
+					'private-account'
+				),
+			/aggregates are corrupt/i
+		);
+		await assert.rejects(() => assertDatabaseIntegrity(financial.client), /canonical shape/i);
+		await financial.db
+			.update(ledgerTransfer)
+			.set({ sentAmountMinor: 250n })
+			.where(eq(ledgerTransfer.id, created.id));
+		await assertDatabaseIntegrity(financial.client);
 		await assert.rejects(
 			() =>
 				ledger.transferAction(
@@ -105,6 +128,8 @@ test('cross-workspace transfers project private counterpart data and require acc
 			'private-account'
 		);
 		assert.equal(detached.localSide, 'from');
+		assert.equal(detached.sentAmountMinor, '250');
+		assert.equal(detached.receivedAmountMinor, null);
 		assert.deepEqual(detached.counterparty, { visibility: 'deleted' });
 		assert.equal(detached.canManage, false);
 		assert.equal((await financial.db.select().from(ledgerTransfer)).length, 1);
@@ -151,6 +176,23 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 		const context = { userId: 'owner', workspaceId: String(workspaces.rows[0].id) };
 		financial = createFinancialDatabase({ url: `file:${join(directory, 'ledger.db')}` });
 		const ledger = createLedgerRepository(financial.db);
+		await financial.db.insert(financialAccount).values({
+			id: 'legacy-account',
+			workspaceId: context.workspaceId,
+			name: 'Legacy',
+			type: 'cash',
+			currency: 'BGN',
+			openingBalanceMinor: 0n
+		});
+		const legacy = await ledger.updateAccount(context, 'legacy-account', {
+			idempotencyKey: 'rename-legacy-account',
+			version: 1,
+			name: 'Renamed legacy',
+			type: 'cash',
+			currency: 'BGN',
+			openingBalanceMinor: '0'
+		});
+		assert.equal(legacy.name, 'Renamed legacy');
 		const account = await ledger.createAccount(context, {
 			idempotencyKey: 'create-account-1',
 			name: 'Cash',
@@ -240,10 +282,11 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			.update(ledgerTransaction)
 			.set({ trashedAt: new Date(cutoff.getTime() - 1) })
 			.where(eq(ledgerTransaction.id, trashedForPurge.transaction.id));
+		const auditCountBeforePurge = (await financial.db.select().from(ledgerAudit)).length;
 		assert.equal(await ledger.purgeTrashed(cutoff), 1, 'trash older than the cutoff is purged');
 		assert.equal(
 			(await financial.db.select().from(ledgerAudit)).length,
-			5,
+			auditCountBeforePurge,
 			'system transaction purge preserves full user audit history and adds no purge audit'
 		);
 		await financial.db.update(mutationReceipt).set({ createdAt: new Date(cutoff.getTime() - 1) });
@@ -254,7 +297,9 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			'expired 37-day receipts are independently purged'
 		);
 
-		const accountView = (await ledger.listAccounts(context))[0];
+		const accountView = (await ledger.listAccounts(context)).find(
+			(value) => value.id === account.id
+		)!;
 		assert.equal(accountView.canDelete, false);
 		await assert.rejects(
 			() =>
@@ -410,17 +455,17 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 				}),
 			/different/
 		);
-		await assert.rejects(
-			() =>
-				ledger.createTransfer(context, {
-					idempotencyKey: 'currency-mismatch',
-					fromAccountId: from.id,
-					toAccountId: usd.id,
-					amountMinor: '1',
-					date: '2026-07-30'
-				}),
-			/same currency/
-		);
+		const cross = await ledger.createTransfer(context, {
+			idempotencyKey: 'cross-currency-exact',
+			fromAccountId: from.id,
+			toAccountId: usd.id,
+			amountMinor: '123',
+			receivedAmountMinor: '117',
+			date: '2026-07-30'
+		});
+		assert.equal(cross.sentAmountMinor, '123');
+		assert.equal(cross.receivedAmountMinor, '117');
+		await financial.db.delete(ledgerTransfer).where(eq(ledgerTransfer.id, cross.id));
 
 		await connection.client.execute(
 			"CREATE TRIGGER fail_transfer_to BEFORE INSERT ON ledger_transaction WHEN NEW.transfer_side = 'to' BEGIN SELECT RAISE(ABORT, 'partial side failure'); END"

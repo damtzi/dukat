@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, isNull, lte, lt, or } from 'drizzle-orm';
+import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 
 import type { FinancialDatabase } from '../connection';
 import {
@@ -58,12 +59,14 @@ interface CreateTransfer extends Mutation {
 	fromAccountId: string;
 	toAccountId: string;
 	amountMinor: string;
+	receivedAmountMinor?: string;
 	date: string;
 	description?: string | null;
 }
 interface UpdateTransfer extends Mutation {
 	toAccountId: string;
 	amountMinor: string;
+	receivedAmountMinor?: string;
 	date: string;
 	description?: string | null;
 	version: number;
@@ -240,6 +243,25 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			side.description === transfer.description &&
 			side.version === transfer.version &&
 			Number(side.trashedAt) === Number(transfer.trashedAt);
+		if (
+			transfer.sentAmountMinor == null ||
+			transfer.receivedAmountMinor == null ||
+			transfer.sentAmountMinor <= 0n ||
+			transfer.receivedAmountMinor <= 0n ||
+			(from && transfer.sentAmountMinor !== from.amountMinor) ||
+			(to && transfer.receivedAmountMinor !== to.amountMinor)
+		)
+			throw new LedgerError('conflict', 'Transfer aggregates are corrupt');
+		if (from && to) {
+			const accounts = await tx
+				.select({ id: financialAccount.id, currency: financialAccount.currency })
+				.from(financialAccount)
+				.where(inArray(financialAccount.id, [from.accountId, to.accountId]));
+			const fromCurrency = accounts.find((account) => account.id === from.accountId)?.currency;
+			const toCurrency = accounts.find((account) => account.id === to.accountId)?.currency;
+			if (fromCurrency === toCurrency && transfer.sentAmountMinor !== transfer.receivedAmountMinor)
+				throw new LedgerError('conflict', 'Same-currency transfer aggregates are corrupt');
+		}
 		if (transfer.detachedAt) {
 			if (
 				sides.length !== 1 ||
@@ -248,14 +270,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 				throw new LedgerError('conflict', 'Detached transfer is corrupt');
 			return { from, to };
 		}
-		if (
-			!from ||
-			!to ||
-			sides.length !== 2 ||
-			from.amountMinor !== to.amountMinor ||
-			!matches(from, 'expense') ||
-			!matches(to, 'income')
-		)
+		if (!from || !to || sides.length !== 2 || !matches(from, 'expense') || !matches(to, 'income'))
 			throw new LedgerError('conflict', 'Transfer sides are corrupt or incomplete');
 		return { from, to };
 	}
@@ -280,6 +295,8 @@ export function createLedgerRepository(database: FinancialDatabase) {
 				: side?.workspaceId === context.workspaceId
 		);
 		if (!local) throw new LedgerError('not_found', 'Transfer not found');
+		const sentAmount = transfer.sentAmountMinor ?? sides.from?.amountMinor ?? null;
+		const receivedAmount = transfer.receivedAmountMinor ?? sides.to?.amountMinor ?? null;
 		const publicTransfer = {
 			...transfer,
 			trashedAt: transfer.trashedAt?.toISOString() ?? null,
@@ -294,6 +311,8 @@ export function createLedgerRepository(database: FinancialDatabase) {
 				localSide: local.transferSide!,
 				accountId: local.accountId,
 				amountMinor: local.amountMinor.toString(),
+				sentAmountMinor: local.transferSide === 'from' ? local.amountMinor.toString() : null,
+				receivedAmountMinor: local.transferSide === 'to' ? local.amountMinor.toString() : null,
 				canManage: false,
 				counterparty: { visibility: 'deleted' as const }
 			};
@@ -310,6 +329,16 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			localSide: local.transferSide!,
 			accountId: local.accountId,
 			amountMinor: local.amountMinor.toString(),
+			sentAmountMinor: full
+				? (sentAmount?.toString() ?? null)
+				: local.transferSide === 'from'
+					? local.amountMinor.toString()
+					: null,
+			receivedAmountMinor: full
+				? (receivedAmount?.toString() ?? null)
+				: local.transferSide === 'to'
+					? local.amountMinor.toString()
+					: null,
 			canManage: full,
 			counterparty:
 				full && account
@@ -501,6 +530,14 @@ export function createLedgerRepository(database: FinancialDatabase) {
 						if (!before) throw new LedgerError('not_found', 'Account not found');
 						if (before.version !== input.version)
 							throw new LedgerError('conflict', 'Account version is stale');
+						if (
+							before.currency !== input.currency &&
+							!supportedCurrencySchema.safeParse(input.currency).success
+						)
+							throw new LedgerError(
+								'invalid',
+								'New account currency must be PLN or a current NBP Table A currency'
+							);
 						if (before.activityStartedAt && before.currency !== input.currency)
 							throw new LedgerError(
 								'conflict',
@@ -785,13 +822,21 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							throw new LedgerError('not_found', 'Transfer account not found');
 						if (from.archivedAt || to.archivedAt)
 							throw new LedgerError('conflict', 'Archived accounts do not accept transfers');
-						if (from.currency !== to.currency)
-							throw new LedgerError('invalid', 'Transfer accounts must use the same currency');
+						if (from.currency !== to.currency && !input.receivedAmountMinor)
+							throw new LedgerError(
+								'invalid',
+								'Cross-currency transfers require the exact received amount'
+							);
 						const id = crypto.randomUUID(),
 							amount = parsePositiveMinor(input.amountMinor),
+							receivedAmount = parsePositiveMinor(input.receivedAmountMinor ?? input.amountMinor),
 							now = new Date();
+						if (from.currency === to.currency && receivedAmount !== amount)
+							throw new LedgerError('invalid', 'Same-currency transfer amounts must match');
 						await tx.insert(ledgerTransfer).values({
 							id,
+							sentAmountMinor: amount,
+							receivedAmountMinor: receivedAmount,
 							date: input.date,
 							description: input.description ?? null
 						});
@@ -813,7 +858,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 								workspaceId: to.workspaceId,
 								accountId: to.id,
 								kind: 'income',
-								amountMinor: amount,
+								amountMinor: receivedAmount,
 								date: input.date,
 								description: input.description ?? null,
 								source: 'transfer',
@@ -894,13 +939,21 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							throw new LedgerError('not_found', 'Transfer account not found');
 						if (to.archivedAt || fromAccount.archivedAt)
 							throw new LedgerError('conflict', 'Archived accounts do not allow transfer changes');
-						if (to.currency !== fromAccount.currency)
-							throw new LedgerError('invalid', 'Transfer accounts must use the same currency');
+						if (to.currency !== fromAccount.currency && !input.receivedAmountMinor)
+							throw new LedgerError(
+								'invalid',
+								'Cross-currency transfers require the exact received amount'
+							);
 						const amount = parsePositiveMinor(input.amountMinor),
+							receivedAmount = parsePositiveMinor(input.receivedAmountMinor ?? input.amountMinor),
 							now = new Date();
+						if (to.currency === fromAccount.currency && receivedAmount !== amount)
+							throw new LedgerError('invalid', 'Same-currency transfer amounts must match');
 						const updatedAggregates = await tx
 							.update(ledgerTransfer)
 							.set({
+								sentAmountMinor: amount,
+								receivedAmountMinor: receivedAmount,
 								date: input.date,
 								description: input.description ?? null,
 								version: before.version + 1,
@@ -935,6 +988,15 @@ export function createLedgerRepository(database: FinancialDatabase) {
 							.returning({ id: ledgerTransaction.id });
 						if (updatedSides.length !== 2)
 							throw new LedgerError('conflict', 'Transfer sides changed concurrently');
+						await tx
+							.update(ledgerTransaction)
+							.set({ amountMinor: receivedAmount })
+							.where(
+								and(
+									eq(ledgerTransaction.transferId, transferId),
+									eq(ledgerTransaction.transferSide, 'to')
+								)
+							);
 						const movedSide = await tx
 							.update(ledgerTransaction)
 							.set({ accountId: to.id, workspaceId: to.workspaceId })
