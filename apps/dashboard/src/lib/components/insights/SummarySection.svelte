@@ -91,6 +91,53 @@
       </div>
     </div>
     {#if error}<p class="text-sm text-destructive">{error}</p>{/if}
+    {#if summary.reporting}<Card.Root
+        ><Card.Header
+          ><Card.Title>Combined · {summary.reporting.currency}</Card.Title
+          ><Card.Description
+            >Completed transactions use the latest rate on or before each
+            transaction date.{#if summary.reporting.rates.length}<br />Rates:
+              {summary.reporting.rates
+                .map(
+                  (rate) =>
+                    `${rate.currency} ${rate.rateToPln} PLN · ${rate.source}${rate.tableNumber ? ` ${rate.tableNumber}` : ''} · ${rate.effectiveDate}${rate.reason ? ` · ${rate.reason}` : ''}`,
+                )
+                .join('; ')}{/if}</Card.Description
+          ></Card.Header
+        ><Card.Content
+          >{#if summary.reporting.missingRate}<p
+              class="text-sm text-muted-foreground"
+            >
+              A combined summary is unavailable because an exchange rate is
+              missing. Original amounts remain below.
+            </p>{:else}<div class="grid grid-cols-3 gap-2 text-sm">
+              <div>
+                Income<br /><b
+                  >{minorToDecimal(
+                    summary.reporting.incomeMinor!,
+                    summary.reporting.currency,
+                  )}</b
+                >
+              </div>
+              <div>
+                Spending<br /><b
+                  >{minorToDecimal(
+                    summary.reporting.spendingMinor!,
+                    summary.reporting.currency,
+                  )}</b
+                >
+              </div>
+              <div>
+                Uncategorized<br /><b
+                  >{minorToDecimal(
+                    summary.reporting.uncategorizedMinor!,
+                    summary.reporting.currency,
+                  )}</b
+                >
+              </div>
+            </div>{/if}</Card.Content
+        ></Card.Root
+      >{/if}
     <div class="grid gap-4 md:grid-cols-2">
       {#each summary.currencies as currency}<Card.Root
           ><Card.Header

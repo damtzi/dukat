@@ -540,8 +540,9 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(accountDialog.getByLabel('Currency', { exact: true })).toContainText('USD');
 	await accountDialog.getByLabel('Currency', { exact: true }).click();
 	const currencyOptions = page.getByRole('listbox').getByRole('option');
-	await expect(currencyOptions).toHaveCount(14);
-	await currencyOptions.filter({ hasText: 'USD — US dollar' }).click();
+	await expect(currencyOptions).toHaveCount(33);
+	await expect(currencyOptions.filter({ hasText: 'USD — US dollar' })).toHaveCount(1);
+	await page.keyboard.press('Escape');
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
 	await expect(page.getByText('Everyday account', { exact: true }).last()).toBeVisible();
