@@ -15,6 +15,7 @@ import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
+import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
@@ -84,12 +85,14 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				}
 			}
 		});
+		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
 		const app = createServerApp({
 			api: createAPI({
 				auth,
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
 				insights: createInsightsRepository(sourceFinancial.db),
+				exchangeRates,
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory
@@ -144,6 +147,71 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		const firstWorkspaces = (await firstWorkspacesResponse.json()) as Array<{ id: string }>;
 		assert.equal(firstWorkspaces.length, 1);
 		const firstWorkspaceId = firstWorkspaces[0].id;
+		await exchangeRates.cacheTables([
+			{
+				table: 'A',
+				no: '151/A/NBP/2026',
+				effectiveDate: '2026-08-05',
+				rates: [
+					{ code: 'EUR', mid: '4.3' },
+					{ code: 'USD', mid: '4' }
+				]
+			}
+		]);
+		const quote = await app.request(`${origin}/api/workspaces/${firstWorkspaceId}/rates/quote`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie: firstCookie },
+			body: JSON.stringify({
+				fromCurrency: 'EUR',
+				toCurrency: 'USD',
+				date: '2026-08-05',
+				amountMinor: '100'
+			})
+		});
+		assert.equal(quote.status, 200, await quote.clone().text());
+		assert.equal(
+			((await quote.json()) as { suggestedAmountMinor: string }).suggestedAmountMinor,
+			'108'
+		);
+		const manualRate = await app.request(
+			`${origin}/api/workspaces/${firstWorkspaceId}/rates/manual`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie: firstCookie },
+				body: JSON.stringify({
+					currency: 'EUR',
+					rateToPln: '4.4',
+					effectiveDate: '2026-08-05',
+					reason: 'Foundation settlement proof'
+				})
+			}
+		);
+		assert.equal(manualRate.status, 200, await manualRate.clone().text());
+		const manualQuote = await app.request(
+			`${origin}/api/workspaces/${firstWorkspaceId}/rates/quote`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie: firstCookie },
+				body: JSON.stringify({
+					fromCurrency: 'EUR',
+					toCurrency: 'USD',
+					date: '2026-08-05',
+					amountMinor: '100'
+				})
+			}
+		);
+		const manualQuoteBody = (await manualQuote.json()) as {
+			suggestedAmountMinor: string;
+			rates: Array<{ currency: string; source: string }>;
+		};
+		assert.equal(manualQuoteBody.suggestedAmountMinor, '110');
+		assert.deepEqual(
+			manualQuoteBody.rates.map((rate) => [rate.currency, rate.source]),
+			[
+				['EUR', 'manual'],
+				['USD', 'NBP']
+			]
+		);
 		assert.equal(
 			(
 				await source.db

@@ -47,9 +47,9 @@ export const insightsRouter = router
 		)
 	)
 	.openapi(routes.summary, (c) =>
-		success(c, () => {
+		success(c, async () => {
 			const query = c.req.valid('query');
-			return c.var.services.insights.summary(context(c), {
+			const result = await c.var.services.insights.summary(context(c), {
 				...query,
 				accountIds: query.accountId
 					? Array.isArray(query.accountId)
@@ -57,6 +57,9 @@ export const insightsRouter = router
 						: [query.accountId]
 					: undefined
 			});
+			return c.var.services.exchangeRates
+				? c.var.services.exchangeRates.reportingSummary(context(c).workspaceId, result)
+				: result;
 		})
 	)
 	.openapi(routes.preview, (c) =>

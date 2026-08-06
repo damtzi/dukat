@@ -5,6 +5,7 @@ import { healthRouter } from './routes/health/health.index';
 import { ledgerRouter } from './routes/ledger/ledger.index';
 import { workspacesRouter } from './routes/workspaces/workspaces.index';
 import { insightsRouter } from './routes/insights/insights.index';
+import { exchangeRatesRouter } from './routes/exchange-rates/exchange-rates.index';
 import type { APIServices } from './services';
 
 export function createAPI(services: APIServices) {
@@ -16,6 +17,7 @@ export function createAPI(services: APIServices) {
 		.route('/api', healthRouter)
 		.route('/api', workspacesRouter)
 		.route('/api', insightsRouter)
+		.route('/api', exchangeRatesRouter)
 		.route('/api', ledgerRouter);
 }
 

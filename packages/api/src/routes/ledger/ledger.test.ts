@@ -118,7 +118,7 @@ test('ledger routes require authentication and validate financial boundaries', a
 	});
 	assert.equal(invalidCurrency.status, 400);
 	assert.deepEqual(await invalidCurrency.json(), {
-		message: 'Currency must be a valid ISO 4217 code'
+		message: 'Currency must be PLN or an NBP Table A currency'
 	});
 	const futureTransaction = await app.request(`${path}/account-1/transactions`, {
 		method: 'POST',

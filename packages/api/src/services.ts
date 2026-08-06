@@ -11,6 +11,7 @@ import type {
 	VersionedMutation
 } from '@dukat/core/ledger';
 import type { InsightsRepository } from '@dukat/db/repositories/insights';
+import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
@@ -180,5 +181,6 @@ export interface APIServices {
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
 	insights: InsightsRepository;
+	exchangeRates?: ReturnType<typeof createExchangeRateRepository>;
 	workspaces: WorkspaceService;
 }

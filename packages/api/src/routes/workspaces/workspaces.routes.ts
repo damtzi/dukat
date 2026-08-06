@@ -1,4 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import { legacyCurrencySchema, supportedCurrencySchema } from '@dukat/core/exchange-rates';
 
 import { jsonContent } from '../../openapi/helpers';
 
@@ -63,7 +64,7 @@ export const create = createRoute({
 		body: jsonContent(
 			z.object({
 				name: z.string().trim().min(1),
-				reportingCurrency: z.string().regex(/^[A-Z]{3}$/)
+				reportingCurrency: supportedCurrencySchema
 			}),
 			'Household'
 		)
@@ -78,10 +79,7 @@ export const settings = createRoute({
 		body: jsonContent(
 			version.extend({
 				name: z.string().trim().min(1).optional(),
-				reportingCurrency: z
-					.string()
-					.regex(/^[A-Z]{3}$/)
-					.optional()
+				reportingCurrency: legacyCurrencySchema.optional()
 			}),
 			'Settings'
 		)
