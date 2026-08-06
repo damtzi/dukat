@@ -24,6 +24,7 @@
   import BalanceCheckDialog from '$lib/components/ledger/BalanceCheckDialog.svelte'
   import HistoryDialog from '$lib/components/ledger/HistoryDialog.svelte'
   import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
+  import ManualRateManager from '$lib/components/workspaces/ManualRateManager.svelte'
   import CategoryManager from '$lib/components/insights/CategoryManager.svelte'
   import SummarySection from '$lib/components/insights/SummarySection.svelte'
   import CsvImports from '$lib/components/insights/CsvImports.svelte'
@@ -37,6 +38,25 @@
     role: 'owner' | 'member' | null
   }
   type PickerAccount = Account & { workspaceId: string; workspaceLabel: string }
+  type RateStatus = {
+    available: boolean
+    stale: boolean
+    latest: { effectiveDate: string } | null
+  }
+  type ConvertedBalances = {
+    reportingCurrency: string
+    totalMinor: string | null
+    missingRate: boolean
+    rates: RateProvenance[]
+  }
+  type RateProvenance = {
+    currency: string
+    rateToPln: string
+    source: 'identity' | 'NBP' | 'manual'
+    effectiveDate: string
+    tableNumber: string | null
+    reason: string | null
+  }
 
   const currencies = [
     { code: 'PLN', name: 'Polish złoty' },
@@ -53,6 +73,25 @@
     { code: 'CNY', name: 'Chinese yuan' },
     { code: 'CAD', name: 'Canadian dollar' },
     { code: 'AUD', name: 'Australian dollar' },
+    { code: 'BRL', name: 'Brazilian real' },
+    { code: 'CLP', name: 'Chilean peso' },
+    { code: 'HKD', name: 'Hong Kong dollar' },
+    { code: 'HUF', name: 'Hungarian forint' },
+    { code: 'IDR', name: 'Indonesian rupiah' },
+    { code: 'ILS', name: 'Israeli new shekel' },
+    { code: 'INR', name: 'Indian rupee' },
+    { code: 'ISK', name: 'Icelandic króna' },
+    { code: 'KRW', name: 'South Korean won' },
+    { code: 'MXN', name: 'Mexican peso' },
+    { code: 'MYR', name: 'Malaysian ringgit' },
+    { code: 'NZD', name: 'New Zealand dollar' },
+    { code: 'PHP', name: 'Philippine peso' },
+    { code: 'RON', name: 'Romanian leu' },
+    { code: 'SGD', name: 'Singapore dollar' },
+    { code: 'THB', name: 'Thai baht' },
+    { code: 'TRY', name: 'Turkish lira' },
+    { code: 'XDR', name: 'Special drawing rights' },
+    { code: 'ZAR', name: 'South African rand' },
   ] as const
 
   let state: 'loading' | 'ready' | 'error' = 'loading'
@@ -60,6 +99,8 @@
   let workspaceId = ''
   let accounts: Account[] = []
   let categories: Category[] = []
+  let rateStatus: RateStatus | null = null
+  let convertedBalances: ConvertedBalances | null = null
   let insightsVersion = 0
   let pickerAccounts: PickerAccount[] = []
   let recoverable: Workspace[] = []
@@ -109,6 +150,7 @@
     fromAccountId: '',
     toAccountId: '',
     amount: '',
+    receivedAmount: '',
     date: todayInWarsaw(),
     description: '',
     fee: '',
@@ -176,6 +218,7 @@
     ) {
       accounts = []
       categories = []
+      convertedBalances = null
       selectedId = ''
       transactions = []
       transfers = []
@@ -195,6 +238,22 @@
     accounts = loadedAccounts
     categories = loadedCategories
     accountsWorkspaceId = targetWorkspaceId
+    void Promise.all([
+      api('/rates/status') as Promise<RateStatus>,
+      api(
+        `/workspaces/${targetWorkspaceId}/balances/converted`,
+      ) as Promise<ConvertedBalances>,
+    ])
+      .then(([loadedRateStatus, loadedConvertedBalances]) => {
+        if (
+          generation === accountLoadGeneration &&
+          workspaceId === targetWorkspaceId
+        ) {
+          rateStatus = loadedRateStatus
+          convertedBalances = loadedConvertedBalances
+        }
+      })
+      .catch(() => undefined)
     const targetAccountId = loadedAccounts.some(
       (account) => account.id === selectedId,
     )
@@ -522,6 +581,7 @@
       fromAccountId: source.id,
       toAccountId: transferDestinations(source.id)[0]?.id ?? '',
       amount: '',
+      receivedAmount: '',
       date: todayInWarsaw(),
       description: '',
       fee: '',
@@ -538,20 +598,35 @@
     }
     editingTransfer = item
     transferIntentKey = key()
+    const fromAccountId =
+      item.localSide === 'from'
+        ? item.accountId
+        : item.counterparty.visibility === 'full'
+          ? item.counterparty.accountId
+          : ''
+    const toAccountId =
+      item.localSide === 'to'
+        ? item.accountId
+        : item.counterparty.visibility === 'full'
+          ? item.counterparty.accountId
+          : ''
+    const source = pickerAccounts.find(
+      (account) => account.id === fromAccountId,
+    )
+    const destination = pickerAccounts.find(
+      (account) => account.id === toAccountId,
+    )
     transferForm = {
-      fromAccountId:
-        item.localSide === 'from'
-          ? item.accountId
-          : item.counterparty.visibility === 'full'
-            ? item.counterparty.accountId
-            : '',
-      toAccountId:
-        item.localSide === 'to'
-          ? item.accountId
-          : item.counterparty.visibility === 'full'
-            ? item.counterparty.accountId
-            : '',
-      amount: minorToDecimal(item.amountMinor, selected()!.currency),
+      fromAccountId,
+      toAccountId,
+      amount: minorToDecimal(
+        item.sentAmountMinor!,
+        source?.currency ?? selected()!.currency,
+      ),
+      receivedAmount: minorToDecimal(
+        item.receivedAmountMinor!,
+        destination?.currency ?? selected()!.currency,
+      ),
       date: item.date,
       description: item.description ?? '',
       fee: '',
@@ -579,6 +654,14 @@
       const body = {
         toAccountId: destination.id,
         amountMinor: parseAmount(transferForm.amount, source.currency),
+        ...(source.currency !== destination.currency
+          ? {
+              receivedAmountMinor: parseAmount(
+                transferForm.receivedAmount,
+                destination.currency,
+              ),
+            }
+          : {}),
         date: transferForm.date,
         description: transferForm.description.trim() || null,
         idempotencyKey: transferIntentKey,
@@ -957,7 +1040,47 @@
           workspace={activeWorkspace}
           onchanged={() => load(activeWorkspace.id)}
         />{/if}
+      <ManualRateManager
+        {workspaceId}
+        onchanged={() => loadAccounts(workspaceId)}
+      />
       {#key `${workspaceId}-${insightsVersion}`}
+        {#if rateStatus?.stale}<Alert.Root class="mb-6"
+            ><Alert.Title>Exchange rates are stale</Alert.Title
+            ><Alert.Description
+              >The latest cached NBP table is from {rateStatus.latest
+                ?.effectiveDate ?? 'an unknown date'}. Cached rates remain in
+              use.</Alert.Description
+            ></Alert.Root
+          >{/if}
+        {#if convertedBalances}<Card.Root class="mb-6"
+            ><Card.Header
+              ><Card.Title>Combined balance</Card.Title><Card.Description
+                >Reporting currency: {convertedBalances.reportingCurrency}</Card.Description
+              ></Card.Header
+            ><Card.Content
+              >{#if convertedBalances.totalMinor !== null}<b
+                  >{minorToDecimal(
+                    convertedBalances.totalMinor,
+                    convertedBalances.reportingCurrency,
+                  )}
+                  {convertedBalances.reportingCurrency}</b
+                >{:else}<p class="text-sm text-muted-foreground">
+                  A combined total is unavailable because an exchange rate is
+                  missing. Original account balances remain available.
+                </p>{/if}
+              {#if convertedBalances.rates.length}<p
+                  class="mt-2 text-xs text-muted-foreground"
+                >
+                  Rates: {convertedBalances.rates
+                    .map(
+                      (rate) =>
+                        `${rate.currency} ${rate.rateToPln} PLN · ${rate.source}${rate.tableNumber ? ` ${rate.tableNumber}` : ''} · ${rate.effectiveDate}${rate.reason ? ` · ${rate.reason}` : ''}`,
+                    )
+                    .join('; ')}
+                </p>{/if}</Card.Content
+            ></Card.Root
+          >{/if}
         <SummarySection
           {accounts}
           api={(path, options) =>
@@ -1080,6 +1203,21 @@
   {pending}
   accounts={pickerAccounts}
   {transferDestinations}
+  quote={(input) =>
+    api(`/workspaces/${workspaceId}/rates/quote`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }) as Promise<{
+      available: boolean
+      suggestedAmountMinor: string | null
+      rates: Array<{
+        currency: string
+        rateToPln: string
+        source: string
+        effectiveDate: string
+        tableNumber: string | null
+      }>
+    }>}
   onsubmit={saveTransfer}
 />
 <BalanceCheckDialog

@@ -3,6 +3,19 @@
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'
+  import { minorToDecimal, parseAmount } from '$lib/money'
+
+  type Quote = {
+    available: boolean
+    suggestedAmountMinor: string | null
+    rates: Array<{
+      currency: string
+      rateToPln: string
+      source: string
+      effectiveDate: string
+      tableNumber: string | null
+    }>
+  }
 
   let {
     open = $bindable(),
@@ -12,6 +25,7 @@
     pending,
     accounts,
     transferDestinations,
+    quote,
     onsubmit,
   }: {
     open: boolean
@@ -19,6 +33,7 @@
       fromAccountId: string
       toAccountId: string
       amount: string
+      receivedAmount: string
       date: string
       description: string
       fee: string
@@ -29,8 +44,84 @@
     pending: boolean
     accounts: Account[]
     transferDestinations: (sourceId: string) => Account[]
+    quote: (input: {
+      fromCurrency: string
+      toCurrency: string
+      date: string
+      amountMinor: string
+    }) => Promise<Quote>
     onsubmit: (event: SubmitEvent) => void
   } = $props()
+  let quoteText = $state('')
+  let suggestedAmount = $state('')
+  let suggestionApplied = false
+  let quoteInputKey = ''
+  let quoteGeneration = 0
+
+  $effect(() => {
+    const source = accounts.find((account) => account.id === form.fromAccountId)
+    const destination = accounts.find(
+      (account) => account.id === form.toAccountId,
+    )
+    const amount = form.amount
+    const date = form.date
+    const nextQuoteInputKey = `${open}:${source?.id ?? ''}:${destination?.id ?? ''}:${amount}:${date}`
+    const generation = ++quoteGeneration
+    if (suggestionApplied && quoteInputKey !== nextQuoteInputKey) {
+      form.receivedAmount = ''
+      suggestionApplied = false
+    }
+    quoteInputKey = nextQuoteInputKey
+    suggestedAmount = ''
+    if (
+      !open ||
+      !source ||
+      !destination ||
+      source.currency === destination.currency ||
+      editingTransfer
+    ) {
+      quoteText = ''
+      return
+    }
+    try {
+      const amountMinor = parseAmount(amount, source.currency)
+      void quote({
+        fromCurrency: source.currency,
+        toCurrency: destination.currency,
+        date,
+        amountMinor,
+      })
+        .then((result) => {
+          if (generation !== quoteGeneration) return
+          if (!result.available || !result.suggestedAmountMinor) {
+            suggestedAmount = ''
+            quoteText =
+              'No date-appropriate exchange-rate suggestion is available.'
+            return
+          }
+          const suggestion = minorToDecimal(
+            result.suggestedAmountMinor,
+            destination.currency,
+          )
+          suggestedAmount = suggestion
+          quoteText = `Suggested ${suggestion} ${destination.currency}. ${result.rates
+            .map(
+              (rate) =>
+                `${rate.currency} ${rate.rateToPln} PLN · ${rate.source}${rate.tableNumber ? ` ${rate.tableNumber}` : ''} · ${rate.effectiveDate}`,
+            )
+            .join('; ')}. Confirm or edit the received amount.`
+        })
+        .catch(() => {
+          if (generation === quoteGeneration) {
+            suggestedAmount = ''
+            quoteText = 'Exchange-rate suggestion is temporarily unavailable.'
+          }
+        })
+    } catch {
+      suggestedAmount = ''
+      quoteText = ''
+    }
+  })
 </script>
 
 <Dialog.Root bind:open>
@@ -65,6 +156,30 @@
             >{/each}</select
         >
       </div>
+      {#if accounts.find((item) => item.id === form.fromAccountId)?.currency !== accounts.find((item) => item.id === form.toAccountId)?.currency}<div
+          class="space-y-2"
+        >
+          <Label for="transfer-received">Exact amount received</Label><Input
+            id="transfer-received"
+            inputmode="decimal"
+            required
+            bind:value={form.receivedAmount}
+            oninput={() => (suggestionApplied = false)}
+          />
+          <p class="text-xs text-muted-foreground">
+            {quoteText ||
+              'Enter the confirmed destination amount. A suggestion never replaces your confirmation.'}
+          </p>
+          {#if suggestedAmount}<Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onclick={() => {
+                form.receivedAmount = suggestedAmount
+                suggestionApplied = true
+              }}>Use suggestion</Button
+            >{/if}
+        </div>{/if}
       <div class="space-y-2">
         <Label for="transfer-destination">Destination account</Label><select
           id="transfer-destination"
