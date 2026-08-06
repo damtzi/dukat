@@ -4,6 +4,10 @@ import { db, financialDb } from '@dukat/db';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
+import {
+	createExchangeRateRepository,
+	createNbpAdapter
+} from '@dukat/db/repositories/exchange-rates';
 import { serverEnv } from '@dukat/env/server';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
@@ -85,12 +89,24 @@ void workspaceService.deliverOutbox();
 
 export async function shutdownOutbox() {
 	clearInterval(outboxTimer);
+	clearInterval(exchangeRateTimer);
 	await outboxDelivery.waitForIdle(5_000);
 }
 
+const ledgerRepository = createLedgerRepository(financialDb);
+const nbp = createNbpAdapter();
+const exchangeRateRepository = createExchangeRateRepository(financialDb, nbp);
+const refreshRates = () =>
+	(exchangeRateRepository.refreshLatest() ?? Promise.resolve()).catch((error) =>
+		logOutboxError('exchange_rates.refresh_failed', { message: String(error) })
+	);
+const exchangeRateTimer = setInterval(() => void refreshRates(), 60 * 60 * 1000);
+exchangeRateTimer.unref();
+void refreshRates();
 const api = createAPI({
 	auth,
-	ledger: createLedgerRepository(financialDb),
+	ledger: ledgerRepository,
+	exchangeRates: exchangeRateRepository,
 	insights: createInsightsRepository(financialDb),
 	readiness: () => db.run('select 1'),
 	workspaces: workspaceService
