@@ -183,6 +183,50 @@ test('NBP cache, effective-date lookup, manual override and removal stay reprodu
 			balances.accounts[0].rates.map((rate) => rate.currency),
 			['EUR', 'USD']
 		);
+		const forecast = await rates.workspaceForecast('owner', f.context.workspaceId, [
+			{
+				id: 'eur',
+				currency: 'EUR',
+				startingBalanceMinor: '100',
+				endingBalanceMinor: '80',
+				occurrences: [
+					{
+						planId: 'expense',
+						originalDate: '2026-09-01',
+						date: '2026-09-01',
+						kind: 'expense',
+						status: 'expected',
+						amountMinor: '20'
+					}
+				]
+			},
+			{
+				id: 'usd',
+				currency: 'USD',
+				startingBalanceMinor: '200',
+				endingBalanceMinor: '210',
+				occurrences: [
+					{
+						planId: 'income',
+						originalDate: '2026-09-02',
+						date: '2026-09-02',
+						kind: 'income',
+						status: 'expected',
+						amountMinor: '10'
+					}
+				]
+			}
+		]);
+		assert.equal(forecast.reportingCurrency, 'USD');
+		assert.equal(forecast.startingBalanceMinor, '325');
+		assert.equal(forecast.endingBalanceMinor, '310');
+		assert.deepEqual(
+			forecast.points.map((point) => [point.planId, point.projectedBalanceMinor]),
+			[
+				['expense', '300'],
+				['income', '310']
+			]
+		);
 		const quote = await rates.quote('owner', f.context.workspaceId, {
 			fromCurrency: 'EUR',
 			toCurrency: 'USD',
