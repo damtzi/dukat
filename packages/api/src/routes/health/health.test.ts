@@ -19,6 +19,7 @@ function createServices(readiness: () => Promise<unknown>): APIServices {
 		},
 		readiness,
 		ledger: {} as APIServices['ledger'],
+		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],
 		workspaces: {
 			async listAuthorized() {

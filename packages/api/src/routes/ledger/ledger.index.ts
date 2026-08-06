@@ -33,6 +33,11 @@ export const ledgerRouter = router
 			return c.var.services.ledger.updateAccount(context(c), p.accountId, c.req.valid('json'));
 		})
 	)
+	.openapi(routes.accountArchiveImpact, (c) =>
+		success(c, () =>
+			c.var.services.ledger.accountArchiveImpact(context(c), c.req.valid('param').accountId)
+		)
+	)
 	.openapi(routes.accountAction('delete'), (c) =>
 		success(c, () =>
 			c.var.services.ledger.accountAction(

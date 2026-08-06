@@ -1,5 +1,6 @@
 import type {
 	CreateAccount,
+	ArchiveAccount,
 	CreateBalanceCheck,
 	CreateBalanceCorrection,
 	CreateTransfer,
@@ -12,6 +13,7 @@ import type {
 } from '@dukat/core/ledger';
 import type { InsightsRepository } from '@dukat/db/repositories/insights';
 import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
+import type { PlanningRepository } from '@dukat/db/repositories/planning';
 
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
@@ -92,11 +94,15 @@ export interface LedgerService {
 		accountId: string,
 		input: UpdateAccount
 	): Promise<unknown>;
+	accountArchiveImpact(
+		context: { userId: string; workspaceId: string },
+		accountId: string
+	): Promise<unknown>;
 	accountAction(
 		context: { userId: string; workspaceId: string },
 		accountId: string,
 		action: 'delete' | 'archive' | 'restore',
-		input: VersionedMutation
+		input: VersionedMutation | ArchiveAccount
 	): Promise<unknown>;
 	listTransactions(
 		context: { userId: string; workspaceId: string },
@@ -180,6 +186,7 @@ export interface APIServices {
 	auth: AuthenticationService;
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
+	planning: PlanningRepository;
 	insights: InsightsRepository;
 	exchangeRates?: ReturnType<typeof createExchangeRateRepository>;
 	workspaces: WorkspaceService;
