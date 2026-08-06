@@ -82,6 +82,7 @@ function createServices(
 		},
 		async readiness() {},
 		ledger: {} as APIServices['ledger'],
+		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],
 		workspaces
 	};

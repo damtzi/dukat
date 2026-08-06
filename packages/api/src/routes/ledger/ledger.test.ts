@@ -38,6 +38,9 @@ function createServices(): APIServices {
 			async updateAccount() {
 				throw Object.assign(new Error('Account version is stale'), { code: 'conflict' });
 			},
+			async accountArchiveImpact() {
+				return { accountVersion: 1, date: '2026-08-06', plans: [], impactToken: 'token' };
+			},
 			async accountAction() {},
 			async listTransactions() {
 				return [];
@@ -73,6 +76,7 @@ function createServices(): APIServices {
 				return [];
 			}
 		},
+		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],
 		workspaces: {
 			async listAuthorized() {
@@ -167,6 +171,22 @@ test('ledger routes expose optimistic conflicts without overwriting', async () =
 
 	assert.equal(response.status, 409);
 	assert.deepEqual(await response.json(), { message: 'Account version is stale' });
+});
+
+test('ledger exposes archive impact and requires its token for archive', async () => {
+	const app = createAPI(createServices());
+	const impact = await app.request(
+		'/api/workspaces/workspace-1/accounts/account-1/archive-impact',
+		{ headers }
+	);
+	assert.equal(impact.status, 200);
+	assert.equal(((await impact.json()) as { impactToken: string }).impactToken, 'token');
+	const archive = await app.request('/api/workspaces/workspace-1/accounts/account-1/archive', {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ version: 1, idempotencyKey: 'archive-without-token' })
+	});
+	assert.equal(archive.status, 400);
 });
 
 test('ledger HTTP routes use the migrated database and exact-money repository', async () => {

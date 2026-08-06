@@ -4,6 +4,7 @@ import { db, financialDb } from '@dukat/db';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
+import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import {
 	createExchangeRateRepository,
 	createNbpAdapter
@@ -106,6 +107,7 @@ void refreshRates();
 const api = createAPI({
 	auth,
 	ledger: ledgerRepository,
+	planning: createPlanningRepository(financialDb),
 	exchangeRates: exchangeRateRepository,
 	insights: createInsightsRepository(financialDb),
 	readiness: () => db.run('select 1'),

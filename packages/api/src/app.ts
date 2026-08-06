@@ -7,6 +7,7 @@ import { workspacesRouter } from './routes/workspaces/workspaces.index';
 import { insightsRouter } from './routes/insights/insights.index';
 import { exchangeRatesRouter } from './routes/exchange-rates/exchange-rates.index';
 import type { APIServices } from './services';
+import { planningRouter } from './routes/planning/planning.index';
 
 export function createAPI(services: APIServices) {
 	const app = createApp(services);
@@ -18,6 +19,7 @@ export function createAPI(services: APIServices) {
 		.route('/api', workspacesRouter)
 		.route('/api', insightsRouter)
 		.route('/api', exchangeRatesRouter)
+		.route('/api', planningRouter)
 		.route('/api', ledgerRouter);
 }
 

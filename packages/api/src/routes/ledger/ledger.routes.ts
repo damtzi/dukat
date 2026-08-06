@@ -1,6 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import {
 	accountSchema,
+	accountArchiveImpactSchema,
+	archiveAccountSchema,
 	balanceCheckSchema,
 	createAccountSchema,
 	createBalanceCheckSchema,
@@ -62,16 +64,36 @@ export const updateAccount = createRoute({
 	request: { params: accountParams, body: jsonContent(updateAccountSchema, 'Account') },
 	responses: responses(accountSchema, 'Updated account')
 });
+export const accountArchiveImpact = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/accounts/{accountId}/archive-impact',
+	request: { params: accountParams },
+	responses: responses(accountArchiveImpactSchema, 'Account archive impact')
+});
 export const accountAction = <A extends 'delete' | 'archive' | 'restore'>(action: A) =>
 	createRoute({
 		...common(),
 		method: 'post',
 		path: `/workspaces/{workspaceId}/accounts/{accountId}/${action}` as `/workspaces/{workspaceId}/accounts/{accountId}/${A}`,
-		request: { params: accountParams, body: jsonContent(versionedMutationSchema, action) },
+		request: {
+			params: accountParams,
+			body: jsonContent(
+				action === 'archive' ? archiveAccountSchema : versionedMutationSchema,
+				action
+			)
+		},
 		responses: responses(
 			action === 'delete'
 				? z.object({ deleted: z.literal(true), negativeBalance: z.literal(false) })
-				: accountSchema,
+				: action === 'archive'
+					? accountSchema.extend({
+							planningImpact: z.object({
+								stoppedRecurring: z.number().int().nonnegative(),
+								cancelledOneTime: z.number().int().nonnegative()
+							})
+						})
+					: accountSchema,
 			`${action} account`
 		)
 	});

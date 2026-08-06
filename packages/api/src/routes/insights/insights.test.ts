@@ -16,6 +16,7 @@ const services = (): APIServices => ({
 	},
 	async readiness() {},
 	ledger: {} as APIServices['ledger'],
+	planning: {} as APIServices['planning'],
 	insights: {
 		listCategories: async () => [],
 		summary: async () => ({ currencies: [] }),
