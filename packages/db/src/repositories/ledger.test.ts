@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
 
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -299,6 +300,101 @@ test('cross-workspace transfers project private counterpart data and require acc
 	}
 });
 
+test(
+	'cross-client write locks return a bounded clear conflict without overwriting',
+	{ timeout: 5_000 },
+	async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'dukat-ledger-busy-'));
+		const url = `file:${join(directory, 'ledger.db')}`;
+		const connection = createDatabase({ url, timeout: 40 });
+		const financial = createFinancialDatabase({ url, timeout: 40 });
+		try {
+			await migrate(connection.db, {
+				migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+			});
+			await connection.db
+				.insert(user)
+				.values({ id: 'busy-owner', name: 'Busy Owner', email: 'busy@example.com' });
+			const [personal] = await connection.db
+				.select()
+				.from(workspace)
+				.where(eq(workspace.personalOwnerUserId, 'busy-owner'));
+			await financial.db.insert(financialAccount).values({
+				id: 'busy-account',
+				workspaceId: personal.id,
+				name: 'Before',
+				type: 'cash',
+				currency: 'PLN',
+				openingBalanceMinor: 0n
+			});
+			const ledger = createLedgerRepository(financial.db);
+			const context = { userId: 'busy-owner', workspaceId: personal.id };
+
+			const shortLockWorker = new Worker(
+				`const { parentPort, workerData } = require('node:worker_threads');
+			 void import('@libsql/client').then(async ({ createClient }) => {
+			   const client = createClient({ url: workerData.url, timeout: 40, intMode: 'bigint' });
+			   const transaction = await client.transaction('write');
+			   await transaction.execute({
+			     sql: 'UPDATE financial_account SET updated_at = updated_at WHERE id = ?',
+			     args: ['busy-account']
+			   });
+			   parentPort.postMessage('locked');
+			   parentPort.once('message', async (message) => {
+			     if (message !== 'release') return;
+			     await transaction.rollback();
+			     transaction.close();
+			     client.close();
+			     parentPort.postMessage('released');
+			   });
+			 });`,
+				{ eval: true, workerData: { url } }
+			);
+			await new Promise<void>((resolve, reject) => {
+				shortLockWorker.once('message', (message) => {
+					if (message === 'locked') resolve();
+					else reject(new Error(`Unexpected worker message: ${String(message)}`));
+				});
+				shortLockWorker.once('error', reject);
+			});
+			const released = new Promise<void>((resolve, reject) => {
+				shortLockWorker.once('message', (message) => {
+					if (message === 'released') resolve();
+					else reject(new Error(`Unexpected worker message: ${String(message)}`));
+				});
+				shortLockWorker.once('error', reject);
+			});
+			await assert.rejects(
+				() =>
+					ledger.updateAccount(context, 'busy-account', {
+						idempotencyKey: 'busy-lock',
+						version: 1,
+						name: 'After wait',
+						type: 'cash',
+						currency: 'PLN',
+						openingBalanceMinor: '0'
+					}),
+				(error) =>
+					error instanceof LedgerError &&
+					error.code === 'conflict' &&
+					error.message === 'Database is busy; try the request again'
+			);
+			shortLockWorker.postMessage('release');
+			await released;
+			await shortLockWorker.terminate();
+			const [unchanged] = await connection.db
+				.select({ name: financialAccount.name, version: financialAccount.version })
+				.from(financialAccount)
+				.where(eq(financialAccount.id, 'busy-account'));
+			assert.deepEqual(unchanged, { name: 'Before', version: 1 });
+		} finally {
+			financial.client.close();
+			connection.client.close();
+			await rm(directory, { recursive: true, force: true });
+		}
+	}
+);
+
 test('personal manual ledger balances, versions, idempotency, trash and audit lifecycle', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-ledger-'));
 	const connection = createDatabase({ url: `file:${join(directory, 'ledger.db')}` });
@@ -390,6 +486,36 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					openingBalanceMinor: '100'
 				}),
 			/currency is immutable/i
+		);
+		const concurrentUpdates = await Promise.allSettled([
+			ledger.updateAccount(context, account.id, {
+				idempotencyKey: 'concurrent-account-a',
+				version: 1,
+				name: 'Cash A',
+				type: 'cash',
+				currency: 'EUR',
+				openingBalanceMinor: '100'
+			}),
+			ledger.updateAccount(context, account.id, {
+				idempotencyKey: 'concurrent-account-b',
+				version: 1,
+				name: 'Cash B',
+				type: 'cash',
+				currency: 'EUR',
+				openingBalanceMinor: '100'
+			})
+		]);
+		assert.equal(
+			concurrentUpdates.filter((result) => result.status === 'fulfilled').length,
+			1,
+			'only one concurrent stale write succeeds'
+		);
+		const rejectedUpdate = concurrentUpdates.find((result) => result.status === 'rejected');
+		assert.ok(
+			rejectedUpdate?.status === 'rejected' &&
+				rejectedUpdate.reason instanceof LedgerError &&
+				rejectedUpdate.reason.code === 'conflict',
+			'the losing write returns a clear conflict'
 		);
 		const trashed = await ledger.transactionAction(context, expense.transaction.id, 'trash', {
 			idempotencyKey: 'trash-expense-1',

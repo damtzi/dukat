@@ -94,6 +94,7 @@ interface CreateBalanceCorrection extends Mutation {
 	amountMinor: string;
 	description?: string | null;
 }
+type FinancialTransaction = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
 const INT64_MIN = -(1n << 63n);
 const INT64_MAX = (1n << 63n) - 1n;
 const BALANCE_DIFFERENCE_MAX = (1n << 64n) - 1n;
@@ -155,7 +156,44 @@ const viewAccount = (account: typeof financialAccount.$inferSelect, balanceMinor
 	canRestore: account.archivedAt !== null
 });
 
-export function createLedgerRepository(database: FinancialDatabase) {
+export function createLedgerRepository(rawDatabase: FinancialDatabase) {
+	let transactionTail = Promise.resolve();
+	const database = {
+		async transaction<T>(operation: (tx: FinancialTransaction) => Promise<T>) {
+			let release: () => void = () => undefined;
+			const turn = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			const previous = transactionTail;
+			transactionTail = previous.then(() => turn);
+			await previous;
+			try {
+				for (let attempt = 0; ; attempt += 1) {
+					try {
+						return await rawDatabase.transaction(operation);
+					} catch (error) {
+						const code =
+							typeof error === 'object' && error !== null && 'code' in error
+								? String(error.code)
+								: '';
+						const busy =
+							code.includes('SQLITE_BUSY') ||
+							(error instanceof Error && error.message.includes('database is locked'));
+						if (!busy) throw error;
+						if (attempt === 3) {
+							throw new LedgerError('conflict', 'Database is busy; try the request again');
+						}
+						const maximumDelay = 25 * 2 ** attempt;
+						await new Promise((resolve) =>
+							setTimeout(resolve, maximumDelay / 2 + Math.random() * (maximumDelay / 2))
+						);
+					}
+				}
+			} finally {
+				release();
+			}
+		}
+	};
 	type Transaction = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
 	async function validateSelectedCategory(
 		tx: Transaction,
@@ -176,7 +214,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 	async function balance(
 		workspaceId: string,
 		accountId: string,
-		source: FinancialDatabase | Transaction = database,
+		source: FinancialDatabase | Transaction = rawDatabase,
 		throughDate?: string
 	) {
 		const rows = await source
@@ -209,7 +247,7 @@ export function createLedgerRepository(database: FinancialDatabase) {
 	}
 	async function accountView(
 		account: typeof financialAccount.$inferSelect,
-		source: FinancialDatabase | Transaction = database
+		source: FinancialDatabase | Transaction = rawDatabase
 	) {
 		return viewAccount(
 			account,
@@ -1880,17 +1918,19 @@ export function createLedgerRepository(database: FinancialDatabase) {
 			});
 		},
 		async purgeTrashed(before = new Date(Date.now() - 30 * 86_400_000)) {
-			const deleted = await database
-				.delete(ledgerTransaction)
-				.where(
-					and(
-						eq(ledgerTransaction.source, 'manual'),
-						isNotNull(ledgerTransaction.trashedAt),
-						lt(ledgerTransaction.trashedAt, before)
+			return database.transaction(async (tx) => {
+				const deleted = await tx
+					.delete(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.source, 'manual'),
+							isNotNull(ledgerTransaction.trashedAt),
+							lt(ledgerTransaction.trashedAt, before)
+						)
 					)
-				)
-				.returning({ id: ledgerTransaction.id });
-			return deleted.length;
+					.returning({ id: ledgerTransaction.id });
+				return deleted.length;
+			});
 		},
 		async purgeLifecycle(
 			trashBefore = new Date(Date.now() - 30 * 86_400_000),
