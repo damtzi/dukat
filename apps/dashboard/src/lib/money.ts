@@ -1,7 +1,14 @@
+import { defaultLocale } from './i18n'
+
+const decimalSeparator =
+  new Intl.NumberFormat(defaultLocale)
+    .formatToParts(1.1)
+    .find((part) => part.type === 'decimal')?.value ?? ','
+
 export function currencyDigits(currency: string): number {
   try {
     return (
-      new Intl.NumberFormat(undefined, {
+      new Intl.NumberFormat(defaultLocale, {
         style: 'currency',
         currency,
       }).resolvedOptions().maximumFractionDigits ?? 2
@@ -17,11 +24,12 @@ export function parseAmount(
   allowNegative = false,
 ): string {
   const digits = currencyDigits(currency)
+  const normalized = value.trim().replace(decimalSeparator, '.')
   const decimals = digits === 0 ? '' : `(?:\\.\\d{1,${digits}})?`
   const pattern = new RegExp(`^${allowNegative ? '-?' : ''}\\d+${decimals}$`)
-  if (!pattern.test(value.trim()))
+  if (!pattern.test(normalized))
     throw new Error(`Enter an amount with at most ${digits} decimal places.`)
-  const [whole, fraction = ''] = value.trim().split('.')
+  const [whole, fraction = ''] = normalized.split('.')
   const negative = whole.startsWith('-')
   const unsignedWhole = negative ? whole.slice(1) : whole
   const minor =
@@ -41,7 +49,7 @@ export function minorToDecimal(minor: string, currency: string): string {
     .toString()
     .padStart(digits + 1, '0')
   if (digits === 0) return sign + absolute
-  return `${sign}${absolute.slice(0, -digits)}.${absolute.slice(-digits)}`
+  return `${sign}${absolute.slice(0, -digits)}${decimalSeparator}${absolute.slice(-digits)}`
 }
 
 export function formatMoney(minor: string, currency: string): string {
@@ -52,7 +60,7 @@ export function formatMoney(minor: string, currency: string): string {
   const fraction = (value < 0n ? -(value % divisor) : value % divisor)
     .toString()
     .padStart(digits, '0')
-  const formatter = new Intl.NumberFormat(undefined, {
+  const formatter = new Intl.NumberFormat(defaultLocale, {
     style: 'currency',
     currency,
     minimumFractionDigits: digits,

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './tests',
+	testIgnore: 'production-smoke.spec.ts',
 	fullyParallel: true,
 	forbidOnly: Boolean(process.env.CI),
 	retries: process.env.CI ? 2 : 0,
@@ -18,6 +19,10 @@ export default defineConfig({
 	},
 	projects: [
 		{ name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
+		{ name: 'desktop-chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
+		{ name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },
+		{ name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
+		{ name: 'desktop-edge', use: { ...devices['Desktop Edge'], channel: 'msedge' } },
 		{ name: 'phone-chromium', use: { ...devices['Pixel 7'] } }
 	]
 });

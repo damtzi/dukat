@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 type Account = {
 	id: string;
@@ -78,6 +79,9 @@ async function mockLedger(page: Page) {
 		if (pathname === '/api/workspaces' && method === 'GET') {
 			return json(route, [personalWorkspace]);
 		}
+		if (pathname === '/api/rates/status' && method === 'GET') {
+			return json(route, { available: true, stale: false, latest: null });
+		}
 		if (pathname === `/api/workspaces/${workspaceId}/categories` && method === 'GET') {
 			return json(route, []);
 		}
@@ -86,6 +90,24 @@ async function mockLedger(page: Page) {
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/imports` && method === 'GET') {
 			return json(route, []);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/rates` && method === 'GET') {
+			return json(route, []);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/plans` && method === 'GET') {
+			return json(route, []);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/forecast` && method === 'GET') {
+			return json(route, []);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/balances/converted` && method === 'GET') {
+			return json(route, {
+				reportingCurrency: 'USD',
+				totalMinor: balance().toString(),
+				missingRate: false,
+				rates: [],
+				accounts: []
+			});
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
 			return json(route, account ? [accountResponse()] : []);
@@ -240,8 +262,23 @@ async function mockLedger(page: Page) {
 		const accountAction = pathname.match(
 			`/api/workspaces/${workspaceId}/accounts/${accountId}/(archive|restore)$`
 		);
+		if (
+			pathname === `/api/workspaces/${workspaceId}/accounts/${accountId}/archive-impact` &&
+			method === 'GET'
+		) {
+			return json(route, {
+				accountVersion: account!.version,
+				date: '2026-08-07',
+				impactToken: 'no-plans-impact',
+				plans: []
+			});
+		}
 		if (accountAction && method === 'POST') {
-			expect(body).toEqual({ version: account!.version, idempotencyKey: key });
+			expect(body).toEqual({
+				version: account!.version,
+				idempotencyKey: key,
+				...(accountAction[1] === 'archive' ? { impactToken: 'no-plans-impact' } : {})
+			});
 			account!.version++;
 			account!.archivedAt = accountAction[1] === 'archive' ? '2026-07-31T12:00:00.000Z' : null;
 			return json(route, accountResponse());
@@ -254,6 +291,31 @@ async function mockLedger(page: Page) {
 async function submitDialog(page: Page) {
 	await page.getByRole('dialog').locator('form').dispatchEvent('submit');
 }
+
+test('keeps authentication keyboard-operable with no automated accessibility violations', async ({
+	page
+}, testInfo) => {
+	test.skip(testInfo.project.name !== 'desktop-chromium');
+	await page.route('**/api/auth/get-session', (route) => json(route, null));
+	await page.route('**/api/auth/sign-in/email', (route) =>
+		json(route, { message: 'Email or password is incorrect.' }, 401)
+	);
+	await page.goto('/sign-in');
+
+	await page.getByLabel('Email').focus();
+	await expect(page.getByLabel('Email')).toBeFocused();
+	await page.keyboard.type('ada@example.com');
+	await page.keyboard.press('Tab');
+	await expect(page.getByLabel('Password')).toBeFocused();
+	await page.keyboard.type('incorrect-password');
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('alert')).toContainText('Email or password is incorrect.');
+
+	const results = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+		.analyze();
+	expect(results.violations).toEqual([]);
+});
 
 test('signs up and signs in through the auth routes', async ({ page }) => {
 	let authenticated = false;
@@ -523,7 +585,7 @@ test('renders a private incoming cross-workspace transfer without management con
 		.getByText('Incoming transfer', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await expect(transfer).toContainText('Private personal account');
-	await expect(transfer).toContainText('+$25.00');
+	await expect(transfer).toContainText('+25,00 USD');
 	await expect(transfer.getByRole('button', { name: /^(Edit|Trash|Restore)$/ })).toHaveCount(0);
 	await expect(page.getByText(privateIdentity, { exact: false })).toHaveCount(0);
 });
@@ -546,37 +608,37 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
 	await expect(page.getByText('Everyday account', { exact: true }).last()).toBeVisible();
-	await expect(page.getByText('$100.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('100,00 USD', { exact: true }).last()).toBeVisible();
 	await page.getByRole('button', { name: 'Account history' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await expect(page.getByRole('dialog')).toContainText('description: "Rent" → "Rent corrected"');
 	await page.getByRole('button', { name: 'Close' }).click();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
-	await page.getByLabel('Amount').fill('1.001');
+	await page.getByLabel('Amount', { exact: true }).fill('1.001');
 	await submitDialog(page);
 	await expect(page.getByText('Enter an amount with at most 2 decimal places.')).toBeVisible();
-	await page.getByLabel('Amount').fill('125.00');
-	await page.getByLabel('Description').fill('Rent');
+	await page.getByLabel('Amount', { exact: true }).fill('125.00');
+	await page.getByRole('dialog').getByLabel('Description').fill('Rent');
 	await submitDialog(page);
 	await expect(page.getByText('Negative balance')).toBeVisible();
-	await expect(page.getByText('-$25.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('-25,00 USD', { exact: true }).last()).toBeVisible();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	await page.getByLabel('Kind').selectOption('income');
-	await page.getByLabel('Amount').fill('25.00');
-	await page.getByLabel('Description').fill('Refund');
+	await page.getByLabel('Amount', { exact: true }).fill('25.00');
+	await page.getByRole('dialog').getByLabel('Description').fill('Refund');
 	await submitDialog(page);
-	await expect(page.getByText('$0.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('0,00 USD', { exact: true }).last()).toBeVisible();
 
 	const rent = page
 		.getByText('Rent', { exact: true })
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
 	await rent.getByRole('button', { name: 'Edit' }).click();
-	await page.getByLabel('Amount').fill('120.00');
-	await page.getByLabel('Description').fill('Rent corrected');
+	await page.getByLabel('Amount', { exact: true }).fill('120.00');
+	await page.getByRole('dialog').getByLabel('Description').fill('Rent corrected');
 	await submitDialog(page);
-	await expect(page.getByText('$5.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('5,00 USD', { exact: true }).last()).toBeVisible();
 
 	const refund = page
 		.getByText('Refund', { exact: true })
@@ -584,7 +646,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await refund.getByRole('button', { name: 'Trash' }).click();
 	await expect(page.getByText('Negative balance')).toBeVisible();
 	await refund.getByRole('button', { name: 'Restore' }).click();
-	await expect(page.getByText('$5.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('5,00 USD', { exact: true }).last()).toBeVisible();
 
 	await page.getByRole('button', { name: 'Edit account' }).click();
 	await accountDialog.getByLabel('Name', { exact: true }).fill('Household account');
@@ -597,8 +659,9 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 		.getByText('Rent corrected', { exact: true })
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
 	await correctedRent.getByRole('button', { name: 'Edit' }).click();
-	await page.getByLabel('Amount').fill('125.00');
+	await page.getByLabel('Amount', { exact: true }).fill('125.00');
 	await submitDialog(page);
+	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Archive account' }).click();
 	await expect(page.getByText('Archived', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeHidden();
@@ -610,6 +673,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Close' }).click();
 	await page.getByRole('button', { name: 'Restore account' }).click();
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeVisible();
+	await expect(page.getByText(/(?:Exchange-rate|Planning) action failed/)).toHaveCount(0);
 });
 
 test('categorizes spending and completes a reviewed CSV import batch', async ({ page }) => {
@@ -887,19 +951,19 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 
 	await page.goto('/dashboard');
 	await page.getByRole('button', { name: 'Add transaction' }).click();
-	await page.getByLabel('Amount').fill('25.00');
-	await page.getByLabel('Description').fill('Weekly shop');
+	await page.getByLabel('Amount', { exact: true }).fill('25.00');
+	await page.getByRole('dialog').getByLabel('Description').fill('Weekly shop');
 	await page.getByLabel('Category', { exact: true }).selectOption(groceriesId);
 	await submitDialog(page);
 	await expect(
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
 	).toBeVisible();
 
-	const summaryGroup = page.getByRole('button', { name: 'Groceries · expense 25.00' });
+	const summaryGroup = page.getByRole('button', { name: /Groceries · expense 25,00\sUSD/ });
 	await expect(summaryGroup).toBeVisible();
 	await summaryGroup.click();
 	await expect(
-		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25.00 USD', { exact: true })
+		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25,00 USD', { exact: true })
 	).toBeVisible();
 
 	await page
@@ -1123,13 +1187,13 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	await page.getByRole('button', { name: 'Add balance check' }).click();
 	await page.getByLabel('Observed balance').fill('80.00');
 	await submitDialog(page);
-	await expect(page.getByText('+$1.00', { exact: true })).toBeVisible();
+	await expect(page.getByText('+1,00 USD', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Create correction' }).click();
 	await expect(page.getByRole('button', { name: 'Retry correction' })).toBeVisible();
 	await page.getByRole('button', { name: 'Retry correction' }).click();
 	await expect(page.getByRole('button', { name: 'Retry correction' })).toBeHidden();
 	expect(correctionAttempts).toBe(2);
 	expect(corrections).toHaveLength(1);
-	await expect(page.getByText('$80.00', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('80,00 USD', { exact: true }).last()).toBeVisible();
 	await expect(page.getByText('Balance correction for check', { exact: false })).toBeVisible();
 });

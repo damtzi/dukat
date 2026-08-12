@@ -11,7 +11,7 @@
   } from '@dukat/core/ledger'
   import type { Category } from '@dukat/core/csv-import'
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
-  import { minorToDecimal, parseAmount } from '$lib/money'
+  import { formatMoney, minorToDecimal, parseAmount } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import AccountNavigation from '$lib/components/ledger/AccountNavigation.svelte'
   import AccountSummary from '$lib/components/ledger/AccountSummary.svelte'
@@ -1116,11 +1116,10 @@
               ></Card.Header
             ><Card.Content
               >{#if convertedBalances.totalMinor !== null}<b
-                  >{minorToDecimal(
+                  >{formatMoney(
                     convertedBalances.totalMinor,
                     convertedBalances.reportingCurrency,
-                  )}
-                  {convertedBalances.reportingCurrency}</b
+                  )}</b
                 >{:else}<p class="text-sm text-muted-foreground">
                   A combined total is unavailable because an exchange rate is
                   missing. Original account balances remain available.
@@ -1146,11 +1145,10 @@
               ></Card.Header
             ><Card.Content
               >{#if workspaceForecast.endingBalanceMinor !== null && workspaceForecast.reportingCurrency}<b
-                  >Projected balance: {minorToDecimal(
+                  >Projected balance: {formatMoney(
                     workspaceForecast.endingBalanceMinor,
                     workspaceForecast.reportingCurrency,
-                  )}
-                  {workspaceForecast.reportingCurrency}</b
+                  )}</b
                 >
                 <p class="mt-1 text-sm text-muted-foreground">
                   {workspaceForecast.occurrences.length} unmatched planned occurrences

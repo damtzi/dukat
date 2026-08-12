@@ -4,7 +4,7 @@
   import type { Summary } from '@dukat/core/csv-import'
   import { Button, Card, Input, Label } from '@dukat/ui'
   import { calendarMonthRange, shiftCalendarMonth } from '$lib/date'
-  import { minorToDecimal } from '$lib/money'
+  import { formatMoney } from '$lib/money'
   let {
     accounts,
     api,
@@ -113,7 +113,7 @@
             </p>{:else}<div class="grid grid-cols-3 gap-2 text-sm">
               <div>
                 Income<br /><b
-                  >{minorToDecimal(
+                  >{formatMoney(
                     summary.reporting.incomeMinor!,
                     summary.reporting.currency,
                   )}</b
@@ -121,7 +121,7 @@
               </div>
               <div>
                 Spending<br /><b
-                  >{minorToDecimal(
+                  >{formatMoney(
                     summary.reporting.spendingMinor!,
                     summary.reporting.currency,
                   )}</b
@@ -129,7 +129,7 @@
               </div>
               <div>
                 Uncategorized<br /><b
-                  >{minorToDecimal(
+                  >{formatMoney(
                     summary.reporting.uncategorizedMinor!,
                     summary.reporting.currency,
                   )}</b
@@ -146,20 +146,17 @@
             ><div class="mb-3 grid grid-cols-3 gap-2 text-sm">
               <div>
                 Income<br /><b
-                  >{minorToDecimal(currency.incomeMinor, currency.currency)}</b
+                  >{formatMoney(currency.incomeMinor, currency.currency)}</b
                 >
               </div>
               <div>
                 Spending<br /><b
-                  >{minorToDecimal(
-                    currency.spendingMinor,
-                    currency.currency,
-                  )}</b
+                  >{formatMoney(currency.spendingMinor, currency.currency)}</b
                 >
               </div>
               <div>
                 Uncategorized<br /><b
-                  >{minorToDecimal(
+                  >{formatMoney(
                     currency.uncategorizedMinor,
                     currency.currency,
                   )}</b
@@ -171,7 +168,7 @@
                 onclick={() =>
                   (openGroup = openGroup === groupKey ? '' : groupKey)}
                 ><span>{group.categoryName} · {group.kind}</span><b
-                  >{minorToDecimal(group.amountMinor, currency.currency)}</b
+                  >{formatMoney(group.amountMinor, currency.currency)}</b
                 ></button
               >{#if openGroup === groupKey}<div
                   class="space-y-2 bg-muted/40 p-2 text-sm"
@@ -180,11 +177,10 @@
                       <b>{transaction.date}</b> · {accounts.find(
                         (a) => a.id === transaction.accountId,
                       )?.name ?? 'Account'} · {transaction.description ||
-                        'No description'} · {minorToDecimal(
+                        'No description'} · {formatMoney(
                         transaction.amountMinor,
                         currency.currency,
                       )}
-                      {currency.currency}
                     </div>{/each}
                 </div>{/if}{/each}</Card.Content
           ></Card.Root

@@ -3,7 +3,7 @@
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'
-  import { minorToDecimal, parseAmount } from '$lib/money'
+  import { formatMoney, minorToDecimal, parseAmount } from '$lib/money'
 
   type Quote = {
     available: boolean
@@ -104,7 +104,7 @@
             destination.currency,
           )
           suggestedAmount = suggestion
-          quoteText = `Suggested ${suggestion} ${destination.currency}. ${result.rates
+          quoteText = `Suggested ${formatMoney(result.suggestedAmountMinor, destination.currency)}. ${result.rates
             .map(
               (rate) =>
                 `${rate.currency} ${rate.rateToPln} PLN · ${rate.source}${rate.tableNumber ? ` ${rate.tableNumber}` : ''} · ${rate.effectiveDate}`,

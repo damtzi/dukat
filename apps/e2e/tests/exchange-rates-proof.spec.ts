@@ -215,7 +215,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	const state = await mockRates(page);
 	await page.goto('/dashboard');
 	await expect(page.getByText('Combined balance', { exact: true })).toBeVisible();
-	await expect(page.getByText('157.50 USD', { exact: true })).toBeVisible();
+	await expect(page.getByText(/^157,50\sUSD$/)).toBeVisible();
 	await expect(
 		page.getByText(/EUR 4.3 PLN · NBP 151\/A\/NBP\/2026 · 2026-08-05/).first()
 	).toBeVisible();
@@ -238,18 +238,18 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	await page.getByLabel('Source account').selectOption('eur-proof');
 	await page.getByLabel('Destination account').selectOption('usd-proof');
 	await page.getByLabel('Transfer amount').fill('10.00');
-	await expect(page.getByText(/Suggested 10.75 USD/)).toBeVisible();
+	await expect(page.getByText(/Suggested 10,75\sUSD/)).toBeVisible();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('');
 	await page.waitForTimeout(750);
 	await page.getByRole('button', { name: 'Use suggestion' }).click();
-	await expect(page.getByLabel('Exact amount received')).toHaveValue('10.75');
+	await expect(page.getByLabel('Exact amount received')).toHaveValue('10,75');
 	await page.waitForTimeout(750);
 	await page.getByLabel('Transfer amount').fill('20.00');
-	await expect(page.getByText(/Suggested 21.50 USD/)).toBeVisible();
+	await expect(page.getByText(/Suggested 21,50\sUSD/)).toBeVisible();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('');
 	await page.waitForTimeout(750);
 	await page.getByRole('button', { name: 'Use suggestion' }).click();
-	await expect(page.getByLabel('Exact amount received')).toHaveValue('21.50');
+	await expect(page.getByLabel('Exact amount received')).toHaveValue('21,50');
 	await page.waitForTimeout(750);
 	await page.getByLabel('Note').fill('Rate proof transfer');
 	await page.screenshot({ path: '../../.amp/in/artifacts/exchange-rate-quote-proof.png' });

@@ -9,13 +9,14 @@ import {
 describe('parseAmount', () => {
   it('uses currency fraction digits exactly', () => {
     expect(parseAmount('12.34', 'USD')).toBe('1234')
+    expect(parseAmount('12,34', 'USD')).toBe('1234')
     expect(parseAmount('12', 'JPY')).toBe('12')
     expect(currencyDigits('KWD')).toBe(3)
   })
   it('rejects zero, excess precision, and malformed values', () => {
     expect(() => parseAmount('0', 'USD')).toThrow('greater than zero')
     expect(() => parseAmount('1.001', 'USD')).toThrow('at most 2')
-    expect(() => parseAmount('1,00', 'USD')).toThrow()
+    expect(() => parseAmount('1,0.0', 'USD')).toThrow()
   })
   it('allows negative opening balances when requested', () => {
     expect(parseAmount('-10.50', 'USD', true)).toBe('-1050')
@@ -30,9 +31,12 @@ describe('parseAmount', () => {
     expect(() => parseAmount('92233720368547758.08', 'USD')).toThrow(
       'too large',
     )
-    expect(minorToDecimal('-1050', 'USD')).toBe('-10.50')
+    expect(minorToDecimal('-1050', 'USD')).toBe('-10,50')
     expect(formatMoney('9007199254740990', 'USD')).not.toBe(
       formatMoney('9007199254740991', 'USD'),
     )
+  })
+  it('uses Polish formatting independent of the browser locale', () => {
+    expect(formatMoney('123456', 'PLN')).toBe('1234,56 zł')
   })
 })
