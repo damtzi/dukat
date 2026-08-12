@@ -116,8 +116,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install browser for end-to-end tests
-        run: pnpm --filter @dukat/e2e exec playwright install --with-deps chromium
+      - name: Install browsers for end-to-end tests
+        run: |
+          pnpm --filter @dukat/e2e exec playwright install --with-deps chromium firefox webkit
+          pnpm --filter @dukat/e2e exec playwright install chrome
+          pnpm --filter @dukat/e2e exec playwright install msedge
 
       - name: Run foundation integration tests
         run: pnpm test
+
+      - name: Run built dashboard security smoke test
+        run: pnpm --filter @dukat/e2e test:production

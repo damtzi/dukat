@@ -76,7 +76,10 @@ const logOutboxError = (event: string, details: object) =>
 const outboxDelivery = createOutboxDelivery(
 	workspaceRepository,
 	emailSender,
-	(error) => logOutboxError('outbox.drain_failed', { message: String(error) }),
+	(error) =>
+		logOutboxError('outbox.drain_failed', {
+			errorName: error instanceof Error ? error.name : 'UnknownError'
+		}),
 	(id) => logOutboxError('outbox.delivery_abandoned', { outboxId: id })
 );
 const workspaceService = {
@@ -99,7 +102,9 @@ const nbp = createNbpAdapter();
 const exchangeRateRepository = createExchangeRateRepository(financialDb, nbp);
 const refreshRates = () =>
 	(exchangeRateRepository.refreshLatest() ?? Promise.resolve()).catch((error) =>
-		logOutboxError('exchange_rates.refresh_failed', { message: String(error) })
+		logOutboxError('exchange_rates.refresh_failed', {
+			errorName: error instanceof Error ? error.name : 'UnknownError'
+		})
 	);
 const exchangeRateTimer = setInterval(() => void refreshRates(), 60 * 60 * 1000);
 exchangeRateTimer.unref();
@@ -118,5 +123,6 @@ export const app = createServerApp({
 	api,
 	dashboardDirectory: resolveDashboardDirectory(serverEnv.DASHBOARD_DIRECTORY, {
 		production: serverEnv.NODE_ENV === 'production'
-	})
+	}),
+	isProduction: serverEnv.NODE_ENV === 'production'
 });

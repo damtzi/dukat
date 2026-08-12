@@ -101,8 +101,19 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		});
 
 		assert.equal((await app.request(`${origin}/api/health/live`)).status, 200);
-		assert.equal((await app.request(`${origin}/api/health/ready`)).status, 200);
-		assert.match(await (await app.request(`${origin}/dashboard`)).text(), /Dukat dashboard/);
+		const readyResponse = await app.request(`${origin}/api/health/ready`);
+		assert.equal(readyResponse.status, 200);
+		assert.equal(readyResponse.headers.get('cache-control'), 'no-store');
+		const dashboardResponse = await app.request(`${origin}/dashboard`);
+		assert.match(await dashboardResponse.text(), /Dukat dashboard/);
+		assert.equal(dashboardResponse.headers.get('x-content-type-options'), 'nosniff');
+		assert.equal(dashboardResponse.headers.get('x-frame-options'), 'SAMEORIGIN');
+		assert.equal(dashboardResponse.headers.get('referrer-policy'), 'no-referrer');
+		assert.match(
+			dashboardResponse.headers.get('content-security-policy') ?? '',
+			/frame-ancestors 'none'/
+		);
+		assert.equal(dashboardResponse.headers.get('strict-transport-security'), null);
 
 		async function signupAndVerify(name: string, email: string, password: string) {
 			const beforeEmailCount = emails.length;
@@ -336,7 +347,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				insights: createInsightsRepository(sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
-			dashboardDirectory
+			dashboardDirectory,
+			isProduction: true
 		});
 		const productionSignIn = await productionApp.request(
 			`${productionOrigin}/api/auth/sign-in/email`,
@@ -354,6 +366,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		assert.match(productionCookie, /Secure/i);
 		assert.match(productionCookie, /HttpOnly/i);
 		assert.match(productionCookie, /SameSite=Lax/i);
+		assert.match(productionSignIn.headers.get('strict-transport-security') ?? '', /max-age=/);
 
 		await source.db
 			.update(session)

@@ -1,5 +1,6 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono as HonoApp } from 'hono';
+import { secureHeaders } from 'hono/secure-headers';
 import { isAbsolute, join, resolve } from 'node:path';
 
 interface FetchApplication {
@@ -9,6 +10,7 @@ interface FetchApplication {
 export interface CreateServerAppOptions {
 	api: FetchApplication;
 	dashboardDirectory: string;
+	isProduction?: boolean;
 }
 
 export function resolveDashboardDirectory(
@@ -22,10 +24,33 @@ export function resolveDashboardDirectory(
 	return resolve(options.cwd ?? process.cwd(), directory);
 }
 
-export function createServerApp({ api, dashboardDirectory }: CreateServerAppOptions) {
+export function createServerApp({
+	api,
+	dashboardDirectory,
+	isProduction = false
+}: CreateServerAppOptions) {
 	const app = new HonoApp();
 
-	app.use('/api/*', async (c) => api.fetch(c.req.raw));
+	app.use(
+		'*',
+		secureHeaders({
+			contentSecurityPolicy: {
+				frameAncestors: ["'none'"]
+			},
+			permissionsPolicy: {
+				camera: [],
+				geolocation: [],
+				microphone: [],
+				payment: []
+			},
+			strictTransportSecurity: isProduction
+		})
+	);
+	app.use('/api/*', async (c) => {
+		const response = await api.fetch(c.req.raw);
+		response.headers.set('cache-control', 'no-store');
+		return response;
+	});
 	app.use('*', serveStatic({ root: dashboardDirectory }));
 	app.get('*', serveStatic({ path: join(dashboardDirectory, 'index.html') }));
 
