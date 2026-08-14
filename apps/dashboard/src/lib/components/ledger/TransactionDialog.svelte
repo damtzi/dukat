@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Transaction } from '@dukat/core/ledger'
   import type { Category } from '@dukat/core/csv-import'
   import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
@@ -41,12 +40,12 @@
         >Record completed income or spending.</Dialog.Description
       ></Dialog.Header
     >
-    <form class="space-y-4" {onsubmit}>
+    <form class="flex flex-col gap-4" {onsubmit}>
       {#if error}<Alert.Root variant="destructive"
           ><Alert.Title>Could not save transaction</Alert.Title
           ><Alert.Description>{error}</Alert.Description></Alert.Root
         >{/if}
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="kind">Kind</Label><select
           id="kind"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
@@ -56,7 +55,7 @@
           ></select
         >
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="amount">Amount</Label><Input
           id="amount"
           required
@@ -64,7 +63,7 @@
           bind:value={form.amount}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="date">Date</Label><Input
           id="date"
           required
@@ -73,14 +72,14 @@
           bind:value={form.date}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transaction-category">Category</Label><select
           id="transaction-category"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
           bind:value={form.categoryId}
         >
           <option value="">Uncategorized</option>
-          {#each categories.filter((category) => !category.archivedAt || (editingTransaction && category.id === form.categoryId)) as category}
+          {#each categories.filter((category) => !category.archivedAt || (editingTransaction && category.id === form.categoryId)) as category (category.id)}
             <option value={category.id}
               >{category.name}{category.archivedAt
                 ? ' (archived, retained)'
@@ -89,7 +88,7 @@
           {/each}
         </select>
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="description">Description</Label><Textarea
           id="description"
           maxlength={500}

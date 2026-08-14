@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account } from '@dukat/core/ledger'
   import type { Summary } from '@dukat/core/csv-import'
   import { Button, Card, Input, Label } from '@dukat/ui'
@@ -54,7 +53,7 @@
     ><Card.Title>Summary</Card.Title><Card.Description
       >Income and spending by currency and category. Dates are inclusive.</Card.Description
     ></Card.Header
-  ><Card.Content class="space-y-4">
+  ><Card.Content class="flex flex-col gap-4">
     <div class="flex flex-wrap items-end gap-2">
       <Button
         variant="outline"
@@ -84,7 +83,7 @@
           class="block h-9 rounded-md border bg-transparent px-3"
           bind:value={accountId}
           ><option value="">All accounts</option
-          >{#each accounts as account}<option value={account.id}
+          >{#each accounts as account (account.id)}<option value={account.id}
               >{account.name}</option
             >{/each}</select
         >
@@ -139,7 +138,7 @@
         ></Card.Root
       >{/if}
     <div class="grid gap-4 md:grid-cols-2">
-      {#each summary.currencies as currency}<Card.Root
+      {#each summary.currencies as currency (currency.currency)}<Card.Root
           ><Card.Header
             ><Card.Title>{currency.currency}</Card.Title></Card.Header
           ><Card.Content
@@ -163,17 +162,21 @@
                 >
               </div>
             </div>
-            {#each currency.groups as group}{@const groupKey = `${currency.currency}-${group.kind}-${group.categoryId}`}<button
+            {#each currency.groups as group (`${group.kind}:${group.categoryId}`)}{@const groupKey = `${currency.currency}-${group.kind}-${group.categoryId}`}<button
                 class="flex w-full justify-between border-t py-2 text-left"
+                aria-expanded={openGroup === groupKey}
+                aria-controls={`summary-group-${groupKey}`}
                 onclick={() =>
                   (openGroup = openGroup === groupKey ? '' : groupKey)}
                 ><span>{group.categoryName} · {group.kind}</span><b
                   >{formatMoney(group.amountMinor, currency.currency)}</b
                 ></button
               >{#if openGroup === groupKey}<div
-                  class="space-y-2 bg-muted/40 p-2 text-sm"
+                  id={`summary-group-${groupKey}`}
+                  class="flex flex-col gap-2 bg-muted/40 p-2 text-sm"
                 >
-                  {#each group.transactions as transaction}<div>
+                  {#each group.transactions as transaction (transaction.id)}<div
+                    >
                       <b>{transaction.date}</b> · {accounts.find(
                         (a) => a.id === transaction.accountId,
                       )?.name ?? 'Account'} · {transaction.description ||

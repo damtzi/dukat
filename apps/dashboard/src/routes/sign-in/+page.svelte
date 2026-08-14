@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
   import { getBrowserSession } from '$lib/session'
 
-  let error = ''
-  let pending = false
+  let error = $state('')
+  let pending = $state(false)
 
   onMount(async () => {
     const result = await getBrowserSession()
@@ -52,34 +52,36 @@
       >
     </Card.Header>
     <Card.Content>
-      {#if error}<Alert.Root variant="destructive" class="mb-4"
+      {#if error}<Alert.Root variant="destructive" class="mb-4" role="alert"
           ><Alert.Title>Could not sign in</Alert.Title><Alert.Description
             >{error}</Alert.Description
           ></Alert.Root
         >{/if}
-      <form class="space-y-4" onsubmit={submit}>
-        <div class="space-y-2">
-          <Label for="email">Email</Label><Input
-            id="email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-          />
-        </div>
-        <div class="space-y-2">
-          <Label for="password">Password</Label><Input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            minlength={8}
-            required
-          />
-        </div>
-        <Button type="submit" class="w-full" disabled={pending}
-          >{pending ? 'Please wait…' : 'Sign in'}</Button
-        >
+      <form onsubmit={submit}>
+        <Field.Group>
+          <Field.Field>
+            <Field.Label for="email">Email</Field.Label><Input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </Field.Field>
+          <Field.Field>
+            <Field.Label for="password">Password</Field.Label><Input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              minlength={8}
+              required
+            />
+          </Field.Field>
+          <Button type="submit" class="w-full" disabled={pending}
+            >{#if pending}<Spinner aria-hidden="true" />{/if}Sign in</Button
+          >
+        </Field.Group>
       </form>
     </Card.Content>
     <Card.Footer class="justify-center text-sm"

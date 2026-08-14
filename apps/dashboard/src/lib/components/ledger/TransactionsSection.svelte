@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account, Transaction } from '@dukat/core/ledger'
   import { Button, Card, Table } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
@@ -32,8 +31,8 @@
     ></Card.Root
   >
 {:else}
-  <div class="space-y-3 md:hidden">
-    {#each transactions as item}<Card.Root
+  <div class="flex flex-col gap-3 md:hidden">
+    {#each transactions as item (item.id)}<Card.Root
         class={item.trashedAt ? 'opacity-60' : ''}
         ><Card.Header
           ><div class="flex justify-between">
@@ -72,7 +71,7 @@
           ></Table.Row
         ></Table.Header
       ><Table.Body
-        >{#each transactions as item}<Table.Row
+        >{#each transactions as item (item.id)}<Table.Row
             class={item.trashedAt ? 'opacity-60' : ''}
             ><Table.Cell>{item.date}</Table.Cell><Table.Cell
               >{item.description || '—'}</Table.Cell
@@ -82,7 +81,7 @@
                 item.amountMinor,
                 account.currency,
               )}</Table.Cell
-            ><Table.Cell class="space-x-2 text-right"
+            ><Table.Cell class="flex justify-end gap-2 text-right"
               >{@render Actions(
                 item,
                 account,
@@ -113,8 +112,11 @@
         variant="outline"
         disabled={pending}
         onclick={() => onaction(item, 'restore')}>Restore</Button
-      >{:else}<Button size="sm" variant="outline" onclick={() => onedit(item)}
-        >Edit</Button
+      >{:else}<Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onclick={() => onedit(item)}>Edit</Button
       ><Button
         size="sm"
         variant="outline"

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Button, Card } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
@@ -45,8 +44,8 @@
     ><Card.Content class="py-6 text-center text-muted-foreground"
       >No transfers yet.</Card.Content
     ></Card.Root
-  >{:else}<div class="space-y-3">
-    {#each transfers as item}{@const outgoing =
+  >{:else}<div class="flex flex-col gap-3">
+    {#each transfers as item (item.id)}{@const outgoing =
         item.localSide === 'from'}<Card.Root
         class={item.trashedAt ? 'opacity-60' : ''}
         ><Card.Content
@@ -80,6 +79,7 @@
                 >{:else}<Button
                   size="sm"
                   variant="outline"
+                  disabled={pending}
                   onclick={() => onedit(item)}>Edit</Button
                 ><Button
                   size="sm"

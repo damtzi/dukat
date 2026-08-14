@@ -1,18 +1,7 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import { onMount } from 'svelte'
-  import type {
-    Account,
-    BalanceCheck,
-    Correction,
-    HistoryEntry,
-    Transaction,
-    Transfer,
-  } from '@dukat/core/ledger'
-  import type { Category } from '@dukat/core/csv-import'
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
-  import { formatMoney, minorToDecimal, parseAmount } from '$lib/money'
-  import { todayInWarsaw } from '$lib/date'
+  import { Alert, Button, Card, Empty, Input, Label, Spinner } from '@dukat/ui'
+  import { formatMoney } from '$lib/money'
   import AccountNavigation from '$lib/components/ledger/AccountNavigation.svelte'
   import AccountSummary from '$lib/components/ledger/AccountSummary.svelte'
   import TransactionsSection from '$lib/components/ledger/TransactionsSection.svelte'
@@ -29,915 +18,101 @@
   import SummarySection from '$lib/components/insights/SummarySection.svelte'
   import CsvImports from '$lib/components/insights/CsvImports.svelte'
   import PlanningSection from '$lib/components/planning/PlanningSection.svelte'
+  import {
+    api,
+    WorkspaceController,
+  } from '$lib/controllers/workspace-controller.svelte'
+  import { createLedgerController } from '$lib/controllers/ledger-controller.svelte'
 
-  type Workspace = {
-    id: string
-    name: string
-    type: 'personal' | 'household'
-    reportingCurrency: string | null
-    version: number
-    role: 'owner' | 'member' | null
-  }
-  type PickerAccount = Account & { workspaceId: string; workspaceLabel: string }
-  type RateStatus = {
-    available: boolean
-    stale: boolean
-    latest: { effectiveDate: string } | null
-  }
-  type ConvertedBalances = {
-    reportingCurrency: string
-    totalMinor: string | null
-    missingRate: boolean
-    rates: RateProvenance[]
-  }
-  type WorkspaceForecast = {
-    estimate: true
-    reportingCurrency: string | null
-    missingRate: boolean
-    startingBalanceMinor: string | null
-    endingBalanceMinor: string | null
-    occurrences: unknown[]
-  }
-  type ArchiveImpact = {
-    accountVersion: number
-    date: string
-    impactToken: string
-    plans: Array<{
-      id: string
-      action: 'stop' | 'cancel'
-      description?: string | null
-      date: string
-    }>
-  }
-  type RateProvenance = {
-    currency: string
-    rateToPln: string
-    source: 'identity' | 'NBP' | 'manual'
-    effectiveDate: string
-    tableNumber: string | null
-    reason: string | null
-  }
-
-  const currencies = [
-    { code: 'PLN', name: 'Polish złoty' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'USD', name: 'US dollar' },
-    { code: 'GBP', name: 'British pound' },
-    { code: 'CHF', name: 'Swiss franc' },
-    { code: 'CZK', name: 'Czech koruna' },
-    { code: 'SEK', name: 'Swedish krona' },
-    { code: 'NOK', name: 'Norwegian krone' },
-    { code: 'DKK', name: 'Danish krone' },
-    { code: 'UAH', name: 'Ukrainian hryvnia' },
-    { code: 'JPY', name: 'Japanese yen' },
-    { code: 'CNY', name: 'Chinese yuan' },
-    { code: 'CAD', name: 'Canadian dollar' },
-    { code: 'AUD', name: 'Australian dollar' },
-    { code: 'BRL', name: 'Brazilian real' },
-    { code: 'CLP', name: 'Chilean peso' },
-    { code: 'HKD', name: 'Hong Kong dollar' },
-    { code: 'HUF', name: 'Hungarian forint' },
-    { code: 'IDR', name: 'Indonesian rupiah' },
-    { code: 'ILS', name: 'Israeli new shekel' },
-    { code: 'INR', name: 'Indian rupee' },
-    { code: 'ISK', name: 'Icelandic króna' },
-    { code: 'KRW', name: 'South Korean won' },
-    { code: 'MXN', name: 'Mexican peso' },
-    { code: 'MYR', name: 'Malaysian ringgit' },
-    { code: 'NZD', name: 'New Zealand dollar' },
-    { code: 'PHP', name: 'Philippine peso' },
-    { code: 'RON', name: 'Romanian leu' },
-    { code: 'SGD', name: 'Singapore dollar' },
-    { code: 'THB', name: 'Thai baht' },
-    { code: 'TRY', name: 'Turkish lira' },
-    { code: 'XDR', name: 'Special drawing rights' },
-    { code: 'ZAR', name: 'South African rand' },
-  ] as const
-
-  let state: 'loading' | 'ready' | 'error' = 'loading'
-  let workspaces: Workspace[] = []
-  let workspaceId = ''
-  let accounts: Account[] = []
-  let categories: Category[] = []
-  let rateStatus: RateStatus | null = null
-  let convertedBalances: ConvertedBalances | null = null
-  let workspaceForecast: WorkspaceForecast | null = null
-  let insightsVersion = 0
-  let pickerAccounts: PickerAccount[] = []
-  let recoverable: Workspace[] = []
-  let deletionBlockers: { id: string; name: string }[] | null = null
-  let selectedId = ''
-  let transactions: Transaction[] = []
-  let transfers: Transfer[] = []
-  let balanceChecks: BalanceCheck[] = []
-  let corrections: Correction[] = []
-  let message = ''
-  let accountError = ''
-  let transactionError = ''
-  let accountOpen = false
-  let transactionOpen = false
-  let transferOpen = false
-  let checkOpen = false
-  let editingAccount: Account | null = null
-  let editingTransaction: Transaction | null = null
-  let editingTransfer: Transfer | null = null
-  let editingCheck: BalanceCheck | null = null
-  let pending = false
-  let accountIntentKey = ''
-  let transactionIntentKey = ''
-  let transferIntentKey = ''
-  let checkIntentKey = ''
-  let actionIntent: { name: string; key: string; body?: string } | null = null
-  type RetainedIntent = { path: string; body: string }
-  let correctionIntent: (RetainedIntent & { checkId: string }) | null = null
-  let feeIntent: RetainedIntent | null = null
-  let historyOpen = false
-  let historyTitle = ''
-  let history: HistoryEntry[] = []
-  let accountForm = {
-    name: '',
-    type: 'current' as Account['type'],
-    currency: 'USD',
-    amount: '0',
-  }
-  let transactionForm = {
-    kind: 'expense' as Transaction['kind'],
-    amount: '',
-    date: todayInWarsaw(),
-    description: '',
-    categoryId: '',
-  }
-  let transferForm = {
-    fromAccountId: '',
-    toAccountId: '',
-    amount: '',
-    receivedAmount: '',
-    date: todayInWarsaw(),
-    description: '',
-    fee: '',
-    feeDescription: '',
-  }
-  let checkForm = { amount: '', date: todayInWarsaw() }
-  let workspaceLoadGeneration = 0
-  let accountLoadGeneration = 0
-  let ledgerLoadGeneration = 0
-  let accountsWorkspaceId = ''
-
-  const selected = () => accounts.find((account) => account.id === selectedId)
-  const key = () => `${Date.now()}-${crypto.randomUUID()}`
-  async function api(path: string, options?: RequestInit) {
-    const response = await fetch(`/api${path}`, {
-      ...options,
-      headers: { 'content-type': 'application/json', ...options?.headers },
-    })
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      throw new Error(
-        body.message ||
-          (response.status === 409
-            ? 'This item changed elsewhere. Refresh and try again.'
-            : `Request failed (${response.status}).`),
-      )
-    }
-    return response.status === 204 ? null : response.json()
-  }
-  async function load(preferredId = workspaceId) {
-    const generation = ++workspaceLoadGeneration
-    state = 'loading'
-    message = ''
-    try {
-      const response = await fetch('/api/workspaces')
-      if (!response.ok) throw new Error('Could not load your workspaces.')
-      const loadedWorkspaces = (await response.json()) as Workspace[]
-      if (generation !== workspaceLoadGeneration) return
-      const targetWorkspaceId = loadedWorkspaces.some(
-        ({ id }) => id === preferredId,
-      )
-        ? preferredId
-        : (loadedWorkspaces[0]?.id ?? '')
-      workspaces = loadedWorkspaces
-      workspaceId = targetWorkspaceId
-      if (targetWorkspaceId) await loadAccounts(targetWorkspaceId)
-      if (
-        generation !== workspaceLoadGeneration ||
-        workspaceId !== targetWorkspaceId
-      )
-        return
-      state = 'ready'
-    } catch (error) {
-      if (generation !== workspaceLoadGeneration) return
-      message = (error as Error).message
-      state = 'error'
-    }
-  }
-  async function loadAccounts(targetWorkspaceId = workspaceId) {
-    const generation = ++accountLoadGeneration
-    ledgerLoadGeneration++
-    if (
-      targetWorkspaceId !== accountsWorkspaceId &&
-      workspaceId === targetWorkspaceId
-    ) {
-      accounts = []
-      categories = []
-      convertedBalances = null
-      workspaceForecast = null
-      selectedId = ''
-      transactions = []
-      transfers = []
-      balanceChecks = []
-      corrections = []
-      insightsVersion++
-    }
-    const [loadedAccounts, loadedCategories] = await Promise.all([
-      api(`/workspaces/${targetWorkspaceId}/accounts`) as Promise<Account[]>,
-      api(`/workspaces/${targetWorkspaceId}/categories`) as Promise<Category[]>,
-    ])
-    if (
-      generation !== accountLoadGeneration ||
-      workspaceId !== targetWorkspaceId
-    )
-      return
-    accounts = loadedAccounts
-    categories = loadedCategories
-    accountsWorkspaceId = targetWorkspaceId
-    void Promise.all([
-      api('/rates/status') as Promise<RateStatus>,
-      api(
-        `/workspaces/${targetWorkspaceId}/balances/converted`,
-      ) as Promise<ConvertedBalances>,
-    ])
-      .then(([loadedRateStatus, loadedConvertedBalances]) => {
-        if (
-          generation === accountLoadGeneration &&
-          workspaceId === targetWorkspaceId
-        ) {
-          rateStatus = loadedRateStatus
-          convertedBalances = loadedConvertedBalances
-        }
-      })
-      .catch(() => undefined)
-    void (
-      api(
-        `/workspaces/${targetWorkspaceId}/forecast`,
-      ) as Promise<WorkspaceForecast>
-    )
-      .then((loadedWorkspaceForecast) => {
-        if (
-          generation === accountLoadGeneration &&
-          workspaceId === targetWorkspaceId
-        )
-          workspaceForecast = loadedWorkspaceForecast
-      })
-      .catch(() => undefined)
-    const targetAccountId = loadedAccounts.some(
-      (account) => account.id === selectedId,
-    )
-      ? selectedId
-      : (loadedAccounts.find((account) => !account.archivedAt)?.id ??
-        loadedAccounts[0]?.id ??
-        '')
-    selectedId = targetAccountId
-    await loadLedger(targetWorkspaceId, targetAccountId)
-    if (
-      generation !== accountLoadGeneration ||
-      workspaceId !== targetWorkspaceId
-    )
-      return
-    insightsVersion++
-  }
-  function chooseWorkspace(targetWorkspaceId: string) {
-    workspaceLoadGeneration++
-    void loadAccounts(targetWorkspaceId)
-  }
-  async function loadPickerAccounts() {
-    pickerAccounts = (
-      await Promise.all(
-        workspaces.map(async (workspace) =>
-          (
-            (await api(`/workspaces/${workspace.id}/accounts`)) as Account[]
-          ).map((account) => ({
-            ...account,
-            workspaceId: workspace.id,
-            workspaceLabel: `${workspace.name} (${workspace.type === 'household' ? 'Household' : 'Personal'})`,
-          })),
-        ),
-      )
-    ).flat()
-  }
-  async function createHousehold(event: SubmitEvent) {
-    event.preventDefault()
-    const form = event.currentTarget as HTMLFormElement
-    const data = new FormData(form)
-    message = ''
-    try {
-      const created = await api('/workspaces', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: String(data.get('name') ?? '').trim(),
-          reportingCurrency: String(
-            data.get('reportingCurrency') ?? '',
-          ).toUpperCase(),
-        }),
-      })
-      form.reset()
-      workspaces = [...workspaces, created]
-      workspaceId = created.id
-      workspaceLoadGeneration++
-      await loadAccounts(created.id)
-    } catch (error) {
-      message = (error as Error).message
-    }
-  }
-  async function loadRecoverable() {
-    try {
-      recoverable = await api('/workspaces/recoverable')
-    } catch (error) {
-      message = (error as Error).message
-    }
-  }
-  async function restoreWorkspace(workspace: Workspace) {
-    try {
-      await api(`/workspaces/${workspace.id}/restore`, {
-        method: 'POST',
-        body: JSON.stringify({ version: workspace.version }),
-      })
-      await load(workspace.id)
-      await loadRecoverable()
-    } catch (error) {
-      message = (error as Error).message
-    }
-  }
-  async function checkDeletion() {
-    try {
-      deletionBlockers = (await api('/account/deletion-preflight'))
-        .blockingHouseholds
-    } catch (error) {
-      message = (error as Error).message
-    }
-  }
-  async function deleteAccount(event: SubmitEvent) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget as HTMLFormElement)
-    try {
-      await api('/account/delete', {
-        method: 'POST',
-        body: JSON.stringify({
-          password: String(data.get('password') ?? ''),
-          confirmation: String(data.get('confirmation') ?? ''),
-        }),
-      })
-      location.href = '/sign-in'
-    } catch (error) {
-      message = (error as Error).message
-    }
-  }
-  async function loadLedger(
-    targetWorkspaceId = workspaceId,
-    targetAccountId = selectedId,
-  ) {
-    const generation = ++ledgerLoadGeneration
-    if (!targetAccountId) {
-      if (
-        generation !== ledgerLoadGeneration ||
-        workspaceId !== targetWorkspaceId
-      )
-        return
-      transactions = []
-      transfers = []
-      balanceChecks = []
-      corrections = []
-      return
-    }
-    const base = `/workspaces/${targetWorkspaceId}/accounts/${targetAccountId}`
-    const [
-      loadedTransactions,
-      loadedTransfers,
-      loadedChecks,
-      loadedCorrections,
-    ] = await Promise.all([
-      api(`${base}/transactions?includeTrashed=true`),
-      api(`${base}/transfers?includeTrashed=true`),
-      api(`${base}/balance-checks?includeTrashed=true`),
-      api(`${base}/corrections?includeTrashed=true`),
-    ])
-    if (
-      generation !== ledgerLoadGeneration ||
-      workspaceId !== targetWorkspaceId ||
-      selectedId !== targetAccountId
-    )
-      return
-    transactions = loadedTransactions
-    transfers = loadedTransfers
-    balanceChecks = loadedChecks
-    corrections = loadedCorrections
-  }
-  async function choose(id: string) {
-    selectedId = id
-    message = ''
-    await loadLedger(workspaceId, id)
-  }
-  function newAccount() {
-    editingAccount = null
-    accountError = ''
-    accountIntentKey = key()
-    accountForm = { name: '', type: 'current', currency: 'USD', amount: '0' }
-    accountOpen = true
-  }
-  function editAccount(account: Account) {
-    editingAccount = account
-    accountError = ''
-    accountIntentKey = key()
-    accountForm = {
-      name: account.name,
-      type: account.type,
-      currency: account.currency,
-      amount: minorToDecimal(account.openingBalanceMinor, account.currency),
-    }
-    accountOpen = true
-  }
-  async function saveAccount(event: SubmitEvent) {
-    event.preventDefault()
-    if (pending) return
-    accountError = ''
-    pending = true
-    try {
-      const body = {
-        name: accountForm.name.trim(),
-        type: accountForm.type,
-        currency: accountForm.currency.toUpperCase(),
-        openingBalanceMinor: parseAmount(
-          accountForm.amount,
-          accountForm.currency,
-          true,
-        ),
-        idempotencyKey: accountIntentKey,
-        ...(editingAccount ? { version: editingAccount.version } : {}),
-      }
-      await api(
-        `/workspaces/${workspaceId}/accounts${editingAccount ? `/${editingAccount.id}` : ''}`,
-        { method: editingAccount ? 'PUT' : 'POST', body: JSON.stringify(body) },
-      )
-      accountOpen = false
-      await loadAccounts()
-    } catch (error) {
-      accountError = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  async function accountAction(action: 'archive' | 'restore' | 'delete') {
-    const account = selected()
-    if (!account) return
-    if (action === 'delete' && !confirm(`Permanently delete ${account.name}?`))
-      return
-    if (pending) return
-    pending = true
-    const name = `${account.id}:${action}`
-    if (actionIntent?.name !== name) actionIntent = { name, key: key() }
-    try {
-      if (!actionIntent.body) {
-        let impact: ArchiveImpact | null = null
-        if (action === 'archive') {
-          impact = (await api(
-            `/workspaces/${workspaceId}/accounts/${account.id}/archive-impact`,
-          )) as ArchiveImpact
-          const details = impact.plans.length
-            ? `\n\nAffected plans:\n${impact.plans
-                .map(
-                  (plan) =>
-                    `• ${plan.action === 'stop' ? 'Stop' : 'Cancel'} ${plan.description || `plan from ${plan.date}`}`,
-                )
-                .join('\n')}`
-            : '\n\nNo plans are affected.'
-          if (!confirm(`Archive ${account.name}?${details}`)) return
-        }
-        actionIntent.body = JSON.stringify({
-          version: account.version,
-          idempotencyKey: actionIntent.key,
-          ...(impact ? { impactToken: impact.impactToken } : {}),
-        })
-      }
-      await api(`/workspaces/${workspaceId}/accounts/${account.id}/${action}`, {
-        method: 'POST',
-        body: actionIntent.body,
-      })
-      actionIntent = null
-      await loadAccounts()
-    } catch (error) {
-      message = (error as Error).message
-      if (message.toLowerCase().includes('archive impact changed'))
-        actionIntent = null
-    } finally {
-      pending = false
-    }
-  }
-  function newTransaction() {
-    editingTransaction = null
-    transactionError = ''
-    transactionIntentKey = key()
-    transactionForm = {
-      kind: 'expense',
-      amount: '',
-      date: todayInWarsaw(),
-      description: '',
-      categoryId: '',
-    }
-    transactionOpen = true
-  }
-  function editTransaction(item: Transaction) {
-    transactionError = ''
-    transactionIntentKey = key()
-    editingTransaction = item
-    transactionForm = {
-      kind: item.kind,
-      amount: minorToDecimal(item.amountMinor, selected()!.currency),
-      date: item.date,
-      description: item.description ?? '',
-      categoryId: item.categoryId ?? '',
-    }
-    transactionOpen = true
-  }
-  async function saveTransaction(event: SubmitEvent) {
-    event.preventDefault()
-    const account = selected()
-    if (!account || pending) return
-    transactionError = ''
-    pending = true
-    try {
-      if (transactionForm.date > todayInWarsaw())
-        throw new Error('Date cannot be in the future.')
-      const body = {
-        kind: transactionForm.kind,
-        amountMinor: parseAmount(transactionForm.amount, account.currency),
-        date: transactionForm.date,
-        description: transactionForm.description.trim() || null,
-        categoryId: transactionForm.categoryId || null,
-        idempotencyKey: transactionIntentKey,
-        ...(editingTransaction ? { version: editingTransaction.version } : {}),
-      }
-      const path = editingTransaction
-        ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
-        : `/workspaces/${workspaceId}/accounts/${account.id}/transactions`
-      await api(path, {
-        method: editingTransaction ? 'PUT' : 'POST',
-        body: JSON.stringify(body),
-      })
-      transactionOpen = false
-      await loadAccounts()
-    } catch (error) {
-      transactionError = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  async function transactionAction(
-    item: Transaction,
-    action: 'trash' | 'restore',
-  ) {
-    if (pending || selected()?.archivedAt) return
-    pending = true
-    const name = `${item.id}:${action}`
-    if (actionIntent?.name !== name) actionIntent = { name, key: key() }
-    try {
-      await api(
-        `/workspaces/${workspaceId}/transactions/${item.id}/${action}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            version: item.version,
-            idempotencyKey: actionIntent.key,
-          }),
-        },
-      )
-      actionIntent = null
-      await loadAccounts()
-    } catch (error) {
-      message = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  const transferDestinations = (sourceId: string) => {
-    return pickerAccounts.filter(
-      (account) => !account.archivedAt && account.id !== sourceId,
-    )
-  }
-  async function newTransfer() {
-    const source = selected()
-    if (!source || feeIntent) return
-    try {
-      await loadPickerAccounts()
-    } catch (error) {
-      message = (error as Error).message
-      return
-    }
-    editingTransfer = null
-    transferIntentKey = key()
-    transferForm = {
-      fromAccountId: source.id,
-      toAccountId: transferDestinations(source.id)[0]?.id ?? '',
-      amount: '',
-      receivedAmount: '',
-      date: todayInWarsaw(),
-      description: '',
-      fee: '',
-      feeDescription: '',
-    }
-    transferOpen = true
-  }
-  async function editTransfer(item: Transfer) {
-    try {
-      await loadPickerAccounts()
-    } catch (error) {
-      message = (error as Error).message
-      return
-    }
-    editingTransfer = item
-    transferIntentKey = key()
-    const fromAccountId =
-      item.localSide === 'from'
-        ? item.accountId
-        : item.counterparty.visibility === 'full'
-          ? item.counterparty.accountId
-          : ''
-    const toAccountId =
-      item.localSide === 'to'
-        ? item.accountId
-        : item.counterparty.visibility === 'full'
-          ? item.counterparty.accountId
-          : ''
-    const source = pickerAccounts.find(
-      (account) => account.id === fromAccountId,
-    )
-    const destination = pickerAccounts.find(
-      (account) => account.id === toAccountId,
-    )
-    transferForm = {
-      fromAccountId,
-      toAccountId,
-      amount: minorToDecimal(
-        item.sentAmountMinor!,
-        source?.currency ?? selected()!.currency,
-      ),
-      receivedAmount: minorToDecimal(
-        item.receivedAmountMinor!,
-        destination?.currency ?? selected()!.currency,
-      ),
-      date: item.date,
-      description: item.description ?? '',
-      fee: '',
-      feeDescription: '',
-    }
-    transferOpen = true
-  }
-  async function saveTransfer(event: SubmitEvent) {
-    event.preventDefault()
-    const source = pickerAccounts.find(
-      (item) => item.id === transferForm.fromAccountId,
-    )
-    const destination = pickerAccounts.find(
-      (item) => item.id === transferForm.toAccountId,
-    )
-    if (!source || !destination || pending) return
-    transactionError = ''
-    pending = true
-    let transferAcknowledged = false
-    try {
-      if (source.id === destination.id)
-        throw new Error('Choose a different destination.')
-      if (transferForm.date > todayInWarsaw())
-        throw new Error('Date cannot be in the future.')
-      const body = {
-        toAccountId: destination.id,
-        amountMinor: parseAmount(transferForm.amount, source.currency),
-        ...(source.currency !== destination.currency
-          ? {
-              receivedAmountMinor: parseAmount(
-                transferForm.receivedAmount,
-                destination.currency,
-              ),
-            }
-          : {}),
-        date: transferForm.date,
-        description: transferForm.description.trim() || null,
-        idempotencyKey: transferIntentKey,
-        ...(editingTransfer
-          ? { version: editingTransfer.version }
-          : { fromAccountId: source.id }),
-      }
-      if (!editingTransfer && transferForm.fee.trim() && !feeIntent) {
-        feeIntent = {
-          path: `/workspaces/${workspaceId}/accounts/${source.id}/transactions`,
-          body: JSON.stringify({
-            kind: 'expense',
-            amountMinor: parseAmount(transferForm.fee, source.currency),
-            date: transferForm.date,
-            description: transferForm.feeDescription.trim() || 'Transfer fee',
-            idempotencyKey: key(),
-          }),
-        }
-      }
-      await api(
-        `/workspaces/${workspaceId}/transfers${editingTransfer ? `/${editingTransfer.id}` : ''}`,
-        {
-          method: editingTransfer ? 'PUT' : 'POST',
-          body: JSON.stringify(body),
-        },
-      )
-      transferAcknowledged = true
-      if (!editingTransfer && feeIntent) {
-        try {
-          await api(feeIntent.path, { method: 'POST', body: feeIntent.body })
-          feeIntent = null
-        } catch (error) {
-          transferOpen = false
-          message = `Transfer succeeded, but the separate fee expense failed: ${(error as Error).message}`
-          try {
-            await loadAccounts()
-          } catch (refreshError) {
-            message += ` Dashboard refresh also failed: ${(refreshError as Error).message}`
-          }
-          return
-        }
-      }
-      transferOpen = false
-      await loadAccounts()
-    } catch (error) {
-      if (!transferAcknowledged) feeIntent = null
-      transactionError = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  async function entityAction(
-    entity: 'transfers' | 'balance-checks' | 'corrections',
-    item: { id: string; version: number },
-    action: 'trash' | 'restore',
-  ) {
-    if (pending || selected()?.archivedAt) return
-    pending = true
-    const name = `${entity}:${item.id}:${action}`
-    if (actionIntent?.name !== name) actionIntent = { name, key: key() }
-    try {
-      await api(`/workspaces/${workspaceId}/${entity}/${item.id}/${action}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          version: item.version,
-          idempotencyKey: actionIntent.key,
-        }),
-      })
-      actionIntent = null
-      await loadAccounts()
-    } catch (error) {
-      message = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  function newCheck() {
-    editingCheck = null
-    checkIntentKey = key()
-    checkForm = { amount: '', date: todayInWarsaw() }
-    checkOpen = true
-  }
-  function editCheck(item: BalanceCheck) {
-    editingCheck = item
-    checkIntentKey = key()
-    checkForm = {
-      amount: minorToDecimal(item.observedBalanceMinor, selected()!.currency),
-      date: item.date,
-    }
-    checkOpen = true
-  }
-  async function saveCheck(event: SubmitEvent) {
-    event.preventDefault()
-    const account = selected()
-    if (!account || pending) return
-    transactionError = ''
-    pending = true
-    try {
-      if (checkForm.date > todayInWarsaw())
-        throw new Error('Date cannot be in the future.')
-      await api(
-        `/workspaces/${workspaceId}/balance-checks${editingCheck ? `/${editingCheck.id}` : ''}`,
-        {
-          method: editingCheck ? 'PUT' : 'POST',
-          body: JSON.stringify({
-            date: checkForm.date,
-            observedBalanceMinor: parseAmount(
-              checkForm.amount,
-              account.currency,
-              true,
-            ),
-            idempotencyKey: checkIntentKey,
-            ...(editingCheck
-              ? { version: editingCheck.version }
-              : { accountId: account.id }),
-          }),
-        },
-      )
-      checkOpen = false
-      await loadAccounts()
-    } catch (error) {
-      transactionError = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  async function createCorrection(item: BalanceCheck) {
-    const difference = item.differenceMinor
-    if (!difference || difference === '0' || pending) return
-    if (correctionIntent?.checkId !== item.id) {
-      correctionIntent = {
-        checkId: item.id,
-        path: `/workspaces/${workspaceId}/corrections`,
-        body: JSON.stringify({
-          accountId: item.accountId,
-          date: item.date,
-          amountMinor: difference,
-          description: `Balance correction for check on ${item.date}`,
-          idempotencyKey: key(),
-        }),
-      }
-    }
-    await retryCorrection()
-  }
-  async function retryCorrection() {
-    if (!correctionIntent || pending) return
-    pending = true
-    try {
-      await api(correctionIntent.path, {
-        method: 'POST',
-        body: correctionIntent.body,
-      })
-      correctionIntent = null
-      await loadAccounts()
-    } catch (error) {
-      message = (error as Error).message
-    } finally {
-      pending = false
-    }
-  }
-  async function retryFee() {
-    if (!feeIntent || pending) return
-    pending = true
-    try {
-      await api(feeIntent.path, { method: 'POST', body: feeIntent.body })
-      feeIntent = null
-      message = ''
-      await loadAccounts()
-    } catch (error) {
-      message = `The separate fee expense may not have been acknowledged: ${(error as Error).message}`
-    } finally {
-      pending = false
-    }
-  }
-  function abandonCorrection() {
-    correctionIntent = null
-    message = ''
-  }
-  function abandonFee() {
-    feeIntent = null
-    message = ''
-  }
-  async function showHistory(
-    entity:
-      | 'accounts'
-      | 'transactions'
-      | 'transfers'
-      | 'balance-checks'
-      | 'corrections',
-    id: string,
-    title: string,
-  ) {
-    historyTitle = title
-    history = []
-    historyOpen = true
-    try {
-      history = await api(`/workspaces/${workspaceId}/${entity}/${id}/history`)
-    } catch (error) {
-      message = (error as Error).message
-      historyOpen = false
-    }
-  }
-  function changed(entry: HistoryEntry) {
-    const before = entry.beforeJson ? JSON.parse(entry.beforeJson) : null
-    const after = entry.afterJson ? JSON.parse(entry.afterJson) : null
-    if (!before) return after ? `Created: ${JSON.stringify(after)}` : '—'
-    if (!after) return `Removed: ${JSON.stringify(before)}`
-    return (
-      Object.keys({ ...before, ...after })
-        .filter(
-          (field) =>
-            JSON.stringify(before[field]) !== JSON.stringify(after[field]),
-        )
-        .map(
-          (field) =>
-            `${field}: ${JSON.stringify(before[field])} → ${JSON.stringify(after[field])}`,
-        )
-        .join('; ') || 'No field changes'
-    )
-  }
+  // The controllers depend on each other only through callbacks. Create the
+  // ledger first; these callbacks run later, after workspace is assigned.
+  let workspace = $state.raw<WorkspaceController>()
+  const ledger = createLedgerController({
+    getWorkspaceId: () => workspace!.workspaceId,
+    getPickerAccounts: () => workspace!.pickerAccounts,
+    loadPickerAccounts: () => workspace!.loadPickerAccounts(),
+    reloadAccounts: () => workspace!.loadAccounts(),
+  })
+  workspace = new WorkspaceController({
+    getPending: () => ledger.pending,
+    setPending: (value) => (ledger.pending = value),
+    setMessage: (value) => (ledger.message = value),
+    invalidateLedgerRequests: () => ledger.invalidateLedgerRequests(),
+    resetWorkspaceData: () => ledger.resetWorkspaceData(),
+    applyAccounts: (accounts, categories) =>
+      ledger.applyAccounts(accounts, categories),
+    chooseAccount: (accounts) => ledger.chooseAccount(accounts),
+    loadLedger: (workspaceId, accountId) =>
+      ledger.loadLedger(workspaceId, accountId),
+    incrementInsightsVersion: () => ledger.incrementInsightsVersion(),
+  })
+  const currencies = ledger.currencies
+  let accounts = $derived(ledger.accounts)
+  let categories = $derived(ledger.categories)
+  let insightsVersion = $derived(ledger.insightsVersion)
+  let selectedId = $derived(ledger.selectedId)
+  let transactions = $derived(ledger.transactions)
+  let transfers = $derived(ledger.transfers)
+  let balanceChecks = $derived(ledger.balanceChecks)
+  let corrections = $derived(ledger.corrections)
+  let message = $derived(ledger.message)
+  let accountError = $derived(ledger.accountError)
+  let transactionError = $derived(ledger.transactionError)
+  let editingAccount = $derived(ledger.editingAccount)
+  let editingTransaction = $derived(ledger.editingTransaction)
+  let editingTransfer = $derived(ledger.editingTransfer)
+  let editingCheck = $derived(ledger.editingCheck)
+  let pending = $derived(ledger.pending)
+  let correctionIntent = $derived(ledger.correctionIntent)
+  let feeIntent = $derived(ledger.feeIntent)
+  let historyTitle = $derived(ledger.historyTitle)
+  let history = $derived(ledger.history)
+  let dashboardState = $derived(workspace.state)
+  let workspaces = $derived(workspace.workspaces)
+  let workspaceId = $derived(workspace.workspaceId)
+  let rateStatus = $derived(workspace.rateStatus)
+  let convertedBalances = $derived(workspace.convertedBalances)
+  let workspaceForecast = $derived(workspace.workspaceForecast)
+  let pickerAccounts = $derived(workspace.pickerAccounts)
+  let recoverable = $derived(workspace.recoverable)
+  let deletionBlockers = $derived(workspace.deletionBlockers)
+  const {
+    selected,
+    choose,
+    newAccount,
+    editAccount,
+    saveAccount,
+    accountAction,
+    newTransaction,
+    editTransaction,
+    saveTransaction,
+    transactionAction,
+    transferDestinations,
+    newTransfer,
+    editTransfer,
+    saveTransfer,
+    entityAction,
+    newCheck,
+    editCheck,
+    saveCheck,
+    createCorrection,
+    retryCorrection,
+    retryFee,
+    abandonCorrection,
+    abandonFee,
+    showHistory,
+    changed,
+  } = ledger
+  const load = (id?: string) => workspace.load(id)
+  const loadAccounts = (id?: string) => workspace.loadAccounts(id)
+  const chooseWorkspace = (id: string) => workspace.chooseWorkspace(id)
+  const createHousehold = (event: SubmitEvent) =>
+    workspace.createHousehold(event)
+  const loadRecoverable = () => workspace.loadRecoverable()
+  const restoreWorkspace = (item: (typeof workspaces)[number]) =>
+    workspace.restoreWorkspace(item)
+  const checkDeletion = () => workspace.checkDeletion()
+  const deleteAccount = (event: SubmitEvent) => workspace.deleteAccount(event)
   onMount(load)
 </script>
 
@@ -948,11 +123,16 @@
       <p class="text-sm font-medium text-muted-foreground">Dukat</p>
       <h1 class="text-3xl font-bold">Dashboard</h1>
     </div>
-    {#if state === 'ready'}<Button onclick={newAccount}>New account</Button
+    {#if dashboardState === 'ready'}<Button onclick={newAccount}
+        >New account</Button
       >{/if}
   </header>
-  {#if state === 'loading'}<p aria-live="polite">Loading your dashboard…</p>
-  {:else if state === 'error'}<Alert.Root variant="destructive"
+  {#if dashboardState === 'loading'}<p aria-live="polite">
+      Loading your dashboard…
+    </p>
+  {:else if dashboardState === 'error'}<Alert.Root
+      variant="destructive"
+      role="alert"
       ><Alert.Title>Dashboard unavailable</Alert.Title><Alert.Description
         >{message}</Alert.Description
       ><Button class="mt-3" variant="outline" onclick={() => load()}
@@ -960,7 +140,7 @@
       ></Alert.Root
     >
   {:else}
-    {#if message}<Alert.Root variant="destructive" class="mb-4"
+    {#if message}<Alert.Root variant="destructive" class="mb-4" role="alert"
         ><Alert.Title>Could not save</Alert.Title><Alert.Description
           >{message}</Alert.Description
         >
@@ -1011,7 +191,9 @@
               required
             />
           </div>
-          <Button type="submit">Create household</Button>
+          <Button type="submit" disabled={pending}
+            >{#if pending}<Spinner aria-hidden="true" />{/if}Create household</Button
+          >
         </form></Card.Content
       ></Card.Root
     >
@@ -1025,7 +207,7 @@
     {#if recoverable.length > 0}<Card.Root class="mb-6"
         ><Card.Header><Card.Title>Deleted households</Card.Title></Card.Header
         ><Card.Content
-          >{#each recoverable as workspace}<div
+          >{#each recoverable as workspace (workspace.id)}<div
               class="flex items-center justify-between border-b py-2"
             >
               <span>{workspace.name}</span><Button
@@ -1049,7 +231,7 @@
                   .map(({ name }) => name)
                   .join(', ')}.</Alert.Description
               ></Alert.Root
-            >{:else}<form class="space-y-3" onsubmit={deleteAccount}>
+            >{:else}<form class="flex flex-col gap-3" onsubmit={deleteAccount}>
               <Label for="account-password">Current password</Label><Input
                 id="account-password"
                 name="password"
@@ -1070,21 +252,22 @@
             </form>{/if}</Card.Content
         ></Card.Root
       >{/if}
-    {#if workspaces.length === 0}<Card.Root
-        ><Card.Header
-          ><Card.Title>No workspace</Card.Title><Card.Description
-            >Create a household to begin.</Card.Description
-          ></Card.Header
-        ></Card.Root
+    {#if workspaces.length === 0}<Empty.Root class="rounded-lg border"
+        ><Empty.Header
+          ><Empty.Title>No workspace</Empty.Title><Empty.Description
+            >Create a household to begin.</Empty.Description
+          ></Empty.Header
+        ></Empty.Root
       >
     {:else}
       <div class="mb-6">
         <Label for="workspace">Workspace</Label><select
           id="workspace"
           class="mt-1 h-9 rounded-md border bg-transparent px-3"
-          bind:value={workspaceId}
-          onchange={() => chooseWorkspace(workspaceId)}
-          >{#each workspaces as workspace}<option value={workspace.id}
+          bind:value={workspace.workspaceId}
+          onchange={() => void chooseWorkspace(workspace.workspaceId)}
+          >{#each workspaces as workspace (workspace.id)}<option
+              value={workspace.id}
               >{workspace.name} — {workspace.type === 'household'
                 ? 'Household'
                 : 'Personal'}</option
@@ -1180,14 +363,14 @@
           onchanged={loadAccounts}
         />
       {/key}
-      {#if accounts.length === 0}<Card.Root
-          ><Card.Header
-            ><Card.Title>No accounts</Card.Title><Card.Description
-              >Add a current, savings, or cash account.</Card.Description
-            ></Card.Header
-          ><Card.Footer
-            ><Button onclick={newAccount}>Create account</Button></Card.Footer
-          ></Card.Root
+      {#if accounts.length === 0}<Empty.Root class="rounded-lg border"
+          ><Empty.Header
+            ><Empty.Title>No accounts</Empty.Title><Empty.Description
+              >Add a current, savings, or cash account.</Empty.Description
+            ></Empty.Header
+          ><Empty.Content
+            ><Button onclick={newAccount}>Create account</Button></Empty.Content
+          ></Empty.Root
         >
       {:else}<div class="grid gap-6 lg:grid-cols-[280px_1fr]">
           <AccountNavigation {accounts} {selectedId} onselect={choose} />
@@ -1261,8 +444,8 @@
 </main>
 
 <AccountDialog
-  bind:open={accountOpen}
-  bind:form={accountForm}
+  bind:open={ledger.accountOpen}
+  bind:form={ledger.accountForm}
   {editingAccount}
   error={accountError}
   {pending}
@@ -1270,8 +453,8 @@
   onsubmit={saveAccount}
 />
 <TransactionDialog
-  bind:open={transactionOpen}
-  bind:form={transactionForm}
+  bind:open={ledger.transactionOpen}
+  bind:form={ledger.transactionForm}
   {editingTransaction}
   error={transactionError}
   {pending}
@@ -1279,8 +462,8 @@
   onsubmit={saveTransaction}
 />
 <TransferDialog
-  bind:open={transferOpen}
-  bind:form={transferForm}
+  bind:open={ledger.transferOpen}
+  bind:form={ledger.transferForm}
   {editingTransfer}
   error={transactionError}
   {pending}
@@ -1304,15 +487,15 @@
   onsubmit={saveTransfer}
 />
 <BalanceCheckDialog
-  bind:open={checkOpen}
-  bind:form={checkForm}
+  bind:open={ledger.checkOpen}
+  bind:form={ledger.checkForm}
   {editingCheck}
   error={transactionError}
   {pending}
   onsubmit={saveCheck}
 />
 <HistoryDialog
-  bind:open={historyOpen}
+  bind:open={ledger.historyOpen}
   title={historyTitle}
   {history}
   {changed}

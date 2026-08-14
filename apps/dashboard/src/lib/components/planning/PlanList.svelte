@@ -51,7 +51,7 @@
     ><Card.Title>Base plans</Card.Title><Card.Description
       >Expected plans are solid; tentative plans are shown with a dashed border.</Card.Description
     ></Card.Header
-  ><Card.Content class="space-y-3">
+  ><Card.Content class="flex flex-col gap-3">
     {#if loading}<p aria-live="polite">
         Loading plans…
       </p>{:else if plans.length === 0}<p class="text-sm text-muted-foreground">

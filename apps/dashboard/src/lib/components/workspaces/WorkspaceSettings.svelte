@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
 
   type Workspace = {
@@ -25,6 +24,7 @@
   let confirmation = $state('')
   let error = $state('')
   let pending = $state(false)
+  let loading = $state(true)
 
   async function request(path: string, options?: RequestInit) {
     const response = await fetch(`/api${path}`, {
@@ -38,6 +38,7 @@
   }
   async function load() {
     error = ''
+    loading = true
     try {
       members = await request(`/workspaces/${workspace.id}/members`)
       invitations =
@@ -46,6 +47,8 @@
           : []
     } catch (cause) {
       error = (cause as Error).message
+    } finally {
+      loading = false
     }
   }
   async function act(
@@ -114,18 +117,22 @@
       >Manage this household and its members.</Card.Description
     ></Card.Header
   >
-  <Card.Content class="space-y-5">
-    {#if error}<Alert.Root variant="destructive"
+  <Card.Content class="flex flex-col gap-5">
+    {#if error}<Alert.Root variant="destructive" role="alert"
         ><Alert.Title>Household action failed</Alert.Title><Alert.Description
           >{error}</Alert.Description
         ></Alert.Root
       >{/if}
     <section aria-labelledby="members-title">
       <h3 id="members-title" class="font-semibold">Members</h3>
-      {#if members.length === 0}<p class="text-sm text-muted-foreground">
+      {#if loading}<p class="text-sm text-muted-foreground" aria-live="polite">
           Loading members…
+        </p>{:else if members.length === 0}<p
+          class="text-sm text-muted-foreground"
+        >
+          No members found.
         </p>{/if}
-      {#each members as member}<div
+      {#each members as member (member.userId)}<div
           class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
         >
           <span>{member.name} ({member.email}) — {member.role}</span>
@@ -159,7 +166,7 @@
       >
     </section>
     {#if workspace.role === 'owner'}
-      <form class="space-y-2" onsubmit={save}>
+      <form class="flex flex-col gap-2" onsubmit={save}>
         <h3 class="font-semibold">Details</h3>
         <Label for="household-name">Household name</Label><Input
           id="household-name"
@@ -176,7 +183,7 @@
           required
         /><Button type="submit" disabled={pending}>Save household</Button>
       </form>
-      <form class="space-y-2" onsubmit={invite}>
+      <form class="flex flex-col gap-2" onsubmit={invite}>
         <h3 class="font-semibold">Invite member</h3>
         <Label for="invite-email">Email</Label><Input
           id="invite-email"
@@ -189,7 +196,7 @@
         <h3 class="font-semibold">Pending invitations</h3>
         {#if invitations.length === 0}<p class="text-sm text-muted-foreground">
             No pending invitations.
-          </p>{/if}{#each invitations as invitation}<div
+          </p>{/if}{#each invitations as invitation (invitation.id)}<div
             class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
           >
             <span
@@ -200,6 +207,7 @@
               ><Button
                 size="sm"
                 variant="outline"
+                disabled={pending}
                 onclick={() =>
                   act(
                     `/workspaces/${workspace.id}/invitations/${invitation.id}/resend`,
@@ -207,6 +215,7 @@
               ><Button
                 size="sm"
                 variant="outline"
+                disabled={pending}
                 onclick={() =>
                   act(
                     `/workspaces/${workspace.id}/invitations/${invitation.id}/revoke`,
@@ -216,7 +225,7 @@
           </div>{/each}
       </section>
       <form
-        class="space-y-2 rounded-md border border-destructive p-3"
+        class="flex flex-col gap-2 rounded-md border border-destructive p-3"
         onsubmit={(event) => {
           event.preventDefault()
           const data = new FormData(event.currentTarget as HTMLFormElement)

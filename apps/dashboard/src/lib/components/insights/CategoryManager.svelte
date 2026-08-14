@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import { SvelteMap } from 'svelte/reactivity'
   import type { Category } from '@dukat/core/csv-import'
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
@@ -121,7 +120,7 @@
     ><Card.Title>Categories</Card.Title><Card.Description
       >Organize transactions. Archive categories that are already in use.</Card.Description
     ></Card.Header
-  ><Card.Content class="space-y-4">
+  ><Card.Content class="flex flex-col gap-4">
     {#if message}<Alert.Root variant="destructive"
         ><Alert.Description>{message}</Alert.Description></Alert.Root
       >{/if}
@@ -138,7 +137,7 @@
       <Button type="submit" disabled={pending}>Create</Button>
     </form>
     <div class="grid gap-4 md:grid-cols-2">
-      {#each groups as group}
+      {#each groups as group (group.title)}
         <div>
           <h3 class="mb-2 font-semibold">{group.title}</h3>
           {#if group.items.length === 0}<p
@@ -146,7 +145,7 @@
             >
               None
             </p>{/if}
-          {#each group.items as category}<div
+          {#each group.items as category (category.id)}<div
               class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
             >
               <span>{category.name}</span>

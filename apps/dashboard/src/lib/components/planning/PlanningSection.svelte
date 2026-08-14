@@ -212,7 +212,7 @@
   })
 </script>
 
-<section class="mt-6 space-y-6" aria-labelledby="planning-title">
+<section class="mt-6 flex flex-col gap-6" aria-labelledby="planning-title">
   <div>
     <h2 id="planning-title" class="text-2xl font-semibold">Planning</h2>
     <p class="text-sm text-muted-foreground">

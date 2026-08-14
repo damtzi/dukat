@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import {
     DUKAT_CSV_HEADER,
     type Category,
@@ -8,7 +7,7 @@
     type ImportDetail,
   } from '@dukat/core/csv-import'
   import type { Account } from '@dukat/core/ledger'
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { Alert, Badge, Button, Card, Checkbox, Input, Label } from '@dukat/ui'
   let {
     accounts,
     categories,
@@ -177,6 +176,7 @@
     })
   }
   async function run(operation: () => Promise<void>) {
+    if (pending) return
     pending = true
     message = ''
     try {
@@ -196,8 +196,8 @@
       income or expense; amount is a positive decimal. UTF-8 CSV quoting is
       supported.</Card.Description
     ></Card.Header
-  ><Card.Content class="space-y-4">
-    {#if message}<Alert.Root
+  ><Card.Content class="flex flex-col gap-4">
+    {#if message}<Alert.Root role="status" aria-live="polite"
         ><Alert.Description>{message}</Alert.Description></Alert.Root
       >{/if}
     <div class="flex flex-wrap items-end gap-2">
@@ -208,8 +208,8 @@
           bind:value={accountId}
           onchange={invalidatePreview}
           ><option value="" disabled>Select account</option
-          >{#each activeAccounts as account}<option value={account.id}
-              >{account.name} ({account.currency})</option
+          >{#each activeAccounts as account (account.id)}<option
+              value={account.id}>{account.name} ({account.currency})</option
             >{/each}</select
         >
       </div>
@@ -224,8 +224,10 @@
       <Button variant="outline" onclick={download}>Download template</Button
       ><Button disabled={!accountId || !csv || pending} onclick={preview}
         >Preview</Button
-      >{#if rows.length}<Button variant="outline" onclick={() => reset()}
-          >Reset</Button
+      >{#if rows.length}<Button
+          variant="outline"
+          disabled={pending}
+          onclick={() => reset()}>Reset</Button
         >{/if}
     </div>
     {#if rows.length}<div class="overflow-x-auto">
@@ -237,11 +239,10 @@
               ><th>Description</th><th>Category resolution</th></tr
             ></thead
           ><tbody
-            >{#each rows as row}<tr class="border-b align-top"
+            >{#each rows as row (row.sourceRow)}<tr class="border-b align-top"
                 ><td class="py-2"
-                  ><input
+                  ><Checkbox
                     aria-label={`Select row ${row.sourceRow}`}
-                    type="checkbox"
                     bind:checked={choices[row.sourceRow].include}
                     disabled={row.errors.length > 0}
                   /></td
@@ -249,9 +250,9 @@
                   >#{row.sourceRow}<br />{#if row.errors.length}<span
                       class="text-destructive"
                       >Invalid: {row.errors.join('; ')}</span
-                    >{:else}<span class="text-green-700">Valid</span
+                    >{:else}<Badge variant="secondary">Valid</Badge
                     >{/if}{#if row.duplicateReason}<br /><span
-                      class="text-amber-700"
+                      class="text-muted-foreground"
                       >Duplicate warning: {row.duplicateReason}</span
                     >{/if}</td
                 ><td>{row.date}</td><td>{row.kind}</td><td>{row.amount}</td><td
@@ -260,7 +261,7 @@
                   >{#if row.categoryStatus === 'existing'}<select
                       aria-label={`Category resolution row ${row.sourceRow}`}
                       bind:value={choices[row.sourceRow].categoryId}
-                      >{#each categories.filter((item) => !item.archivedAt) as category}<option
+                      >{#each categories.filter((item) => !item.archivedAt) as category (category.id)}<option
                           value={category.id}>Match {category.name}</option
                         >{/each}<option value="">Leave blank</option></select
                     >{:else}<select
@@ -274,7 +275,7 @@
                     >{#if choices[row.sourceRow].mode === 'existing'}<select
                         bind:value={choices[row.sourceRow].categoryId}
                         ><option value="">Choose…</option
-                        >{#each categories.filter((item) => !item.archivedAt) as category}<option
+                        >{#each categories.filter((item) => !item.archivedAt) as category (category.id)}<option
                             value={category.id}>{category.name}</option
                           >{/each}</select
                       >{:else if choices[row.sourceRow].mode === 'create'}<Input
@@ -297,7 +298,7 @@
       <h3 class="mb-2 font-semibold">Import history</h3>
       {#if imports.length === 0}<p class="text-sm text-muted-foreground">
           No imports yet.
-        </p>{/if}{#each imports as item}<div
+        </p>{/if}{#each imports as item (item.id)}<div
           class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
         >
           <span
@@ -307,12 +308,16 @@
             {item.trashedAt ? '· trashed' : ''}</span
           >
           <div>
-            <Button size="sm" variant="outline" onclick={() => open(item)}
-              >Details</Button
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onclick={() => open(item)}>Details</Button
             >
             {#if !item.trashedAt}<Button
                 size="sm"
                 variant="destructive"
+                disabled={pending}
                 onclick={() => trash(item)}>Trash batch</Button
               >{/if}
           </div>
@@ -321,12 +326,15 @@
     {#if detail}<div class="rounded border p-3">
         <div class="flex justify-between">
           <h3 class="font-semibold">{detail.filename} details</h3>
-          <Button size="sm" variant="outline" onclick={() => (detail = null)}
-            >Close</Button
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onclick={() => (detail = null)}>Close</Button
           >
         </div>
         <p class="text-sm">Source rows and resulting transactions</p>
-        {#each detail.transactions ?? [] as transaction}<div
+        {#each detail.transactions ?? [] as transaction (transaction.id)}<div
             class="border-t py-2 text-sm"
           >
             Row {transaction.importSourceRow ?? '—'} · {transaction.date} · {transaction.kind}

@@ -52,7 +52,7 @@
             open the invitation link again.</Alert.Description
           ></Alert.Root
         ><Button class="mt-3" href="/sign-in">Sign in</Button>
-      {:else}<Alert.Root variant="destructive"
+      {:else}<Alert.Root variant="destructive" role="alert"
           ><Alert.Title>Could not accept invitation</Alert.Title
           ><Alert.Description>{message}</Alert.Description></Alert.Root
         ><Button class="mt-3" href="/dashboard" variant="outline"

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'
@@ -65,7 +64,7 @@
     )
     const amount = form.amount
     const date = form.date
-    const nextQuoteInputKey = `${open}:${source?.id ?? ''}:${destination?.id ?? ''}:${amount}:${date}`
+    const nextQuoteInputKey = `${source?.id ?? ''}:${destination?.id ?? ''}:${amount}:${date}`
     const generation = ++quoteGeneration
     if (suggestionApplied && quoteInputKey !== nextQuoteInputKey) {
       form.receivedAmount = ''
@@ -134,13 +133,13 @@
         separate expense on the source account.</Dialog.Description
       ></Dialog.Header
     >
-    <form class="space-y-4" {onsubmit}>
+    <form class="flex flex-col gap-4" {onsubmit}>
       {#if error}<Alert.Root variant="destructive"
           ><Alert.Title>Could not save transfer</Alert.Title><Alert.Description
             >{error}</Alert.Description
           ></Alert.Root
         >{/if}
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transfer-source">Source account</Label><select
           id="transfer-source"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
@@ -149,7 +148,7 @@
           onchange={() =>
             (form.toAccountId =
               transferDestinations(form.fromAccountId)[0]?.id ?? '')}
-          >{#each accounts.filter((item) => !item.archivedAt) as item}<option
+          >{#each accounts.filter((item) => !item.archivedAt) as item (item.id)}<option
               value={item.id}
               >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
                 — {item.workspaceLabel}{/if}</option
@@ -157,7 +156,7 @@
         >
       </div>
       {#if accounts.find((item) => item.id === form.fromAccountId)?.currency !== accounts.find((item) => item.id === form.toAccountId)?.currency}<div
-          class="space-y-2"
+          class="flex flex-col gap-2"
         >
           <Label for="transfer-received">Exact amount received</Label><Input
             id="transfer-received"
@@ -180,13 +179,13 @@
               }}>Use suggestion</Button
             >{/if}
         </div>{/if}
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transfer-destination">Destination account</Label><select
           id="transfer-destination"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
           bind:value={form.toAccountId}
           required
-          >{#each transferDestinations(form.fromAccountId) as item}<option
+          >{#each transferDestinations(form.fromAccountId) as item (item.id)}<option
               value={item.id}
               >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
                 — {item.workspaceLabel}{/if}</option
@@ -197,7 +196,7 @@
             No active destination is available.
           </p>{/if}
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transfer-amount">Transfer amount</Label><Input
           id="transfer-amount"
           inputmode="decimal"
@@ -205,7 +204,7 @@
           bind:value={form.amount}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transfer-date">Date</Label><Input
           id="transfer-date"
           type="date"
@@ -214,7 +213,7 @@
           bind:value={form.date}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="transfer-note">Note</Label><Textarea
           id="transfer-note"
           maxlength={500}
@@ -226,14 +225,14 @@
             Optional fee — this creates a separate ordinary spending transaction
             and is not folded into the transfer amount.
           </p>
-          <div class="space-y-2">
+          <div class="flex flex-col gap-2">
             <Label for="transfer-fee">Fee amount</Label><Input
               id="transfer-fee"
               inputmode="decimal"
               bind:value={form.fee}
             />
           </div>
-          <div class="mt-3 space-y-2">
+          <div class="mt-3 flex flex-col gap-2">
             <Label for="fee-description">Fee description</Label><Input
               id="fee-description"
               maxlength={500}

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Select } from '@dukat/ui'
 
@@ -38,13 +37,13 @@
           : 'Balances use the currency’s standard decimal precision.'}</Dialog.Description
       ></Dialog.Header
     >
-    <form class="space-y-4" {onsubmit}>
+    <form class="flex flex-col gap-4" {onsubmit}>
       {#if error}<Alert.Root variant="destructive"
           ><Alert.Title>Could not save account</Alert.Title><Alert.Description
             >{error}</Alert.Description
           ></Alert.Root
         >{/if}
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="account-name">Name</Label><Input
           id="account-name"
           required
@@ -52,7 +51,7 @@
           bind:value={form.name}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="account-type">Type</Label><select
           id="account-type"
           class="block h-9 w-full rounded-md border bg-transparent px-3"
@@ -62,7 +61,7 @@
           ><option value="cash">Cash</option></select
         >
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="currency">Currency</Label><Select.Root
           type="single"
           bind:value={form.currency}
@@ -71,13 +70,14 @@
           <Select.Trigger id="currency" class="w-full"
             ><span>{form.currency}</span></Select.Trigger
           ><Select.Content
-            >{#each currencies as currency}<Select.Item value={currency.code}
+            >{#each currencies as currency (currency.code)}<Select.Item
+                value={currency.code}
                 >{currency.code} — {currency.name}</Select.Item
               >{/each}</Select.Content
           >
         </Select.Root>
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="opening">Opening balance</Label><Input
           id="opening"
           required

@@ -28,7 +28,7 @@
   {#if state === 'loading'}
     <p aria-live="polite">Loading…</p>
   {:else}
-    <Alert.Root variant="destructive">
+    <Alert.Root variant="destructive" role="alert">
       <Alert.Title>Could not continue</Alert.Title>
       <Alert.Description>{message}</Alert.Description>
       <Button class="mt-3" variant="outline" onclick={routeFromSession}

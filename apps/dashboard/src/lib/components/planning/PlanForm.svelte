@@ -32,12 +32,13 @@
     endDate: '',
   })
   let form = $state(emptyForm())
-  let loadedEditingId: string | null = null
+  let loadedEditingKey: string | null = null
   let intentKey = $state(crypto.randomUUID())
 
   $effect(() => {
-    if (editing?.id === loadedEditingId) return
-    loadedEditingId = editing?.id ?? null
+    const editingKey = editing ? `${editing.id}:${editing.version}` : null
+    if (editingKey === loadedEditingKey) return
+    loadedEditingKey = editingKey
     intentKey = crypto.randomUUID()
     form = editing
       ? {

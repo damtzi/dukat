@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Card } from '@dukat/ui'
+  import { Card, Checkbox } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
   import OccurrenceCard from './OccurrenceCard.svelte'
   import type { Forecast, Occurrence, Plan, Suggestion } from './planning-types'
@@ -112,10 +112,9 @@
         >
       </div>
       <label class="flex items-center gap-2 text-sm"
-        ><input
-          type="checkbox"
+        ><Checkbox
           checked={includeTentative}
-          onchange={(event) => onincludeTentative(event.currentTarget.checked)}
+          onCheckedChange={onincludeTentative}
         /> Include tentative scenario</label
       >
     </div></Card.Header
@@ -126,7 +125,7 @@
         class="text-sm text-muted-foreground"
       >
         No forecast occurrences in the next 12 months.
-      </p>{:else}<div class="space-y-3">
+      </p>{:else}<div class="flex flex-col gap-3">
         {#each forecast.occurrences as item (`${item.planId}:${item.originalDate}`)}<OccurrenceCard
             {item}
             plan={planFor(item.planId)}
@@ -144,7 +143,9 @@
             {onmatch}
           />{/each}
       </div>{/if}
-    {#if forecast?.matchedOccurrences.length}<div class="mt-6 space-y-3">
+    {#if forecast?.matchedOccurrences.length}<div
+        class="mt-6 flex flex-col gap-3"
+      >
         <h3 class="font-semibold">Matched occurrences</h3>
         {#each forecast.matchedOccurrences as matched (`${matched.occurrence.planId}:${matched.occurrence.originalDate}`)}<article
             class="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"

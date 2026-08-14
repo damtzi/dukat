@@ -32,12 +32,12 @@
         balance.</Dialog.Description
       ></Dialog.Header
     >
-    <form class="space-y-4" {onsubmit}>
+    <form class="flex flex-col gap-4" {onsubmit}>
       {#if error}<Alert.Root variant="destructive"
           ><Alert.Title>Could not save balance check</Alert.Title
           ><Alert.Description>{error}</Alert.Description></Alert.Root
         >{/if}
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="observed-balance">Observed balance</Label><Input
           id="observed-balance"
           inputmode="decimal"
@@ -45,7 +45,7 @@
           bind:value={form.amount}
         />
       </div>
-      <div class="space-y-2">
+      <div class="flex flex-col gap-2">
         <Label for="check-date">Date</Label><Input
           id="check-date"
           type="date"

@@ -27,7 +27,7 @@
   <main class="p-4"><p aria-live="polite">Loading your dashboard…</p></main>
 {:else if guardState === 'error'}
   <main class="mx-auto max-w-md p-4">
-    <Alert.Root variant="destructive">
+    <Alert.Root variant="destructive" role="alert">
       <Alert.Title>Dashboard unavailable</Alert.Title>
       <Alert.Description>{message}</Alert.Description>
       <Button class="mt-3" variant="outline" onclick={guard}>Try again</Button>

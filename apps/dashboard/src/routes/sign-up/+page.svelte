@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
 
-  let error = ''
-  let notice = ''
-  let pending = false
+  let error = $state('')
+  let notice = $state('')
+  let pending = $state(false)
 
   async function submit(event: SubmitEvent) {
     event.preventDefault()
@@ -48,47 +48,49 @@
       ></Card.Header
     >
     <Card.Content>
-      {#if error}<Alert.Root variant="destructive" class="mb-4"
+      {#if error}<Alert.Root variant="destructive" class="mb-4" role="alert"
           ><Alert.Title>Could not continue</Alert.Title><Alert.Description
             >{error}</Alert.Description
           ></Alert.Root
         >{/if}
-      {#if notice}<Alert.Root class="mb-4"
+      {#if notice}<Alert.Root class="mb-4" role="status" aria-live="polite"
           ><Alert.Title>Account created</Alert.Title><Alert.Description
             >{notice}</Alert.Description
           ></Alert.Root
         >{/if}
-      <form class="space-y-4" onsubmit={submit}>
-        <div class="space-y-2">
-          <Label for="name">Name</Label><Input
-            id="name"
-            name="name"
-            autocomplete="name"
-            required
-          />
-        </div>
-        <div class="space-y-2">
-          <Label for="email">Email</Label><Input
-            id="email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-          />
-        </div>
-        <div class="space-y-2">
-          <Label for="password">Password</Label><Input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="new-password"
-            minlength={8}
-            required
-          />
-        </div>
-        <Button type="submit" class="w-full" disabled={pending}
-          >{pending ? 'Please wait…' : 'Create account'}</Button
-        >
+      <form onsubmit={submit}>
+        <Field.Group>
+          <Field.Field>
+            <Field.Label for="name">Name</Field.Label><Input
+              id="name"
+              name="name"
+              autocomplete="name"
+              required
+            />
+          </Field.Field>
+          <Field.Field>
+            <Field.Label for="email">Email</Field.Label><Input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </Field.Field>
+          <Field.Field>
+            <Field.Label for="password">Password</Field.Label><Input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              minlength={8}
+              required
+            />
+          </Field.Field>
+          <Button type="submit" class="w-full" disabled={pending}
+            >{#if pending}<Spinner aria-hidden="true" />{/if}Create account</Button
+          >
+        </Field.Group>
       </form>
     </Card.Content>
     <Card.Footer class="justify-center text-sm"

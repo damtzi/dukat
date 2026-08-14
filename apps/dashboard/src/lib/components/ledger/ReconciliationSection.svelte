@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account, BalanceCheck, Correction } from '@dukat/core/ledger'
   import { Button, Card } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
@@ -46,8 +45,9 @@
     ><Card.Content class="py-6 text-center text-muted-foreground"
       >No balance checks yet.</Card.Content
     ></Card.Root
-  >{:else}<div class="space-y-3">
-    {#each checks as item}<Card.Root class={item.trashedAt ? 'opacity-60' : ''}
+  >{:else}<div class="flex flex-col gap-3">
+    {#each checks as item (item.id)}<Card.Root
+        class={item.trashedAt ? 'opacity-60' : ''}
         ><Card.Content class="py-4"
           ><div class="grid gap-2 sm:grid-cols-4">
             <div>
@@ -87,6 +87,7 @@
                 >{:else}<Button
                   size="sm"
                   variant="outline"
+                  disabled={pending}
                   onclick={() => onedit(item)}>Edit</Button
                 ><Button
                   size="sm"
@@ -112,8 +113,8 @@
     ><Card.Content class="py-6 text-center text-muted-foreground"
       >No corrections yet.</Card.Content
     ></Card.Root
-  >{:else}<div class="space-y-3">
-    {#each corrections as item}<Card.Root
+  >{:else}<div class="flex flex-col gap-3">
+    {#each corrections as item (item.id)}<Card.Root
         class={item.trashedAt ? 'opacity-60' : ''}
         ><Card.Content
           class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center"

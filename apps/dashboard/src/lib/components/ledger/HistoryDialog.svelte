@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { HistoryEntry } from '@dukat/core/ledger'
   import { Dialog, Table } from '@dukat/ui'
 
@@ -36,7 +35,7 @@
               ></Table.Row
             ></Table.Header
           ><Table.Body
-            >{#each history as entry}<Table.Row
+            >{#each history as entry (entry.id)}<Table.Row
                 ><Table.Cell class="capitalize">{entry.action}</Table.Cell
                 ><Table.Cell>{entry.actorUserId}</Table.Cell><Table.Cell
                   >{entry.createdAt}</Table.Cell

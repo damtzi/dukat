@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import type { Account } from '@dukat/core/ledger'
   import { Badge, Button } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
@@ -17,8 +16,8 @@
 
 <aside>
   <h2 class="mb-2 font-semibold">Accounts</h2>
-  <div class="space-y-2">
-    {#each accounts as account}
+  <div class="flex flex-col gap-2">
+    {#each accounts as account (account.id)}
       <Button
         variant={account.id === selectedId ? 'default' : 'outline'}
         class="h-auto w-full justify-between py-3"

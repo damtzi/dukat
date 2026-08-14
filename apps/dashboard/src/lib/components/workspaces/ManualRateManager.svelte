@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/require-each-key */
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
 
   type ManualRate = {
@@ -87,7 +86,7 @@
       rate applies. One foreign currency unit equals this PLN value.</Card.Description
     ></Card.Header
   >
-  <Card.Content class="space-y-2">
+  <Card.Content class="flex flex-col gap-2">
     {#if error}<Alert.Root variant="destructive"
         ><Alert.Title>Exchange-rate action failed</Alert.Title
         ><Alert.Description>{error}</Alert.Description></Alert.Root
@@ -134,7 +133,7 @@
     {#if rates.length === 0}<p class="text-sm text-muted-foreground">
         No manual rates.
       </p>{/if}
-    {#each rates as rate}<div
+    {#each rates as rate (rate.id)}<div
         class="flex flex-wrap justify-between gap-2 border-t py-2 text-sm"
       >
         <span
