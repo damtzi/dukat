@@ -65,7 +65,7 @@ function json(route: Route, body: unknown, status = 200) {
 
 async function chooseSelect(page: Page, label: string, option: string) {
 	await page.getByLabel(label, { exact: true }).click();
-	await page.getByRole('listbox').getByRole('option', { name: option }).click();
+	await page.getByRole('option', { name: option }).filter({ visible: true }).click();
 }
 
 async function mockRates(page: Page, options: { householdMember?: boolean } = {}) {
@@ -223,8 +223,9 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		'data-active',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Transactions', exact: true })).not.toHaveAttribute(
-		'data-active'
+	await expect(page.getByRole('button', { name: 'Transactions', exact: true })).toHaveAttribute(
+		'data-active',
+		'false'
 	);
 	await expect(page.getByText('Combined balance', { exact: true })).toBeVisible();
 	await expect(page.getByText(/^157,50\sUSD$/)).toBeVisible();
@@ -260,7 +261,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		fullPage: true
 	});
 	await page.getByRole('button', { name: 'New transfer' }).click();
-	await chooseSelect(page, 'Source account', 'Euro wallet (EUR)');
+	await expect(page.getByLabel('Source account')).toContainText('Euro wallet (EUR)');
 	await chooseSelect(page, 'Destination account', 'Dollar account (USD)');
 	await page.getByLabel('Transfer amount').fill('10.00');
 	await expect(page.getByText(/Suggested 10,75\sUSD/)).toBeVisible();

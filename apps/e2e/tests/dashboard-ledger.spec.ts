@@ -38,8 +38,36 @@ function json(route: Route, body: unknown, status = 200) {
 }
 
 async function chooseSelect(page: Page, label: string, option: string) {
-	await page.getByLabel(label, { exact: true }).click();
-	await page.getByRole('listbox').getByRole('option', { name: option }).click();
+	await page.getByLabel(label, { exact: true }).filter({ visible: true }).click();
+	await page.getByRole('option', { name: option }).filter({ visible: true }).click();
+}
+
+async function openSidebar(page: Page) {
+	if ((page.viewportSize()?.width ?? 0) < 768) {
+		if (await page.getByRole('dialog', { name: 'Sidebar' }).isVisible()) return;
+		await page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }).click();
+		await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeVisible();
+		return;
+	}
+
+	const sidebar = page.locator('[data-slot="sidebar"][data-state]');
+	if ((await sidebar.getAttribute('data-state')) === 'expanded') return;
+	await page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }).click();
+	await expect(sidebar).toHaveAttribute('data-state', 'expanded');
+}
+
+async function clickSidebarButton(page: Page, name: string | RegExp) {
+	await openSidebar(page);
+	const button = page.getByRole('button', { name });
+	const mobileSidebarOpen = await page.getByRole('dialog', { name: 'Sidebar' }).isVisible();
+	await button.click();
+	if (mobileSidebarOpen) await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
+}
+
+async function chooseWorkspace(page: Page, option: string) {
+	await openSidebar(page);
+	await chooseSelect(page, 'Workspace', option);
+	await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
 }
 
 function emptyInsightsResponse(path: string, method: string): unknown | undefined {
@@ -442,16 +470,17 @@ test('creates and selects a household workspace', async ({ page }) => {
 	});
 
 	await page.goto('/dashboard');
-	await page.getByRole('button', { name: 'Settings', exact: true }).click();
+	await clickSidebarButton(page, 'Settings');
 	const creation = page
 		.getByText('Create a household', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await creation.getByLabel('Name', { exact: true }).fill('Lovelace household');
 	await creation.getByLabel('Reporting currency', { exact: true }).fill('eur');
 	await creation.getByRole('button', { name: 'Create household', exact: true }).click();
+	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
+	await openSidebar(page);
 	const selector = page.getByLabel('Workspace', { exact: true });
 	await expect(selector).toContainText('Lovelace household — Household');
-	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 });
 
 test('discards stale responses after rapid workspace switches', async ({ page }) => {
@@ -510,9 +539,11 @@ test('discards stale responses after rapid workspace switches', async ({ page })
 	});
 
 	await page.goto('/dashboard');
+	await openSidebar(page);
 	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
-	await chooseSelect(page, 'Workspace', 'Second workspace — Personal');
-	await chooseSelect(page, 'Workspace', 'Personal — Personal');
+	await chooseWorkspace(page, 'Second workspace — Personal');
+	await chooseWorkspace(page, 'Personal — Personal');
+	await openSidebar(page);
 	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
 	releaseSecond();
 	await expect.poll(() => delayedResponses).toBe(2);
@@ -583,8 +614,11 @@ test('renders a private incoming cross-workspace transfer without management con
 	});
 
 	await page.goto('/dashboard');
-	await chooseSelect(page, 'Workspace', 'Shared home — Household');
-	await page.getByRole('button', { name: /Shared current account/ }).click();
+	await chooseWorkspace(page, 'Shared home — Household');
+	await expect(
+		page.getByText('Shared current account', { exact: true }).filter({ visible: true }).last()
+	).toBeVisible();
+	await clickSidebarButton(page, /Shared current account/);
 	const transfer = page
 		.getByText('Incoming transfer', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
@@ -611,6 +645,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.keyboard.press('Escape');
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
+	await openSidebar(page);
 	const accountNavigation = page.getByRole('button', { name: /Everyday account/ });
 	await expect(accountNavigation).toBeVisible();
 	await expect(accountNavigation).toContainText('100,00 USD');
@@ -670,7 +705,9 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await submitDialog(page);
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Archive account' }).click();
+	await openSidebar(page);
 	await expect(page.getByText('Archived', { exact: true })).toBeVisible();
+	await clickSidebarButton(page, /Household account/);
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Trash' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeHidden();
@@ -957,7 +994,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	});
 
 	await page.goto('/dashboard');
-	await page.getByRole('button', { name: /Everyday account/ }).click();
+	await clickSidebarButton(page, /Everyday account/);
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Weekly shop');
@@ -967,7 +1004,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
 	).toBeVisible();
 
-	await page.getByRole('button', { name: 'Overview', exact: true }).click();
+	await clickSidebarButton(page, 'Overview');
 	const summaryGroup = page.getByRole('button', { name: /Groceries · expense 25,00\sUSD/ });
 	await expect(summaryGroup).toBeVisible();
 	await summaryGroup.click();
@@ -975,7 +1012,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25,00 USD', { exact: true })
 	).toBeVisible();
 
-	await page.getByRole('button', { name: 'CSV imports', exact: true }).click();
+	await clickSidebarButton(page, 'CSV imports');
 	await page
 		.getByLabel('CSV file')
 		.setInputFiles({ name: 'august.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
@@ -1165,7 +1202,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	});
 
 	await page.goto('/dashboard');
-	await page.getByRole('button', { name: /Checking/ }).click();
+	await clickSidebarButton(page, /Checking/);
 	await page.getByRole('button', { name: 'New transfer' }).click();
 	await expect(page.getByLabel('Source account')).toContainText('Checking (USD)');
 	await chooseSelect(page, 'Destination account', 'Savings (USD)');
