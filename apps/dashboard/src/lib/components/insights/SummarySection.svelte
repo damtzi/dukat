@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import type { Summary } from '@dukat/core/csv-import'
-  import { Button, Card, Input, Label } from '@dukat/ui'
+  import { Button, Card, Input, Label, Select, Separator } from '@dukat/ui'
   import { calendarMonthRange, shiftCalendarMonth } from '$lib/date'
   import { formatMoney } from '$lib/money'
   let {
@@ -17,6 +17,9 @@
   let error = $state('')
   let openGroup = $state('')
   let requestGeneration = 0
+  let selectedAccount = $derived(
+    accounts.find((account) => account.id === accountId),
+  )
   async function load(
     request: { startDate: string; endDate: string; accountId: string },
     generation: number,
@@ -78,15 +81,26 @@
         >→</Button
       >
       <div>
-        <Label for="summary-account">Account</Label><select
-          id="summary-account"
-          class="block h-9 rounded-md border bg-transparent px-3"
+        <Label for="summary-account">Account</Label><Select.Root
+          type="single"
           bind:value={accountId}
-          ><option value="">All accounts</option
-          >{#each accounts as account (account.id)}<option value={account.id}
-              >{account.name}</option
-            >{/each}</select
         >
+          <Select.Trigger id="summary-account">
+            {selectedAccount?.name ?? 'All accounts'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              <Select.Item value="" label="All accounts"
+                >All accounts</Select.Item
+              >
+              {#each accounts as account (account.id)}
+                <Select.Item value={account.id} label={account.name}
+                  >{account.name}</Select.Item
+                >
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
     </div>
     {#if error}<p class="text-sm text-destructive">{error}</p>{/if}
@@ -162,15 +176,17 @@
                 >
               </div>
             </div>
-            {#each currency.groups as group (`${group.kind}:${group.categoryId}`)}{@const groupKey = `${currency.currency}-${group.kind}-${group.categoryId}`}<button
-                class="flex w-full justify-between border-t py-2 text-left"
+            {#each currency.groups as group (`${group.kind}:${group.categoryId}`)}{@const groupKey = `${currency.currency}-${group.kind}-${group.categoryId}`}<Separator
+              /><Button
+                variant="ghost"
+                class="h-auto w-full justify-between rounded-none px-0 py-2 text-left"
                 aria-expanded={openGroup === groupKey}
                 aria-controls={`summary-group-${groupKey}`}
                 onclick={() =>
                   (openGroup = openGroup === groupKey ? '' : groupKey)}
                 ><span>{group.categoryName} · {group.kind}</span><b
                   >{formatMoney(group.amountMinor, currency.currency)}</b
-                ></button
+                ></Button
               >{#if openGroup === groupKey}<div
                   id={`summary-group-${groupKey}`}
                   class="flex flex-col gap-2 bg-muted/40 p-2 text-sm"

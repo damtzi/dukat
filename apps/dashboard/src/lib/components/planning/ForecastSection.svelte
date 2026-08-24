@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Card, Checkbox } from '@dukat/ui'
+  import { Button, Card, Checkbox, Label } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
   import OccurrenceCard from './OccurrenceCard.svelte'
   import type { Forecast, Occurrence, Plan, Suggestion } from './planning-types'
@@ -111,12 +111,14 @@
             : '—'}</Card.Description
         >
       </div>
-      <label class="flex items-center gap-2 text-sm"
-        ><Checkbox
+      <div class="flex items-center gap-2">
+        <Checkbox
+          id="include-tentative"
           checked={includeTentative}
           onCheckedChange={onincludeTentative}
-        /> Include tentative scenario</label
-      >
+        />
+        <Label for="include-tentative">Include tentative scenario</Label>
+      </div>
     </div></Card.Header
   ><Card.Content>
     {#if loading}<p aria-live="polite">
@@ -164,10 +166,10 @@
                 )}
               </p>
             </div>
-            <button
-              class="rounded-md border px-3 py-2 text-sm"
+            <Button
+              variant="outline"
               disabled={pending}
-              onclick={() => onunmatch(matched.occurrence)}>Unmatch</button
+              onclick={() => onunmatch(matched.occurrence)}>Unmatch</Button
             >
           </article>{/each}
       </div>{/if}

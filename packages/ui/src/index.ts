@@ -6,6 +6,7 @@ export * as Dialog from './components/ui/dialog/index.js';
 export * as Empty from './components/ui/empty/index.js';
 export * as Field from './components/ui/field/index.js';
 export * as Select from './components/ui/select/index.js';
+export * as Sidebar from './components/ui/sidebar/index.js';
 export * as Table from './components/ui/table/index.js';
 export * as Tabs from './components/ui/tabs/index.js';
 export { Badge } from './components/ui/badge/index.js';

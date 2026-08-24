@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Card, Input, Label } from '@dukat/ui'
+  import { Button, Card, Input, Label, Select } from '@dukat/ui'
   import { minorToDecimal, parseAmount } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import type { Plan, PlanningAccount, PlanSaveInput } from './planning-types'
@@ -34,6 +34,24 @@
   let form = $state(emptyForm())
   let loadedEditingKey: string | null = null
   let intentKey = $state(crypto.randomUUID())
+  const planKinds = [
+    { value: 'expense', label: 'Expense' },
+    { value: 'income', label: 'Income' },
+  ] as const
+  const planStatuses = [
+    { value: 'expected', label: 'Expected' },
+    { value: 'tentative', label: 'Tentative' },
+  ] as const
+  const frequencies = [
+    { value: 'once', label: 'One time' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'yearly', label: 'Yearly' },
+  ] as const
+  const selectedLabel = (
+    options: readonly { value: string; label: string }[],
+    value: string,
+  ) => options.find((option) => option.value === value)?.label ?? 'Select'
 
   $effect(() => {
     const editingKey = editing ? `${editing.id}:${editing.version}` : null
@@ -108,15 +126,24 @@
   <Card.Content
     ><form class="grid gap-3 md:grid-cols-3" onsubmit={save}>
       <div>
-        <Label for="plan-kind">Type</Label><select
-          id="plan-kind"
-          class="mt-1 h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="plan-kind">Type</Label><Select.Root
+          type="single"
           bind:value={form.kind}
           disabled={!!editing}
-          ><option value="expense">Expense</option><option value="income"
-            >Income</option
-          ></select
         >
+          <Select.Trigger id="plan-kind" class="w-full">
+            {selectedLabel(planKinds, form.kind)}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each planKinds as option (option.value)}
+                <Select.Item value={option.value} label={option.label}
+                  >{option.label}</Select.Item
+                >
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div>
         <Label for="plan-amount">Amount ({account.currency})</Label><Input
@@ -141,27 +168,43 @@
           />
         </div>{/if}
       <div>
-        <Label for="plan-status">Certainty</Label><select
-          id="plan-status"
-          class="mt-1 h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="plan-status">Certainty</Label><Select.Root
+          type="single"
           bind:value={form.status}
-          ><option value="expected">Expected</option><option value="tentative"
-            >Tentative</option
-          ></select
         >
+          <Select.Trigger id="plan-status" class="w-full">
+            {selectedLabel(planStatuses, form.status)}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each planStatuses as option (option.value)}
+                <Select.Item value={option.value} label={option.label}
+                  >{option.label}</Select.Item
+                >
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div>
-        <Label for="plan-repeat">Repeats</Label><select
-          id="plan-repeat"
-          class="mt-1 h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="plan-repeat">Repeats</Label><Select.Root
+          type="single"
           bind:value={form.frequency}
           disabled={!!editing}
-          ><option value="once">One time</option><option value="weekly"
-            >Weekly</option
-          ><option value="monthly">Monthly</option><option value="yearly"
-            >Yearly</option
-          ></select
         >
+          <Select.Trigger id="plan-repeat" class="w-full">
+            {selectedLabel(frequencies, form.frequency)}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each frequencies as option (option.value)}
+                <Select.Item value={option.value} label={option.label}
+                  >{option.label}</Select.Item
+                >
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       {#if form.frequency !== 'once'}<div>
           <Label for="plan-interval">Every (interval)</Label><Input

@@ -7,7 +7,17 @@
     type ImportDetail,
   } from '@dukat/core/csv-import'
   import type { Account } from '@dukat/core/ledger'
-  import { Alert, Badge, Button, Card, Checkbox, Input, Label } from '@dukat/ui'
+  import {
+    Alert,
+    Badge,
+    Button,
+    Card,
+    Checkbox,
+    Input,
+    Label,
+    Select,
+    Table,
+  } from '@dukat/ui'
   let {
     accounts,
     categories,
@@ -46,6 +56,19 @@
     csv: string
   } | null = $state(null)
   const activeAccounts = $derived(accounts.filter((item) => !item.archivedAt))
+  const activeCategories = $derived(
+    categories.filter((category) => !category.archivedAt),
+  )
+  let selectedAccount = $derived(
+    activeAccounts.find((account) => account.id === accountId),
+  )
+  const categoryName = (categoryId: string) =>
+    activeCategories.find((category) => category.id === categoryId)?.name
+  const resolutionLabel = (choice: Choice) => {
+    if (choice.mode === 'existing') return 'Match active category'
+    if (choice.mode === 'create') return 'Create category'
+    return 'Leave blank'
+  }
   async function loadHistory() {
     const generation = ++historyGeneration
     const result = await api<ImportBatch[]>('')
@@ -202,16 +225,29 @@
       >{/if}
     <div class="flex flex-wrap items-end gap-2">
       <div>
-        <Label for="import-account">Active account</Label><select
-          id="import-account"
-          class="block h-9 rounded-md border bg-transparent px-3"
+        <Label for="import-account">Active account</Label><Select.Root
+          type="single"
           bind:value={accountId}
-          onchange={invalidatePreview}
-          ><option value="" disabled>Select account</option
-          >{#each activeAccounts as account (account.id)}<option
-              value={account.id}>{account.name} ({account.currency})</option
-            >{/each}</select
+          onValueChange={invalidatePreview}
         >
+          <Select.Trigger id="import-account">
+            {selectedAccount
+              ? `${selectedAccount.name} (${selectedAccount.currency})`
+              : 'Select account'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each activeAccounts as account (account.id)}
+                <Select.Item
+                  value={account.id}
+                  label={`${account.name} (${account.currency})`}
+                >
+                  {account.name} ({account.currency})
+                </Select.Item>
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div>
         <Label for="csv-file">CSV file</Label>{#key inputKey}<Input
@@ -230,64 +266,149 @@
           onclick={() => reset()}>Reset</Button
         >{/if}
     </div>
-    {#if rows.length}<div class="overflow-x-auto">
-        <table class="w-full min-w-[900px] text-sm">
-          <thead
-            ><tr class="border-b text-left"
-              ><th>Use</th><th>Row / status</th><th>Date</th><th>Kind</th><th
-                >Amount</th
-              ><th>Description</th><th>Category resolution</th></tr
-            ></thead
-          ><tbody
-            >{#each rows as row (row.sourceRow)}<tr class="border-b align-top"
-                ><td class="py-2"
-                  ><Checkbox
-                    aria-label={`Select row ${row.sourceRow}`}
-                    bind:checked={choices[row.sourceRow].include}
-                    disabled={row.errors.length > 0}
-                  /></td
-                ><td
-                  >#{row.sourceRow}<br />{#if row.errors.length}<span
-                      class="text-destructive"
-                      >Invalid: {row.errors.join('; ')}</span
-                    >{:else}<Badge variant="secondary">Valid</Badge
-                    >{/if}{#if row.duplicateReason}<br /><span
-                      class="text-muted-foreground"
-                      >Duplicate warning: {row.duplicateReason}</span
-                    >{/if}</td
-                ><td>{row.date}</td><td>{row.kind}</td><td>{row.amount}</td><td
-                  >{row.description}</td
-                ><td
-                  >{#if row.categoryStatus === 'existing'}<select
+    {#if rows.length}<Table.Root class="min-w-[900px]">
+        <Table.Header>
+          <Table.Row>
+            <Table.Head>Use</Table.Head>
+            <Table.Head>Row / status</Table.Head>
+            <Table.Head>Date</Table.Head>
+            <Table.Head>Kind</Table.Head>
+            <Table.Head>Amount</Table.Head>
+            <Table.Head>Description</Table.Head>
+            <Table.Head>Category resolution</Table.Head>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {#each rows as row (row.sourceRow)}
+            <Table.Row class="align-top">
+              <Table.Cell class="align-top">
+                <Checkbox
+                  aria-label={`Select row ${row.sourceRow}`}
+                  bind:checked={choices[row.sourceRow].include}
+                  disabled={row.errors.length > 0}
+                />
+              </Table.Cell>
+              <Table.Cell class="whitespace-normal align-top">
+                #{row.sourceRow}<br />
+                {#if row.errors.length}
+                  <span class="text-destructive">
+                    Invalid: {row.errors.join('; ')}
+                  </span>
+                {:else}
+                  <Badge variant="secondary">Valid</Badge>
+                {/if}
+                {#if row.duplicateReason}
+                  <br /><span class="text-muted-foreground">
+                    Duplicate warning: {row.duplicateReason}
+                  </span>
+                {/if}
+              </Table.Cell>
+              <Table.Cell class="align-top">{row.date}</Table.Cell>
+              <Table.Cell class="align-top">{row.kind}</Table.Cell>
+              <Table.Cell class="align-top">{row.amount}</Table.Cell>
+              <Table.Cell class="whitespace-normal align-top">
+                {row.description}
+              </Table.Cell>
+              <Table.Cell class="whitespace-normal align-top">
+                {#if row.categoryStatus === 'existing'}
+                  <Select.Root
+                    type="single"
+                    bind:value={choices[row.sourceRow].categoryId}
+                  >
+                    <Select.Trigger
                       aria-label={`Category resolution row ${row.sourceRow}`}
+                    >
+                      {categoryName(choices[row.sourceRow].categoryId)
+                        ? `Match ${categoryName(choices[row.sourceRow].categoryId)}`
+                        : 'Leave blank'}
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Group>
+                        {#each activeCategories as category (category.id)}
+                          <Select.Item
+                            value={category.id}
+                            label={`Match ${category.name}`}
+                          >
+                            Match {category.name}
+                          </Select.Item>
+                        {/each}
+                        <Select.Item value="" label="Leave blank"
+                          >Leave blank</Select.Item
+                        >
+                      </Select.Group>
+                    </Select.Content>
+                  </Select.Root>
+                {:else}
+                  <Select.Root
+                    type="single"
+                    bind:value={choices[row.sourceRow].mode}
+                  >
+                    <Select.Trigger
+                      aria-label={`Category resolution row ${row.sourceRow}`}
+                    >
+                      {resolutionLabel(choices[row.sourceRow])}
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Group>
+                        <Select.Item value="blank" label="Leave blank"
+                          >Leave blank</Select.Item
+                        >
+                        <Select.Item
+                          value="existing"
+                          label="Match active category"
+                        >
+                          Match active category
+                        </Select.Item>
+                        {#if row.category}
+                          <Select.Item value="create" label="Create category">
+                            Create category
+                          </Select.Item>
+                        {/if}
+                      </Select.Group>
+                    </Select.Content>
+                  </Select.Root>
+                  {#if choices[row.sourceRow].mode === 'existing'}
+                    <Select.Root
+                      type="single"
                       bind:value={choices[row.sourceRow].categoryId}
-                      >{#each categories.filter((item) => !item.archivedAt) as category (category.id)}<option
-                          value={category.id}>Match {category.name}</option
-                        >{/each}<option value="">Leave blank</option></select
-                    >{:else}<select
-                      aria-label={`Category resolution row ${row.sourceRow}`}
-                      bind:value={choices[row.sourceRow].mode}
-                      ><option value="blank">Leave blank</option><option
-                        value="existing">Match active category</option
-                      >{#if row.category}<option value="create"
-                          >Create category</option
-                        >{/if}</select
-                    >{#if choices[row.sourceRow].mode === 'existing'}<select
-                        bind:value={choices[row.sourceRow].categoryId}
-                        ><option value="">Choose…</option
-                        >{#each categories.filter((item) => !item.archivedAt) as category (category.id)}<option
-                            value={category.id}>{category.name}</option
-                          >{/each}</select
-                      >{:else if choices[row.sourceRow].mode === 'create'}<Input
-                        aria-label={`New category row ${row.sourceRow}`}
-                        bind:value={choices[row.sourceRow].createCategory}
-                        maxlength={120}
-                      />{/if}{/if}</td
-                ></tr
-              >{/each}</tbody
-          >
-        </table>
-      </div>
+                    >
+                      <Select.Trigger
+                        class="mt-2"
+                        aria-label={`Active category row ${row.sourceRow}`}
+                      >
+                        {categoryName(choices[row.sourceRow].categoryId) ??
+                          'Choose…'}
+                      </Select.Trigger>
+                      <Select.Content>
+                        <Select.Group>
+                          <Select.Item value="" label="Choose…"
+                            >Choose…</Select.Item
+                          >
+                          {#each activeCategories as category (category.id)}
+                            <Select.Item
+                              value={category.id}
+                              label={category.name}
+                            >
+                              {category.name}
+                            </Select.Item>
+                          {/each}
+                        </Select.Group>
+                      </Select.Content>
+                    </Select.Root>
+                  {:else if choices[row.sourceRow].mode === 'create'}
+                    <Input
+                      class="mt-2"
+                      aria-label={`New category row ${row.sourceRow}`}
+                      bind:value={choices[row.sourceRow].createCategory}
+                      maxlength={120}
+                    />
+                  {/if}
+                {/if}
+              </Table.Cell>
+            </Table.Row>
+          {/each}
+        </Table.Body>
+      </Table.Root>
       <Button
         disabled={pending ||
           !reviewedRequest ||

@@ -2,6 +2,15 @@
   import type { Account } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Input, Label, Select } from '@dukat/ui'
 
+  const accountTypes: readonly {
+    value: Account['type']
+    label: string
+  }[] = [
+    { value: 'current', label: 'Current' },
+    { value: 'savings', label: 'Savings' },
+    { value: 'cash', label: 'Cash' },
+  ]
+
   let {
     open = $bindable(),
     form = $bindable(),
@@ -24,6 +33,11 @@
     currencies: readonly { code: string; name: string }[]
     onsubmit: (event: SubmitEvent) => void
   } = $props()
+
+  let accountTypeLabel = $derived(
+    accountTypes.find(({ value }) => value === form.type)?.label ??
+      'Select a type',
+  )
 </script>
 
 <Dialog.Root bind:open>
@@ -52,14 +66,26 @@
         />
       </div>
       <div class="flex flex-col gap-2">
-        <Label for="account-type">Type</Label><select
-          id="account-type"
-          class="block h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="account-type">Type</Label><Select.Root
+          type="single"
           bind:value={form.type}
-          ><option value="current">Current</option><option value="savings"
-            >Savings</option
-          ><option value="cash">Cash</option></select
         >
+          <Select.Trigger id="account-type" class="w-full">
+            {accountTypeLabel}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each accountTypes as accountType (accountType.value)}
+                <Select.Item
+                  value={accountType.value}
+                  label={accountType.label}
+                >
+                  {accountType.label}
+                </Select.Item>
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div class="flex flex-col gap-2">
         <Label for="currency">Currency</Label><Select.Root
@@ -70,10 +96,13 @@
           <Select.Trigger id="currency" class="w-full"
             ><span>{form.currency}</span></Select.Trigger
           ><Select.Content
-            >{#each currencies as currency (currency.code)}<Select.Item
-                value={currency.code}
-                >{currency.code} — {currency.name}</Select.Item
-              >{/each}</Select.Content
+            ><Select.Group
+              >{#each currencies as currency (currency.code)}<Select.Item
+                  value={currency.code}
+                  label={`${currency.code} — ${currency.name}`}
+                  >{currency.code} — {currency.name}</Select.Item
+                >{/each}</Select.Group
+            ></Select.Content
           >
         </Select.Root>
       </div>

@@ -63,6 +63,11 @@ function json(route: Route, body: unknown, status = 200) {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+async function chooseSelect(page: Page, label: string, option: string) {
+	await page.getByLabel(label, { exact: true }).click();
+	await page.getByRole('listbox').getByRole('option', { name: option }).click();
+}
+
 async function mockRates(page: Page, options: { householdMember?: boolean } = {}) {
 	let manualRates: Array<Record<string, unknown>> = [];
 	let transfer: Record<string, unknown> | undefined;
@@ -214,13 +219,25 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	const page = await context.newPage();
 	const state = await mockRates(page);
 	await page.goto('/dashboard');
+	await expect(page.getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute(
+		'data-active',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Transactions', exact: true })).not.toHaveAttribute(
+		'data-active'
+	);
 	await expect(page.getByText('Combined balance', { exact: true })).toBeVisible();
 	await expect(page.getByText(/^157,50\sUSD$/)).toBeVisible();
 	await expect(
 		page.getByText(/EUR 4.3 PLN · NBP 151\/A\/NBP\/2026 · 2026-08-05/).first()
 	).toBeVisible();
 	await page.waitForTimeout(500);
+	await page.screenshot({
+		path: '../../.amp/in/artifacts/overview-dashboard-proof.png',
+		fullPage: true
+	});
 
+	await page.getByRole('button', { name: 'Exchange rates', exact: true }).click();
 	await page.getByLabel('Currency', { exact: true }).fill('CHF');
 	await page.getByLabel('Rate to PLN').fill('4.5');
 	await page.getByLabel('Effective date').fill('2026-08-01');
@@ -234,9 +251,17 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		fullPage: true
 	});
 
+	const euroAccount = page.getByRole('button', { name: /Euro wallet/ });
+	await euroAccount.click();
+	await expect(euroAccount).toHaveAttribute('data-active', 'true');
+	await expect(page.getByRole('heading', { name: 'Euro wallet', level: 1 })).toBeVisible();
+	await page.screenshot({
+		path: '../../.amp/in/artifacts/account-dashboard-proof.png',
+		fullPage: true
+	});
 	await page.getByRole('button', { name: 'New transfer' }).click();
-	await page.getByLabel('Source account').selectOption('eur-proof');
-	await page.getByLabel('Destination account').selectOption('usd-proof');
+	await chooseSelect(page, 'Source account', 'Euro wallet (EUR)');
+	await chooseSelect(page, 'Destination account', 'Dollar account (USD)');
 	await page.getByLabel('Transfer amount').fill('10.00');
 	await expect(page.getByText(/Suggested 10,75\sUSD/)).toBeVisible();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('');
@@ -275,7 +300,11 @@ test('manual rates remain available to a household member on a phone', async ({
 	test.skip(testInfo.project.name !== 'phone-chromium');
 	await mockRates(page, { householdMember: true });
 	await page.goto('/dashboard');
+	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
+	await page.getByRole('button', { name: 'Exchange rates', exact: true }).click();
 	await expect(page.getByText('Manual exchange rates', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
+	await page.getByRole('button', { name: 'Settings', exact: true }).click();
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.screenshot({
 		path: '../../.amp/in/artifacts/exchange-rates-member-mobile-proof.png',

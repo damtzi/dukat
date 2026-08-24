@@ -1,7 +1,15 @@
 <script lang="ts">
   import type { Transaction } from '@dukat/core/ledger'
   import type { Category } from '@dukat/core/csv-import'
-  import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
+  import {
+    Alert,
+    Button,
+    Dialog,
+    Input,
+    Label,
+    Select,
+    Textarea,
+  } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'
 
   let {
@@ -27,6 +35,20 @@
     onsubmit: (event: SubmitEvent) => void
     categories: Category[]
   } = $props()
+  const transactionKinds = [
+    { value: 'expense', label: 'Expense' },
+    { value: 'income', label: 'Income' },
+  ] as const
+  let availableCategories = $derived(
+    categories.filter(
+      (category) =>
+        !category.archivedAt ||
+        (editingTransaction && category.id === form.categoryId),
+    ),
+  )
+  let selectedCategory = $derived(
+    availableCategories.find((category) => category.id === form.categoryId),
+  )
 </script>
 
 <Dialog.Root bind:open>
@@ -46,14 +68,24 @@
           ><Alert.Description>{error}</Alert.Description></Alert.Root
         >{/if}
       <div class="flex flex-col gap-2">
-        <Label for="kind">Kind</Label><select
-          id="kind"
-          class="block h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="kind">Kind</Label><Select.Root
+          type="single"
           bind:value={form.kind}
-          ><option value="expense">Expense</option><option value="income"
-            >Income</option
-          ></select
         >
+          <Select.Trigger id="kind" class="w-full">
+            {transactionKinds.find(({ value }) => value === form.kind)?.label ??
+              'Select kind'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each transactionKinds as option (option.value)}
+                <Select.Item value={option.value} label={option.label}
+                  >{option.label}</Select.Item
+                >
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div class="flex flex-col gap-2">
         <Label for="amount">Amount</Label><Input
@@ -73,20 +105,33 @@
         />
       </div>
       <div class="flex flex-col gap-2">
-        <Label for="transaction-category">Category</Label><select
-          id="transaction-category"
-          class="block h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="transaction-category">Category</Label><Select.Root
+          type="single"
           bind:value={form.categoryId}
         >
-          <option value="">Uncategorized</option>
-          {#each categories.filter((category) => !category.archivedAt || (editingTransaction && category.id === form.categoryId)) as category (category.id)}
-            <option value={category.id}
-              >{category.name}{category.archivedAt
-                ? ' (archived, retained)'
-                : ''}</option
-            >
-          {/each}
-        </select>
+          <Select.Trigger id="transaction-category" class="w-full">
+            {selectedCategory
+              ? `${selectedCategory.name}${selectedCategory.archivedAt ? ' (archived, retained)' : ''}`
+              : 'Uncategorized'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              <Select.Item value="" label="Uncategorized"
+                >Uncategorized</Select.Item
+              >
+              {#each availableCategories as category (category.id)}
+                <Select.Item
+                  value={category.id}
+                  label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
+                >
+                  {category.name}{category.archivedAt
+                    ? ' (archived, retained)'
+                    : ''}
+                </Select.Item>
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       <div class="flex flex-col gap-2">
         <Label for="description">Description</Label><Textarea

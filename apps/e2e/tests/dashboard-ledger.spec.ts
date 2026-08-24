@@ -37,6 +37,11 @@ function json(route: Route, body: unknown, status = 200) {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+async function chooseSelect(page: Page, label: string, option: string) {
+	await page.getByLabel(label, { exact: true }).click();
+	await page.getByRole('listbox').getByRole('option', { name: option }).click();
+}
+
 function emptyInsightsResponse(path: string, method: string): unknown | undefined {
 	if (method !== 'GET' || !path.startsWith('/api/workspaces/')) return undefined;
 	if (path.endsWith('/categories') || path.endsWith('/imports')) return [];
@@ -437,16 +442,15 @@ test('creates and selects a household workspace', async ({ page }) => {
 	});
 
 	await page.goto('/dashboard');
+	await page.getByRole('button', { name: 'Settings', exact: true }).click();
 	const creation = page
 		.getByText('Create a household', { exact: true })
-		.locator('..')
-		.locator('..');
+		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await creation.getByLabel('Name', { exact: true }).fill('Lovelace household');
 	await creation.getByLabel('Reporting currency', { exact: true }).fill('eur');
 	await creation.getByRole('button', { name: 'Create household', exact: true }).click();
 	const selector = page.getByLabel('Workspace', { exact: true });
-	await expect(selector).toHaveValue(householdId);
-	await expect(selector.locator('option:checked')).toHaveText('Lovelace household — Household');
+	await expect(selector).toContainText('Lovelace household — Household');
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 });
 
@@ -506,10 +510,9 @@ test('discards stale responses after rapid workspace switches', async ({ page })
 	});
 
 	await page.goto('/dashboard');
-	const selector = page.getByLabel('Workspace', { exact: true });
 	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
-	await selector.selectOption(secondWorkspaceId);
-	await selector.selectOption(workspaceId);
+	await chooseSelect(page, 'Workspace', 'Second workspace — Personal');
+	await chooseSelect(page, 'Workspace', 'Personal — Personal');
 	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
 	releaseSecond();
 	await expect.poll(() => delayedResponses).toBe(2);
@@ -580,7 +583,8 @@ test('renders a private incoming cross-workspace transfer without management con
 	});
 
 	await page.goto('/dashboard');
-	await page.getByLabel('Workspace', { exact: true }).selectOption(householdId);
+	await chooseSelect(page, 'Workspace', 'Shared home — Household');
+	await page.getByRole('button', { name: /Shared current account/ }).click();
 	const transfer = page
 		.getByText('Incoming transfer', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
@@ -598,7 +602,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Create account' }).click();
 	const accountDialog = page.getByRole('dialog');
 	await accountDialog.getByLabel('Name', { exact: true }).fill('Everyday account');
-	await accountDialog.getByLabel('Type', { exact: true }).selectOption('current');
+	await expect(accountDialog.getByLabel('Type', { exact: true })).toContainText('Current');
 	await expect(accountDialog.getByLabel('Currency', { exact: true })).toContainText('USD');
 	await accountDialog.getByLabel('Currency', { exact: true }).click();
 	const currencyOptions = page.getByRole('listbox').getByRole('option');
@@ -607,8 +611,10 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.keyboard.press('Escape');
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
-	await expect(page.getByText('Everyday account', { exact: true }).last()).toBeVisible();
-	await expect(page.getByText('100,00 USD', { exact: true }).last()).toBeVisible();
+	const accountNavigation = page.getByRole('button', { name: /Everyday account/ });
+	await expect(accountNavigation).toBeVisible();
+	await expect(accountNavigation).toContainText('100,00 USD');
+	await accountNavigation.click();
 	await page.getByRole('button', { name: 'Account history' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await expect(page.getByRole('dialog')).toContainText('description: "Rent" → "Rent corrected"');
@@ -625,7 +631,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(page.getByText('-25,00 USD', { exact: true }).last()).toBeVisible();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
-	await page.getByLabel('Kind').selectOption('income');
+	await chooseSelect(page, 'Kind', 'Income');
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Refund');
 	await submitDialog(page);
@@ -650,7 +656,8 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 
 	await page.getByRole('button', { name: 'Edit account' }).click();
 	await accountDialog.getByLabel('Name', { exact: true }).fill('Household account');
-	await accountDialog.getByLabel('Type', { exact: true }).selectOption('savings');
+	await accountDialog.getByLabel('Type', { exact: true }).click();
+	await page.getByRole('listbox').getByRole('option', { name: 'Savings', exact: true }).click();
 	await submitDialog(page);
 	await expect(page.getByText('Household account', { exact: true }).last()).toBeVisible();
 
@@ -950,15 +957,17 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	});
 
 	await page.goto('/dashboard');
+	await page.getByRole('button', { name: /Everyday account/ }).click();
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Weekly shop');
-	await page.getByLabel('Category', { exact: true }).selectOption(groceriesId);
+	await chooseSelect(page, 'Category', 'Groceries');
 	await submitDialog(page);
 	await expect(
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
 	).toBeVisible();
 
+	await page.getByRole('button', { name: 'Overview', exact: true }).click();
 	const summaryGroup = page.getByRole('button', { name: /Groceries · expense 25,00\sUSD/ });
 	await expect(summaryGroup).toBeVisible();
 	await summaryGroup.click();
@@ -966,6 +975,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25,00 USD', { exact: true })
 	).toBeVisible();
 
+	await page.getByRole('button', { name: 'CSV imports', exact: true }).click();
 	await page
 		.getByLabel('CSV file')
 		.setInputFiles({ name: 'august.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
@@ -978,8 +988,8 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await expect(page.getByLabel('Select row 4')).toBeDisabled();
 	await expect(page.getByLabel('Select row 3')).not.toBeChecked();
 	await page.getByLabel('Select row 3').check();
-	await expect(page.getByLabel('Category resolution row 2')).toHaveValue(groceriesId);
-	await expect(page.getByLabel('Category resolution row 5')).toHaveValue('blank');
+	await expect(page.getByLabel('Category resolution row 2')).toContainText('Match Groceries');
+	await expect(page.getByLabel('Category resolution row 5')).toContainText('Leave blank');
 	await page.getByRole('button', { name: 'Confirm selected rows' }).click();
 	await expect(page.getByText('Imported 3 transactions from august.csv.')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Import history' })).toBeVisible();
@@ -1155,9 +1165,10 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	});
 
 	await page.goto('/dashboard');
+	await page.getByRole('button', { name: /Checking/ }).click();
 	await page.getByRole('button', { name: 'New transfer' }).click();
-	await expect(page.getByLabel('Source account')).toHaveValue('checking');
-	await page.getByLabel('Destination account').selectOption('savings');
+	await expect(page.getByLabel('Source account')).toContainText('Checking (USD)');
+	await chooseSelect(page, 'Destination account', 'Savings (USD)');
 	await page.getByLabel('Transfer amount').fill('20.00');
 	await page.getByLabel('Note').fill('Move to savings');
 	await page.getByLabel('Fee amount').fill('1.00');
@@ -1184,6 +1195,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	await transfer.getByRole('button', { name: 'History' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await page.getByRole('button', { name: 'Close' }).click();
+	await page.getByRole('tab', { name: 'Reconciliation' }).click();
 	await page.getByRole('button', { name: 'Add balance check' }).click();
 	await page.getByLabel('Observed balance').fill('80.00');
 	await submitDialog(page);

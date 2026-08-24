@@ -1,6 +1,14 @@
 <script lang="ts">
   import type { Account, Transfer } from '@dukat/core/ledger'
-  import { Alert, Button, Dialog, Input, Label, Textarea } from '@dukat/ui'
+  import {
+    Alert,
+    Button,
+    Dialog,
+    Input,
+    Label,
+    Select,
+    Textarea,
+  } from '@dukat/ui'
   import { todayInWarsaw } from '$lib/date'
   import { formatMoney, minorToDecimal, parseAmount } from '$lib/money'
 
@@ -56,6 +64,18 @@
   let suggestionApplied = false
   let quoteInputKey = ''
   let quoteGeneration = 0
+  const accountLabel = (account: Account) =>
+    `${account.name} (${account.currency})${'workspaceLabel' in account ? ` — ${String(account.workspaceLabel)}` : ''}`
+  let activeSourceAccounts = $derived(
+    accounts.filter((account) => !account.archivedAt),
+  )
+  let destinationAccounts = $derived(transferDestinations(form.fromAccountId))
+  let sourceAccount = $derived(
+    accounts.find((account) => account.id === form.fromAccountId),
+  )
+  let destinationAccount = $derived(
+    destinationAccounts.find((account) => account.id === form.toAccountId),
+  )
 
   $effect(() => {
     const source = accounts.find((account) => account.id === form.fromAccountId)
@@ -124,7 +144,7 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content
+  <Dialog.Content class="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg"
     ><Dialog.Header
       ><Dialog.Title
         >{editingTransfer ? 'Edit transfer' : 'New transfer'}</Dialog.Title
@@ -140,20 +160,28 @@
           ></Alert.Root
         >{/if}
       <div class="flex flex-col gap-2">
-        <Label for="transfer-source">Source account</Label><select
-          id="transfer-source"
-          class="block h-9 w-full rounded-md border bg-transparent px-3"
+        <Label for="transfer-source">Source account</Label><Select.Root
+          type="single"
           bind:value={form.fromAccountId}
           disabled={!!editingTransfer}
-          onchange={() =>
-            (form.toAccountId =
-              transferDestinations(form.fromAccountId)[0]?.id ?? '')}
-          >{#each accounts.filter((item) => !item.archivedAt) as item (item.id)}<option
-              value={item.id}
-              >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
-                — {item.workspaceLabel}{/if}</option
-            >{/each}</select
+          onValueChange={(sourceId) =>
+            (form.toAccountId = transferDestinations(sourceId)[0]?.id ?? '')}
         >
+          <Select.Trigger id="transfer-source" class="w-full">
+            {sourceAccount
+              ? accountLabel(sourceAccount)
+              : 'Select source account'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each activeSourceAccounts as item (item.id)}
+                <Select.Item value={item.id} label={accountLabel(item)}>
+                  {accountLabel(item)}
+                </Select.Item>
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </div>
       {#if accounts.find((item) => item.id === form.fromAccountId)?.currency !== accounts.find((item) => item.id === form.toAccountId)?.currency}<div
           class="flex flex-col gap-2"
@@ -180,17 +208,24 @@
             >{/if}
         </div>{/if}
       <div class="flex flex-col gap-2">
-        <Label for="transfer-destination">Destination account</Label><select
-          id="transfer-destination"
-          class="block h-9 w-full rounded-md border bg-transparent px-3"
-          bind:value={form.toAccountId}
-          required
-          >{#each transferDestinations(form.fromAccountId) as item (item.id)}<option
-              value={item.id}
-              >{item.name} ({item.currency}){#if 'workspaceLabel' in item}
-                — {item.workspaceLabel}{/if}</option
-            >{/each}</select
-        >{#if transferDestinations(form.fromAccountId).length === 0}<p
+        <Label for="transfer-destination">Destination account</Label
+        ><Select.Root type="single" bind:value={form.toAccountId} required>
+          <Select.Trigger id="transfer-destination" class="w-full">
+            {destinationAccount
+              ? accountLabel(destinationAccount)
+              : 'Select destination account'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Group>
+              {#each destinationAccounts as item (item.id)}
+                <Select.Item value={item.id} label={accountLabel(item)}>
+                  {accountLabel(item)}
+                </Select.Item>
+              {/each}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
+        {#if destinationAccounts.length === 0}<p
             class="text-sm text-destructive"
           >
             No active destination is available.
