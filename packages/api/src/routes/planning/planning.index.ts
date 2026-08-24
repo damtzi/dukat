@@ -99,11 +99,11 @@ export const planningRouter = router
 				const accounts = await c.var.services.ledger.listAccounts(context);
 				if (!Array.isArray(accounts))
 					throw new Error('Account service returned an invalid response');
-				const forecasts = await Promise.all(
-					(accounts as Array<{ id: string }>).map((account) =>
-						service(c).accountForecast(context, account.id, q.includeTentative === 'true')
-					)
-				);
+				const forecasts = [];
+				for (const account of accounts as Array<{ id: string }>)
+					forecasts.push(
+						await service(c).accountForecast(context, account.id, q.includeTentative === 'true')
+					);
 				if (!c.var.services.exchangeRates)
 					return {
 						estimate: true,
