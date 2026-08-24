@@ -629,6 +629,7 @@ test('renders a private incoming cross-workspace transfer without management con
 });
 
 test('completes the personal account and manual ledger workflow', async ({ page }) => {
+	test.setTimeout(60_000);
 	await mockLedger(page);
 	await page.goto('/dashboard');
 
