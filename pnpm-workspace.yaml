@@ -15,7 +15,7 @@ catalog:
   eslint: ^10.2.1
   eslint-plugin-svelte: latest
   prettier: ^3.7.4
-  shadcn-svelte: latest
+  shadcn-svelte: ^1.5.0
   svelte: latest
   svelte-check: latest
   tailwind-variants: ^3.2.2

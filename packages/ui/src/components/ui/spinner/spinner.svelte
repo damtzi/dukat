@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Loader2Icon from '@lucide/svelte/icons/loader-2';
+	import SpinnerIcon from 'phosphor-svelte/lib/Spinner';
 	import { cn } from '#lib/utils.js';
 	import type { SVGAttributes } from 'svelte/elements';
 
@@ -15,7 +15,7 @@
 	}: SVGAttributes<SVGSVGElement> = $props();
 </script>
 
-<Loader2Icon
+<SpinnerIcon
 	{role}
 	name={name === null ? undefined : name}
 	color={color === null ? undefined : color}

@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@dukat/core": "workspace:*",
-    "@dukat/ui": "workspace:*"
+    "@dukat/ui": "workspace:*",
+    "phosphor-svelte": "^3.1.0"
   },
   "devDependencies": {
     "@dukat/eslint-config": "workspace:*",

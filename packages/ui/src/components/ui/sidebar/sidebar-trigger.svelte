@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
+	import SidebarIcon from 'phosphor-svelte/lib/Sidebar';
 	import { Button } from '#components/ui/button/index.js';
 	import { cn } from '#lib/utils.js';
 	import { useSidebar } from './context.svelte.js';
@@ -31,6 +31,6 @@
 	}}
 	{...restProps}
 >
-	<PanelLeftIcon />
+	<SidebarIcon />
 	<span class="sr-only">Toggle Sidebar</span>
 </Button>
