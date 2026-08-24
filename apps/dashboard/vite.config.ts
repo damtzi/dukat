@@ -4,4 +4,8 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
+  build: {
+    assetsInlineLimit: (filePath) =>
+      filePath.endsWith('.woff2') ? false : undefined,
+  },
 })
