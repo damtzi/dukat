@@ -79,6 +79,7 @@ async function mockRates(page: Page, options: { householdMember?: boolean } = {}
 		const body = request.postDataJSON?.() as Record<string, string> | null;
 		if (pathname === '/api/auth/get-session')
 			return json(route, { session: { id: 'proof-session' }, user: { id: 'proof-user' } });
+		if (pathname === '/api/favorites' && method === 'GET') return json(route, []);
 		if (pathname === '/api/workspaces' && method === 'GET')
 			return json(route, [
 				{

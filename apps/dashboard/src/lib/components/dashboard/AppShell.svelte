@@ -3,18 +3,23 @@
   import type { Snippet } from 'svelte'
   import AppSidebar from '$lib/components/dashboard/AppSidebar.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
+  import type { Favorite } from '$lib/favorites'
 
   let {
     workspaces,
+    favorites,
+    favoritesError,
     children,
   }: {
     workspaces: Workspace[]
+    favorites: Favorite[]
+    favoritesError: string
     children: Snippet
   } = $props()
 </script>
 
 <Sidebar.Provider style="--sidebar-width: 17rem;">
-  <AppSidebar {workspaces} />
+  <AppSidebar {workspaces} {favorites} {favoritesError} />
   <Sidebar.Inset class="min-w-0 overflow-hidden">
     <header
       class="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur"

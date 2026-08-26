@@ -21,6 +21,12 @@ type Transaction = {
 	trashedAt: string | null;
 };
 
+type Favorite = {
+	id: string;
+	path: string;
+	label: string;
+};
+
 const workspaceId = 'workspace-e2e';
 const accountId = 'account-e2e';
 const key = expect.stringMatching(/^\d+-[0-9a-f-]{36}$/);
@@ -71,10 +77,12 @@ function emptyInsightsResponse(path: string, method: string): unknown | undefine
 	return undefined;
 }
 
-async function mockLedger(page: Page) {
+async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 	let account: Account | undefined;
 	const transactions: Transaction[] = [];
 	let transactionNumber = 0;
+	let favoriteNumber = 0;
+	let favorites = [...initialFavorites];
 
 	const balance = () =>
 		BigInt(account?.openingBalanceMinor ?? '0') +
@@ -102,6 +110,21 @@ async function mockLedger(page: Page) {
 
 		if (pathname === '/api/auth/get-session' && method === 'GET') {
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		}
+		if (pathname === '/api/favorites' && method === 'GET') return json(route, favorites);
+		if (pathname === '/api/favorites' && method === 'POST') {
+			const favorite = {
+				id: `favorite-${++favoriteNumber}`,
+				path: body!.path as string,
+				label: body!.label as string
+			};
+			favorites = [...favorites, favorite];
+			return json(route, favorite, 201);
+		}
+		const favoriteId = pathname.match(/^\/api\/favorites\/(.+)$/)?.[1];
+		if (favoriteId && method === 'DELETE') {
+			favorites = favorites.filter(({ id }) => id !== favoriteId);
+			return route.fulfill({ status: 204 });
 		}
 		if (pathname === '/api/workspaces' && method === 'GET') {
 			return json(route, [personalWorkspace]);
@@ -370,6 +393,9 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 				? json(route, [personalWorkspace])
 				: json(route, { message: 'Unauthorized' }, 401);
 		}
+		if (pathname === '/api/favorites') {
+			return authenticated ? json(route, []) : json(route, { message: 'Unauthorized' }, 401);
+		}
 		if (pathname === '/api/auth/sign-up/email') {
 			expect(body).toEqual({
 				name: 'Ada Lovelace',
@@ -425,6 +451,7 @@ test('protects workspace routes and routes authenticated users from root', async
 		json(route, authenticated ? { session: { id: 'session-e2e' } } : null)
 	);
 	await page.route('**/api/workspaces', (route) => json(route, []));
+	await page.route('**/api/favorites', (route) => json(route, []));
 	await page.goto(`/workspaces/${workspaceId}`);
 	await expect(page).toHaveURL('/sign-in');
 	authenticated = true;
@@ -437,6 +464,7 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 		json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } })
 	);
 	await page.route('**/api/workspaces', (route) => json(route, [personalWorkspace]));
+	await page.route('**/api/favorites', (route) => json(route, []));
 
 	await page.goto('/home');
 	await openSidebar(page);
@@ -456,6 +484,47 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page).toHaveURL('/home');
 });
 
+test('pins workspace pages in global Favorites', async ({ page }) => {
+	await mockLedger(page);
+	await page.goto(`/workspaces/${workspaceId}`);
+	await openSidebar(page);
+	await page.getByRole('button', { name: 'Add Personal · Categories to favorites' }).click();
+
+	const favorites = page.getByLabel('Favorites', { exact: true });
+	await expect(favorites.getByRole('link', { name: 'Personal · Categories' })).toBeVisible();
+	await clickSidebarLink(page, 'Personal · Categories');
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/categories`);
+
+	await clickSidebarLink(page, 'Home');
+	await openSidebar(page);
+	await expect(favorites.getByRole('link', { name: 'Personal · Categories' })).toBeVisible();
+	await favorites
+		.getByRole('button', { name: 'Remove Personal · Categories from favorites' })
+		.click();
+	await expect(favorites).toHaveCount(0);
+});
+
+test('keeps the shell recoverable for a stored route-like favorite path', async ({ page }) => {
+	await mockLedger(page, [
+		{
+			id: 'favorite-route-id',
+			path: '/workspaces/[workspaceId]',
+			label: 'Old favorite'
+		}
+	]);
+	await page.goto('/home');
+
+	await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+	await openSidebar(page);
+	const favorites = page.getByLabel('Favorites', { exact: true });
+	await expect(favorites.getByRole('link', { name: 'Old favorite' })).toHaveAttribute(
+		'href',
+		'/workspaces/[workspaceId]'
+	);
+	await favorites.getByRole('button', { name: 'Remove Old favorite from favorites' }).click();
+	await expect(favorites).toHaveCount(0);
+});
+
 test('creates and selects a household workspace', async ({ page }) => {
 	const householdId = 'household-e2e';
 	const household = {
@@ -473,6 +542,7 @@ test('creates and selects a household workspace', async ({ page }) => {
 		const method = request.method();
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces' && method === 'GET')
 			return json(route, created ? [personalWorkspace, household] : [personalWorkspace]);
 		if (path === '/api/workspaces' && method === 'POST') {
@@ -533,6 +603,7 @@ test('returns home after leaving or deleting shared workspaces', async ({ page }
 		const method = request.method();
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces')
 			return json(route, [
 				personalWorkspace,
@@ -618,6 +689,7 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 		const method = request.method();
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces') return json(route, workspaces);
 		if (path === `/api/workspaces/${secondWorkspaceId}/accounts`)
 			return json(route, [secondAccount]);
@@ -696,6 +768,7 @@ test('keeps account URLs authoritative through stale loads and deletion', async 
 		const method = request.method();
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (path === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
 			accountListRequests++;
@@ -805,6 +878,7 @@ test('renders a private incoming cross-workspace transfer without management con
 		const path = new URL(request.url()).pathname;
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && request.method() === 'GET') return json(route, []);
 		if (path === '/api/workspaces')
 			return json(route, [
 				personalWorkspace,
@@ -1052,6 +1126,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		const body = request.postDataJSON?.() as Record<string, any>;
 		if (pathname === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (pathname === '/api/favorites' && method === 'GET') return json(route, []);
 		if (pathname === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (pathname.endsWith('/categories') && method === 'GET') return json(route, categories);
 		if (pathname.endsWith('/accounts') && method === 'GET') return json(route, [account]);
@@ -1335,6 +1410,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 		const body = request.postDataJSON?.() as Record<string, unknown>;
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (path === `/api/workspaces/${workspaceId}/accounts`)
 			return json(route, accounts.map(accountResponse));

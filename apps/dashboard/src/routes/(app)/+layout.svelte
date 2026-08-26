@@ -37,7 +37,11 @@
     </Alert.Root>
   </main>
 {:else}
-  <AppShell workspaces={data.workspaces}>
+  <AppShell
+    workspaces={data.workspaces}
+    favorites={data.favorites}
+    favoritesError={data.favoritesError}
+  >
     {@render children()}
   </AppShell>
 {/if}
