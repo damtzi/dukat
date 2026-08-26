@@ -1,15 +1,17 @@
 import type {
   Account,
   BalanceCheck,
-  Correction,
   HistoryEntry,
   Transaction,
   Transfer,
 } from '@dukat/core/ledger'
-import type { Category } from '@dukat/core/csv-import'
 import { minorToDecimal, parseAmount } from '$lib/money'
 import { todayInWarsaw } from '$lib/date'
-import { api, type PickerAccount } from './workspace-controller.svelte'
+import {
+  api,
+  type PickerAccount,
+  type WorkspaceRouteData,
+} from './workspace-controller.svelte'
 
 export type LedgerCallbacks = {
   // Workspace identity stays outside this controller. Reading it at request
@@ -18,6 +20,7 @@ export type LedgerCallbacks = {
   getPickerAccounts: () => PickerAccount[]
   loadPickerAccounts: () => Promise<void>
   reloadAccounts: () => Promise<void>
+  getRouteData: () => WorkspaceRouteData
 }
 
 export function createLedgerController(callbacks: LedgerCallbacks) {
@@ -68,14 +71,9 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     { code: 'ZAR', name: 'South African rand' },
   ] as const
 
-  let accounts = $state.raw<Account[]>([])
-  let categories = $state.raw<Category[]>([])
-  let insightsVersion = $state(0)
-  let selectedId = $state('')
-  let transactions = $state.raw<Transaction[]>([])
-  let transfers = $state.raw<Transfer[]>([])
-  let balanceChecks = $state.raw<BalanceCheck[]>([])
-  let corrections = $state.raw<Correction[]>([])
+  let accounts = $derived(callbacks.getRouteData().accounts)
+  let categories = $derived(callbacks.getRouteData().categories)
+  let selectedId = $derived(callbacks.getRouteData().selectedAccountId)
   let message = $state('')
   let accountError = $state('')
   let transactionError = $state('')
@@ -97,10 +95,10 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   // retry create a second server-side record even if the first request worked.
   let actionIntent: { name: string; key: string; body?: string } | null = null
   type RetainedIntent = { path: string; body: string }
-  let correctionIntent = $state.raw<
-    (RetainedIntent & { checkId: string }) | null
-  >(null)
-  let feeIntent = $state.raw<RetainedIntent | null>(null)
+  let correctionIntents = $state.raw<
+    Record<string, RetainedIntent & { checkId: string }>
+  >({})
+  let feeIntents = $state.raw<Record<string, RetainedIntent>>({})
   let historyOpen = $state(false)
   let historyTitle = $state('')
   let history = $state.raw<HistoryEntry[]>([])
@@ -128,57 +126,34 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     feeDescription: '',
   })
   let checkForm = $state({ amount: '', date: todayInWarsaw() })
-  let ledgerLoadGeneration = 0
-
   const selected = () => accounts.find((account) => account.id === selectedId)
   const key = () => `${Date.now()}-${crypto.randomUUID()}`
 
-  async function loadLedger(
-    targetWorkspaceId = callbacks.getWorkspaceId(),
-    targetAccountId = selectedId,
-  ): Promise<void> {
-    // Account and workspace checks alone do not catch A→B→A switches. The
-    // generation also proves this is the newest ledger request.
-    const generation = ++ledgerLoadGeneration
-    if (!targetAccountId) {
-      if (
-        generation !== ledgerLoadGeneration ||
-        callbacks.getWorkspaceId() !== targetWorkspaceId
-      )
-        return
-      transactions = []
-      transfers = []
-      balanceChecks = []
-      corrections = []
-      return
-    }
-    const base = `/workspaces/${targetWorkspaceId}/accounts/${targetAccountId}`
-    const [
-      loadedTransactions,
-      loadedTransfers,
-      loadedChecks,
-      loadedCorrections,
-    ] = await Promise.all([
-      api(`${base}/transactions?includeTrashed=true`),
-      api(`${base}/transfers?includeTrashed=true`),
-      api(`${base}/balance-checks?includeTrashed=true`),
-      api(`${base}/corrections?includeTrashed=true`),
-    ])
-    if (
-      generation !== ledgerLoadGeneration ||
-      callbacks.getWorkspaceId() !== targetWorkspaceId ||
-      selectedId !== targetAccountId
-    )
-      return
-    transactions = loadedTransactions
-    transfers = loadedTransfers
-    balanceChecks = loadedChecks
-    corrections = loadedCorrections
+  function activeCorrectionIntent(workspaceId = callbacks.getWorkspaceId()) {
+    return correctionIntents[workspaceId] ?? null
   }
-  async function choose(id: string) {
-    selectedId = id
-    message = ''
-    await loadLedger(callbacks.getWorkspaceId(), id)
+  function setActiveCorrectionIntent(
+    value: (RetainedIntent & { checkId: string }) | null,
+    workspaceId = callbacks.getWorkspaceId(),
+  ) {
+    if (!workspaceId) return
+    const next = { ...correctionIntents }
+    if (value) next[workspaceId] = value
+    else delete next[workspaceId]
+    correctionIntents = next
+  }
+  function activeFeeIntent(workspaceId = callbacks.getWorkspaceId()) {
+    return feeIntents[workspaceId] ?? null
+  }
+  function setActiveFeeIntent(
+    value: RetainedIntent | null,
+    workspaceId = callbacks.getWorkspaceId(),
+  ) {
+    if (!workspaceId) return
+    const next = { ...feeIntents }
+    if (value) next[workspaceId] = value
+    else delete next[workspaceId]
+    feeIntents = next
   }
   function newAccount() {
     editingAccount = null
@@ -231,10 +206,11 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   }
   async function accountAction(action: 'archive' | 'restore' | 'delete') {
     const account = selected()
-    if (!account) return
+    if (!account) return false
     if (action === 'delete' && !confirm(`Permanently delete ${account.name}?`))
-      return
-    if (pending) return
+      return false
+    if (pending) return false
+    const workspaceId = callbacks.getWorkspaceId()
     pending = true
     const name = `${account.id}:${action}`
     if (actionIntent?.name !== name) actionIntent = { name, key: key() }
@@ -243,7 +219,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         let impact: ArchiveImpact | null = null
         if (action === 'archive') {
           impact = (await api(
-            `/workspaces/${callbacks.getWorkspaceId()}/accounts/${account.id}/archive-impact`,
+            `/workspaces/${workspaceId}/accounts/${account.id}/archive-impact`,
           )) as ArchiveImpact
           const details = impact.plans.length
             ? `\n\nAffected plans:\n${impact.plans
@@ -253,7 +229,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
                 )
                 .join('\n')}`
             : '\n\nNo plans are affected.'
-          if (!confirm(`Archive ${account.name}?${details}`)) return
+          if (!confirm(`Archive ${account.name}?${details}`)) return false
         }
 
         // Keep the approved impact token and exact body together. Rebuilding a
@@ -264,19 +240,21 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
           ...(impact ? { impactToken: impact.impactToken } : {}),
         })
       }
-      await api(
-        `/workspaces/${callbacks.getWorkspaceId()}/accounts/${account.id}/${action}`,
-        {
-          method: 'POST',
-          body: actionIntent.body,
-        },
-      )
+      await api(`/workspaces/${workspaceId}/accounts/${account.id}/${action}`, {
+        method: 'POST',
+        body: actionIntent.body,
+      })
       actionIntent = null
-      await callbacks.reloadAccounts()
+      if (action !== 'delete' && callbacks.getWorkspaceId() === workspaceId)
+        await callbacks.reloadAccounts()
+      return true
     } catch (error) {
-      message = (error as Error).message
-      if (message.toLowerCase().includes('archive impact changed'))
-        actionIntent = null
+      if (callbacks.getWorkspaceId() === workspaceId) {
+        message = (error as Error).message
+        if (message.toLowerCase().includes('archive impact changed'))
+          actionIntent = null
+      }
+      return false
     } finally {
       pending = false
     }
@@ -374,7 +352,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   }
   async function newTransfer() {
     const source = selected()
-    if (!source || feeIntent) return
+    if (!source || activeFeeIntent()) return
     const sourceWorkspaceId = callbacks.getWorkspaceId()
     try {
       await callbacks.loadPickerAccounts()
@@ -404,7 +382,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     }
     transferOpen = true
   }
-  async function editTransfer(item: Transfer) {
+  async function editTransfer(item: Transfer, isCurrent: () => boolean) {
     const sourceWorkspaceId = callbacks.getWorkspaceId()
     const sourceAccountId = selectedId
     try {
@@ -419,7 +397,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     if (
       callbacks.getWorkspaceId() !== sourceWorkspaceId ||
       selectedId !== sourceAccountId ||
-      !transfers.some((transfer) => transfer.id === item.id)
+      !isCurrent()
     )
       return
     editingTransfer = item
@@ -469,6 +447,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       .getPickerAccounts()
       .find((item) => item.id === transferForm.toAccountId)
     if (!source || !destination || pending) return
+    const sourceWorkspaceId = callbacks.getWorkspaceId()
     transactionError = ''
     pending = true
     let transferAcknowledged = false
@@ -495,50 +474,65 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
           ? { version: editingTransfer.version }
           : { fromAccountId: source.id }),
       }
-      if (!editingTransfer && transferForm.fee.trim() && !feeIntent) {
+      if (
+        !editingTransfer &&
+        transferForm.fee.trim() &&
+        !activeFeeIntent(sourceWorkspaceId)
+      ) {
         // The fee is a separate transaction, not part of the transfer's atomic
         // write. Retain its exact request so a partial success can be retried.
-        feeIntent = {
-          path: `/workspaces/${callbacks.getWorkspaceId()}/accounts/${source.id}/transactions`,
-          body: JSON.stringify({
-            kind: 'expense',
-            amountMinor: parseAmount(transferForm.fee, source.currency),
-            date: transferForm.date,
-            description: transferForm.feeDescription.trim() || 'Transfer fee',
-            idempotencyKey: key(),
-          }),
-        }
+        setActiveFeeIntent(
+          {
+            path: `/workspaces/${sourceWorkspaceId}/accounts/${source.id}/transactions`,
+            body: JSON.stringify({
+              kind: 'expense',
+              amountMinor: parseAmount(transferForm.fee, source.currency),
+              date: transferForm.date,
+              description: transferForm.feeDescription.trim() || 'Transfer fee',
+              idempotencyKey: key(),
+            }),
+          },
+          sourceWorkspaceId,
+        )
       }
       await api(
-        `/workspaces/${callbacks.getWorkspaceId()}/transfers${editingTransfer ? `/${editingTransfer.id}` : ''}`,
+        `/workspaces/${sourceWorkspaceId}/transfers${editingTransfer ? `/${editingTransfer.id}` : ''}`,
         {
           method: editingTransfer ? 'PUT' : 'POST',
           body: JSON.stringify(body),
         },
       )
       transferAcknowledged = true
-      if (!editingTransfer && feeIntent) {
+      const retainedFee = activeFeeIntent(sourceWorkspaceId)
+      if (!editingTransfer && retainedFee) {
         try {
-          await api(feeIntent.path, { method: 'POST', body: feeIntent.body })
-          feeIntent = null
+          await api(retainedFee.path, {
+            method: 'POST',
+            body: retainedFee.body,
+          })
+          setActiveFeeIntent(null, sourceWorkspaceId)
         } catch (error) {
           transferOpen = false
-          message = `Transfer succeeded, but the separate fee expense failed: ${(error as Error).message}`
-          try {
-            await callbacks.reloadAccounts()
-          } catch (refreshError) {
-            message += ` Dashboard refresh also failed: ${(refreshError as Error).message}`
+          if (callbacks.getWorkspaceId() === sourceWorkspaceId) {
+            message = `Transfer succeeded, but the separate fee expense failed: ${(error as Error).message}`
+            try {
+              await callbacks.reloadAccounts()
+            } catch (refreshError) {
+              message += ` Dashboard refresh also failed: ${(refreshError as Error).message}`
+            }
           }
           return
         }
       }
       transferOpen = false
-      await callbacks.reloadAccounts()
+      if (callbacks.getWorkspaceId() === sourceWorkspaceId)
+        await callbacks.reloadAccounts()
     } catch (error) {
       // Once the transfer is acknowledged, only the retained fee may need a
       // retry. Before acknowledgement, retaining it could create an orphan fee.
-      if (!transferAcknowledged) feeIntent = null
-      transactionError = (error as Error).message
+      if (!transferAcknowledged) setActiveFeeIntent(null, sourceWorkspaceId)
+      if (callbacks.getWorkspaceId() === sourceWorkspaceId)
+        transactionError = (error as Error).message
     } finally {
       pending = false
     }
@@ -624,60 +618,71 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   async function createCorrection(item: BalanceCheck) {
     const difference = item.differenceMinor
     if (!difference || difference === '0' || pending) return
+    const workspaceId = callbacks.getWorkspaceId()
 
     // Preserve both amount and idempotency key after a lost response. The
     // balance difference may change after a refresh, but this retry must not.
-    if (correctionIntent?.checkId !== item.id) {
-      correctionIntent = {
-        checkId: item.id,
-        path: `/workspaces/${callbacks.getWorkspaceId()}/corrections`,
-        body: JSON.stringify({
-          accountId: item.accountId,
-          date: item.date,
-          amountMinor: difference,
-          description: `Balance correction for check on ${item.date}`,
-          idempotencyKey: key(),
-        }),
-      }
+    if (activeCorrectionIntent(workspaceId)?.checkId !== item.id) {
+      setActiveCorrectionIntent(
+        {
+          checkId: item.id,
+          path: `/workspaces/${workspaceId}/corrections`,
+          body: JSON.stringify({
+            accountId: item.accountId,
+            date: item.date,
+            amountMinor: difference,
+            description: `Balance correction for check on ${item.date}`,
+            idempotencyKey: key(),
+          }),
+        },
+        workspaceId,
+      )
     }
-    await retryCorrection()
+    await retryCorrection(workspaceId)
   }
-  async function retryCorrection() {
-    if (!correctionIntent || pending) return
+  async function retryCorrection(workspaceId = callbacks.getWorkspaceId()) {
+    const retainedCorrection = activeCorrectionIntent(workspaceId)
+    if (!retainedCorrection || pending) return
     pending = true
     try {
-      await api(correctionIntent.path, {
+      await api(retainedCorrection.path, {
         method: 'POST',
-        body: correctionIntent.body,
+        body: retainedCorrection.body,
       })
-      correctionIntent = null
-      await callbacks.reloadAccounts()
+      setActiveCorrectionIntent(null, workspaceId)
+      if (callbacks.getWorkspaceId() === workspaceId)
+        await callbacks.reloadAccounts()
     } catch (error) {
-      message = (error as Error).message
+      if (callbacks.getWorkspaceId() === workspaceId)
+        message = (error as Error).message
     } finally {
       pending = false
     }
   }
-  async function retryFee() {
-    if (!feeIntent || pending) return
+  async function retryFee(workspaceId = callbacks.getWorkspaceId()) {
+    const retainedFee = activeFeeIntent(workspaceId)
+    if (!retainedFee || pending) return
     pending = true
     try {
-      await api(feeIntent.path, { method: 'POST', body: feeIntent.body })
-      feeIntent = null
-      message = ''
-      await callbacks.reloadAccounts()
+      await api(retainedFee.path, { method: 'POST', body: retainedFee.body })
+      setActiveFeeIntent(null, workspaceId)
+      if (callbacks.getWorkspaceId() === workspaceId) {
+        message = ''
+        await callbacks.reloadAccounts()
+      }
     } catch (error) {
-      message = `The separate fee expense may not have been acknowledged: ${(error as Error).message}`
+      if (callbacks.getWorkspaceId() === workspaceId)
+        message = `The separate fee expense may not have been acknowledged: ${(error as Error).message}`
     } finally {
       pending = false
     }
   }
   function abandonCorrection() {
-    correctionIntent = null
+    setActiveCorrectionIntent(null)
     message = ''
   }
   function abandonFee() {
-    feeIntent = null
+    setActiveFeeIntent(null)
     message = ''
   }
   async function showHistory(
@@ -721,89 +726,18 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     )
   }
 
-  function invalidateLedgerRequests() {
-    ledgerLoadGeneration++
-  }
-  function resetWorkspaceData() {
-    accounts = []
-    categories = []
-    selectedId = ''
-    transactions = []
-    transfers = []
-    balanceChecks = []
-    corrections = []
-    insightsVersion++
-  }
-  function applyAccounts(
-    loadedAccounts: Account[],
-    loadedCategories: Category[],
-  ) {
-    accounts = loadedAccounts
-    categories = loadedCategories
-  }
-  function chooseAccount(loadedAccounts: Account[]) {
-    selectedId = loadedAccounts.some((account) => account.id === selectedId)
-      ? selectedId
-      : (loadedAccounts.find((account) => !account.archivedAt)?.id ??
-        loadedAccounts[0]?.id ??
-        '')
-    return selectedId
-  }
-  function incrementInsightsVersion() {
-    insightsVersion++
-  }
-
-  // Accessors keep rune-backed values reactive and also let dialog bindings
-  // write through to this closure without exposing its internal variables.
+  // Accessors expose route data and let dialog bindings write through to their
+  // local UI state.
   return {
     currencies,
     get accounts() {
       return accounts
     },
-    set accounts(value) {
-      accounts = value
-    },
     get categories() {
       return categories
     },
-    set categories(value) {
-      categories = value
-    },
-    get insightsVersion() {
-      return insightsVersion
-    },
-    set insightsVersion(value) {
-      insightsVersion = value
-    },
     get selectedId() {
       return selectedId
-    },
-    set selectedId(value) {
-      selectedId = value
-    },
-    get transactions() {
-      return transactions
-    },
-    set transactions(value) {
-      transactions = value
-    },
-    get transfers() {
-      return transfers
-    },
-    set transfers(value) {
-      transfers = value
-    },
-    get balanceChecks() {
-      return balanceChecks
-    },
-    set balanceChecks(value) {
-      balanceChecks = value
-    },
-    get corrections() {
-      return corrections
-    },
-    set corrections(value) {
-      corrections = value
     },
     get message() {
       return message
@@ -878,16 +812,16 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       pending = value
     },
     get correctionIntent() {
-      return correctionIntent
+      return activeCorrectionIntent()
     },
     set correctionIntent(value) {
-      correctionIntent = value
+      setActiveCorrectionIntent(value)
     },
     get feeIntent() {
-      return feeIntent
+      return activeFeeIntent()
     },
     set feeIntent(value) {
-      feeIntent = value
+      setActiveFeeIntent(value)
     },
     get historyOpen() {
       return historyOpen
@@ -932,13 +866,6 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       checkForm = value
     },
     selected,
-    invalidateLedgerRequests,
-    resetWorkspaceData,
-    applyAccounts,
-    chooseAccount,
-    incrementInsightsVersion,
-    loadLedger,
-    choose,
     newAccount,
     editAccount,
     saveAccount,

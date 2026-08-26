@@ -17,22 +17,30 @@
     workspaceId,
     account,
     api,
+    plans,
+    forecast,
+    includeTentative,
+    loadError,
+    onrefresh,
+    onincludeTentative,
   }: {
     workspaceId: string
     account: PlanningAccount
     api: PlanningApi
+    plans: Plan[]
+    forecast: Forecast | null
+    includeTentative: boolean
+    loadError: string
+    onrefresh: () => Promise<void>
+    onincludeTentative: (include: boolean) => void
   } = $props()
 
-  let plans: Plan[] = $state([])
-  let forecast: Forecast | null = $state(null)
-  let includeTentative = $state(false)
-  let loading = $state(true)
   let pending = $state(false)
   let error = $state('')
   let editing: Plan | null = $state(null)
   let formGeneration = $state(0)
   let intentKeys: Record<string, string> = $state({})
-  let generation = 0
+  let displayedError = $derived(error || loadError)
 
   const accountPlans = () =>
     plans.filter((plan) => plan.accountId === account.id)
@@ -50,40 +58,13 @@
     intentKeys = remaining
   }
 
-  async function load(
-    targetWorkspaceId = workspaceId,
-    targetAccountId = account.id,
-    tentative = includeTentative,
-  ) {
-    const mine = ++generation
-    loading = true
-    error = ''
-    try {
-      const [loadedPlans, loadedForecast] = await Promise.all([
-        api(`/workspaces/${targetWorkspaceId}/plans`) as Promise<Plan[]>,
-        api(
-          `/workspaces/${targetWorkspaceId}/forecast?accountId=${encodeURIComponent(targetAccountId)}&includeTentative=${tentative}`,
-        ) as Promise<Forecast[] | Forecast>,
-      ])
-      if (mine !== generation) return
-      plans = loadedPlans
-      forecast = Array.isArray(loadedForecast)
-        ? (loadedForecast.find((item) => item.id === targetAccountId) ?? null)
-        : loadedForecast
-    } catch (cause) {
-      if (mine === generation) error = (cause as Error).message
-    } finally {
-      if (mine === generation) loading = false
-    }
-  }
-
   async function run(action: () => Promise<unknown>) {
     if (pending) return
     pending = true
     error = ''
     try {
       await action()
-      await load()
+      await onrefresh()
     } catch (cause) {
       error = (cause as Error).message
     } finally {
@@ -206,10 +187,6 @@
     editing = plan
     formGeneration++
   }
-
-  $effect(() => {
-    void load(workspaceId, account.id, includeTentative)
-  })
 </script>
 
 <section class="mt-6 flex flex-col gap-6" aria-labelledby="planning-title">
@@ -219,9 +196,9 @@
       Plan upcoming money for {account.name} in {account.currency}.
     </p>
   </div>
-  {#if error}<Alert.Root variant="destructive"
+  {#if displayedError}<Alert.Root variant="destructive"
       ><Alert.Title>Planning action failed</Alert.Title><Alert.Description
-        >{error}</Alert.Description
+        >{displayedError}</Alert.Description
       ></Alert.Root
     >{/if}
   {#if account.archivedAt}<p class="text-sm text-muted-foreground">
@@ -237,7 +214,7 @@
   <PlanList
     plans={accountPlans()}
     currency={account.currency}
-    {loading}
+    loading={false}
     pending={pending || !!account.archivedAt}
     onedit={edit}
     onaction={planAction}
@@ -247,11 +224,11 @@
     {forecast}
     {plans}
     currency={account.currency}
-    {loading}
+    loading={false}
     {pending}
     readonly={!!account.archivedAt}
     {includeTentative}
-    onincludeTentative={(include) => (includeTentative = include)}
+    {onincludeTentative}
     onaction={occurrenceAction}
     onsuggestions={suggestions}
     onmatch={match}

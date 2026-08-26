@@ -1,16 +1,6 @@
-<script lang="ts" module>
-  export type DashboardView =
-    | 'overview'
-    | 'account'
-    | 'categories'
-    | 'imports'
-    | 'rates'
-    | 'settings'
-
-  export type AccountTab = 'activity' | 'planning' | 'reconciliation'
-</script>
-
 <script lang="ts">
+  import { resolve } from '$app/paths'
+  import { page } from '$app/state'
   import type { Account } from '@dukat/core/ledger'
   import { Badge, Label, Select, Sidebar } from '@dukat/ui'
   import ArrowLeftRightIcon from 'phosphor-svelte/lib/ArrowsLeftRight'
@@ -30,24 +20,14 @@
     workspaceId,
     accounts,
     selectedId,
-    activeView,
-    accountTab,
     onworkspace,
-    onnavigate,
-    onaccounttab,
-    onselectaccount,
     onnewaccount,
   }: {
     workspaces: Workspace[]
     workspaceId: string
     accounts: Account[]
     selectedId: string
-    activeView: DashboardView
-    accountTab: AccountTab
     onworkspace: (id: string) => void
-    onnavigate: (view: DashboardView) => void
-    onaccounttab: (tab: AccountTab) => void
-    onselectaccount: (id: string) => void
     onnewaccount: () => void
   } = $props()
 
@@ -61,42 +41,33 @@
   function closeMobile() {
     if (sidebar.isMobile) sidebar.setOpenMobile(false)
   }
-
-  function navigate(view: DashboardView) {
-    onnavigate(view)
-    closeMobile()
-  }
-
-  function openAccountTab(tab: AccountTab) {
-    onaccounttab(tab)
-    closeMobile()
-  }
-
-  function selectAccount(id: string) {
-    onselectaccount(id)
-    closeMobile()
-  }
 </script>
 
 <Sidebar.Root variant="inset" collapsible="icon">
   <Sidebar.Header>
     <Sidebar.Menu>
       <Sidebar.MenuItem>
-        <Sidebar.MenuButton
-          size="lg"
-          tooltipContent="Overview"
-          onclick={() => navigate('overview')}
-        >
-          <span
-            class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
-            >D</span
-          >
-          <span class="flex min-w-0 flex-col leading-tight">
-            <span class="truncate font-semibold">Dukat</span>
-            <span class="truncate text-xs text-sidebar-foreground/70"
-              >Finance workspace</span
+        <Sidebar.MenuButton size="lg" tooltipContent="Overview">
+          {#snippet child({ props })}
+            <a
+              {...props}
+              href={resolve('/(app)/workspaces/[workspaceId]', {
+                workspaceId,
+              })}
+              onclick={closeMobile}
             >
-          </span>
+              <span
+                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
+                >D</span
+              >
+              <span class="flex min-w-0 flex-col leading-tight">
+                <span class="truncate font-semibold">Dukat</span>
+                <span class="truncate text-xs text-sidebar-foreground/70"
+                  >Finance workspace</span
+                >
+              </span>
+            </a>
+          {/snippet}
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
     </Sidebar.Menu>
@@ -141,34 +112,79 @@
         <Sidebar.Menu>
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
-              isActive={activeView === 'overview'}
+              isActive={page.route.id === '/(app)/workspaces/[workspaceId]'}
               tooltipContent="Overview"
-              onclick={() => navigate('overview')}
             >
-              <LayoutDashboardIcon />
-              <span>Overview</span>
+              {#snippet child({ props })}
+                <a
+                  {...props}
+                  href={resolve('/(app)/workspaces/[workspaceId]', {
+                    workspaceId,
+                  })}
+                  aria-current={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]'
+                    ? 'page'
+                    : undefined}
+                  onclick={closeMobile}
+                >
+                  <LayoutDashboardIcon />
+                  <span>Overview</span>
+                </a>
+              {/snippet}
             </Sidebar.MenuButton>
           </Sidebar.MenuItem>
-          <Sidebar.MenuItem>
-            <Sidebar.MenuButton
-              isActive={activeView === 'account' && accountTab === 'activity'}
-              tooltipContent="Transactions"
-              onclick={() => openAccountTab('activity')}
-            >
-              <ReceiptTextIcon />
-              <span>Transactions</span>
-            </Sidebar.MenuButton>
-          </Sidebar.MenuItem>
-          <Sidebar.MenuItem>
-            <Sidebar.MenuButton
-              isActive={activeView === 'account' && accountTab === 'planning'}
-              tooltipContent="Planning"
-              onclick={() => openAccountTab('planning')}
-            >
-              <CalendarClockIcon />
-              <span>Planning</span>
-            </Sidebar.MenuButton>
-          </Sidebar.MenuItem>
+          {#if selectedId}
+            <Sidebar.MenuItem>
+              <Sidebar.MenuButton
+                isActive={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity'}
+                tooltipContent="Transactions"
+              >
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={resolve(
+                      '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
+                      { workspaceId, accountId: selectedId },
+                    )}
+                    aria-current={page.route.id ===
+                    '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity'
+                      ? 'page'
+                      : undefined}
+                    onclick={closeMobile}
+                  >
+                    <ReceiptTextIcon />
+                    <span>Transactions</span>
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+            </Sidebar.MenuItem>
+            <Sidebar.MenuItem>
+              <Sidebar.MenuButton
+                isActive={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'}
+                tooltipContent="Planning"
+              >
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={resolve(
+                      '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning',
+                      { workspaceId, accountId: selectedId },
+                    )}
+                    aria-current={page.route.id ===
+                    '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'
+                      ? 'page'
+                      : undefined}
+                    onclick={closeMobile}
+                  >
+                    <CalendarClockIcon />
+                    <span>Planning</span>
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+            </Sidebar.MenuItem>
+          {/if}
         </Sidebar.Menu>
       </Sidebar.GroupContent>
     </Sidebar.Group>
@@ -190,23 +206,39 @@
             <Sidebar.MenuItem>
               <Sidebar.MenuButton
                 class="h-auto py-2.5"
-                isActive={activeView === 'account' && selectedId === account.id}
+                isActive={page.params.accountId === account.id}
                 tooltipContent={`${account.name} · ${formatMoney(account.balanceMinor, account.currency)}`}
-                onclick={() => selectAccount(account.id)}
               >
-                <WalletCardsIcon />
-                <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="flex min-w-0 items-center gap-2">
-                    <span class="truncate font-medium">{account.name}</span>
-                    {#if account.archivedAt}
-                      <Badge variant="secondary">Archived</Badge>
-                    {/if}
-                  </span>
-                  <span
-                    class="truncate text-xs font-normal text-sidebar-foreground/70"
-                    >{formatMoney(account.balanceMinor, account.currency)}</span
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={resolve(
+                      '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
+                      { workspaceId, accountId: account.id },
+                    )}
+                    aria-current={page.params.accountId === account.id
+                      ? 'page'
+                      : undefined}
+                    onclick={closeMobile}
                   >
-                </span>
+                    <WalletCardsIcon />
+                    <span class="flex min-w-0 flex-1 flex-col">
+                      <span class="flex min-w-0 items-center gap-2">
+                        <span class="truncate font-medium">{account.name}</span>
+                        {#if account.archivedAt}
+                          <Badge variant="secondary">Archived</Badge>
+                        {/if}
+                      </span>
+                      <span
+                        class="truncate text-xs font-normal text-sidebar-foreground/70"
+                        >{formatMoney(
+                          account.balanceMinor,
+                          account.currency,
+                        )}</span
+                      >
+                    </span>
+                  </a>
+                {/snippet}
               </Sidebar.MenuButton>
             </Sidebar.MenuItem>
           {/each}
@@ -220,32 +252,74 @@
         <Sidebar.Menu>
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
-              isActive={activeView === 'categories'}
+              isActive={page.route.id ===
+                '/(app)/workspaces/[workspaceId]/categories'}
               tooltipContent="Categories"
-              onclick={() => navigate('categories')}
             >
-              <TagIcon />
-              <span>Categories</span>
+              {#snippet child({ props })}
+                <a
+                  {...props}
+                  href={resolve('/(app)/workspaces/[workspaceId]/categories', {
+                    workspaceId,
+                  })}
+                  aria-current={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]/categories'
+                    ? 'page'
+                    : undefined}
+                  onclick={closeMobile}
+                >
+                  <TagIcon />
+                  <span>Categories</span>
+                </a>
+              {/snippet}
             </Sidebar.MenuButton>
           </Sidebar.MenuItem>
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
-              isActive={activeView === 'imports'}
+              isActive={page.route.id ===
+                '/(app)/workspaces/[workspaceId]/imports'}
               tooltipContent="CSV imports"
-              onclick={() => navigate('imports')}
             >
-              <FileUpIcon />
-              <span>CSV imports</span>
+              {#snippet child({ props })}
+                <a
+                  {...props}
+                  href={resolve('/(app)/workspaces/[workspaceId]/imports', {
+                    workspaceId,
+                  })}
+                  aria-current={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]/imports'
+                    ? 'page'
+                    : undefined}
+                  onclick={closeMobile}
+                >
+                  <FileUpIcon />
+                  <span>CSV imports</span>
+                </a>
+              {/snippet}
             </Sidebar.MenuButton>
           </Sidebar.MenuItem>
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
-              isActive={activeView === 'rates'}
+              isActive={page.route.id ===
+                '/(app)/workspaces/[workspaceId]/rates'}
               tooltipContent="Exchange rates"
-              onclick={() => navigate('rates')}
             >
-              <ArrowLeftRightIcon />
-              <span>Exchange rates</span>
+              {#snippet child({ props })}
+                <a
+                  {...props}
+                  href={resolve('/(app)/workspaces/[workspaceId]/rates', {
+                    workspaceId,
+                  })}
+                  aria-current={page.route.id ===
+                  '/(app)/workspaces/[workspaceId]/rates'
+                    ? 'page'
+                    : undefined}
+                  onclick={closeMobile}
+                >
+                  <ArrowLeftRightIcon />
+                  <span>Exchange rates</span>
+                </a>
+              {/snippet}
             </Sidebar.MenuButton>
           </Sidebar.MenuItem>
         </Sidebar.Menu>
@@ -257,12 +331,25 @@
     <Sidebar.Menu>
       <Sidebar.MenuItem>
         <Sidebar.MenuButton
-          isActive={activeView === 'settings'}
+          isActive={page.route.id === '/(app)/workspaces/[workspaceId]/manage'}
           tooltipContent="Settings"
-          onclick={() => navigate('settings')}
         >
-          <SettingsIcon />
-          <span>Settings</span>
+          {#snippet child({ props })}
+            <a
+              {...props}
+              href={resolve('/(app)/workspaces/[workspaceId]/manage', {
+                workspaceId,
+              })}
+              aria-current={page.route.id ===
+              '/(app)/workspaces/[workspaceId]/manage'
+                ? 'page'
+                : undefined}
+              onclick={closeMobile}
+            >
+              <SettingsIcon />
+              <span>Settings</span>
+            </a>
+          {/snippet}
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
     </Sidebar.Menu>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { onMount } from 'svelte'
 
   type Workspace = {
     id: string
@@ -18,7 +19,12 @@
   let {
     workspace,
     onchanged,
-  }: { workspace: Workspace; onchanged: () => Promise<void> } = $props()
+    onremoved,
+  }: {
+    workspace: Workspace
+    onchanged: () => Promise<void>
+    onremoved: () => Promise<void>
+  } = $props()
   let members: Member[] = $state([])
   let invitations: Invitation[] = $state([])
   let confirmation = $state('')
@@ -54,12 +60,17 @@
   async function act(
     path: string,
     body: object = { version: workspace.version },
+    removesWorkspace = false,
   ) {
     if (pending) return
     pending = true
     error = ''
     try {
       await request(path, { method: 'POST', body: JSON.stringify(body) })
+      if (removesWorkspace) {
+        await onremoved()
+        return true
+      }
       await onchanged()
       await load()
       return true
@@ -105,10 +116,7 @@
     )
       form.reset()
   }
-  $effect(() => {
-    const id = workspace.id
-    if (id) void load()
-  })
+  onMount(load)
 </script>
 
 <Card.Root class="mb-6">
@@ -161,8 +169,12 @@
         class="mt-3"
         variant="outline"
         disabled={pending}
-        onclick={() => act(`/workspaces/${workspace.id}/leave`)}
-        >Leave household</Button
+        onclick={() =>
+          act(
+            `/workspaces/${workspace.id}/leave`,
+            { version: workspace.version },
+            true,
+          )}>Leave household</Button
       >
     </section>
     {#if workspace.role === 'owner'}
@@ -229,12 +241,16 @@
         onsubmit={(event) => {
           event.preventDefault()
           const data = new FormData(event.currentTarget as HTMLFormElement)
-          void act(`/workspaces/${workspace.id}/delete`, {
-            version: workspace.version,
-            password: String(data.get('password') ?? ''),
-            confirmation,
-            idempotencyKey: crypto.randomUUID(),
-          })
+          void act(
+            `/workspaces/${workspace.id}/delete`,
+            {
+              version: workspace.version,
+              password: String(data.get('password') ?? ''),
+              confirmation,
+              idempotencyKey: crypto.randomUUID(),
+            },
+            true,
+          )
         }}
       >
         <h3 class="font-semibold">Delete household</h3>

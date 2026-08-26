@@ -1,23 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
+  import { resolve } from '$app/paths'
   import { Button, Alert } from '@dukat/ui'
   import { getBrowserSession } from '$lib/session'
 
-  let state: 'loading' | 'error' = 'loading'
-  let message = ''
+  let routeState = $state<'loading' | 'error'>('loading')
+  let message = $state('')
 
   async function routeFromSession() {
-    state = 'loading'
+    routeState = 'loading'
     const result = await getBrowserSession()
     if (result.status === 'error') {
       message = result.message
-      state = 'error'
+      routeState = 'error'
       return
     }
-    await goto(result.status === 'authenticated' ? '/dashboard' : '/sign-in', {
-      replaceState: true,
-    })
+    const destination = result.status === 'authenticated' ? '/home' : '/sign-in'
+    await goto(resolve(destination), { replaceState: true })
   }
 
   onMount(routeFromSession)
@@ -25,7 +25,7 @@
 
 <svelte:head><title>Dukat</title></svelte:head>
 <main class="mx-auto flex min-h-screen max-w-md items-center p-4">
-  {#if state === 'loading'}
+  {#if routeState === 'loading'}
     <p aria-live="polite">Loading…</p>
   {:else}
     <Alert.Root variant="destructive" role="alert">

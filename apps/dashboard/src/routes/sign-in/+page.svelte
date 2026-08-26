@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
+  import { resolve } from '$app/paths'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
   import { getBrowserSession } from '$lib/session'
 
@@ -10,7 +11,7 @@
   onMount(async () => {
     const result = await getBrowserSession()
     if (result.status === 'authenticated')
-      await goto('/dashboard', { replaceState: true })
+      await goto(resolve('/home'), { replaceState: true })
   })
 
   async function submit(event: SubmitEvent) {
@@ -33,7 +34,7 @@
         throw new Error(
           body.message || `Authentication failed (${response.status}).`,
         )
-      await goto('/dashboard')
+      await goto(resolve('/home'))
     } catch (cause) {
       error = (cause as Error).message
     } finally {
