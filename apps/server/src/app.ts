@@ -1,6 +1,7 @@
 import { createAPI } from '@dukat/api';
 import { auth, emailSender } from '@dukat/auth';
 import { db, financialDb } from '@dukat/db';
+import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
@@ -111,6 +112,7 @@ exchangeRateTimer.unref();
 void refreshRates();
 const api = createAPI({
 	auth,
+	favorites: createFavoriteRepository(db),
 	ledger: ledgerRepository,
 	planning: createPlanningRepository(financialDb),
 	exchangeRates: exchangeRateRepository,

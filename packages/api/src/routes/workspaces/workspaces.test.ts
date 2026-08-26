@@ -81,6 +81,7 @@ function createServices(
 			}
 		},
 		async readiness() {},
+		favorites: {} as APIServices['favorites'],
 		ledger: {} as APIServices['ledger'],
 		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],

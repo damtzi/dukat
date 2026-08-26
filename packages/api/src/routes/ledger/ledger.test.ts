@@ -28,6 +28,7 @@ function createServices(): APIServices {
 			}
 		},
 		async readiness() {},
+		favorites: {} as APIServices['favorites'],
 		ledger: {
 			async listAccounts() {
 				return [];

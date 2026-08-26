@@ -16,6 +16,7 @@ import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
+import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -90,6 +91,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		const app = createServerApp({
 			api: createAPI({
 				auth,
+				favorites: createFavoriteRepository(source.db),
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
 				planning: createPlanningRepository(sourceFinancial.db),
@@ -341,6 +343,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		const productionApp = createServerApp({
 			api: createAPI({
 				auth: productionAuth,
+				favorites: createFavoriteRepository(source.db),
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
 				planning: createPlanningRepository(sourceFinancial.db),

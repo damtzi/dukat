@@ -25,6 +25,18 @@ export interface AuthenticationService {
 	};
 }
 
+export interface FavoriteSummary {
+	id: string;
+	path: string;
+	label: string;
+}
+
+export interface FavoriteService {
+	list(userId: string): Promise<FavoriteSummary[]>;
+	add(userId: string, input: { path: string; label: string }): Promise<FavoriteSummary>;
+	remove(userId: string, favoriteId: string): Promise<void>;
+}
+
 export interface WorkspaceSummary {
 	id: string;
 	name: string;
@@ -184,6 +196,7 @@ export interface LedgerService {
 
 export interface APIServices {
 	auth: AuthenticationService;
+	favorites: FavoriteService;
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
 	planning: PlanningRepository;
