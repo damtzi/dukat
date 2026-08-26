@@ -56,18 +56,12 @@ async function openSidebar(page: Page) {
 	await expect(sidebar).toHaveAttribute('data-state', 'expanded');
 }
 
-async function clickSidebarButton(page: Page, name: string | RegExp) {
+async function clickSidebarLink(page: Page, name: string | RegExp) {
 	await openSidebar(page);
-	const button = page.getByRole('button', { name });
+	const link = page.getByRole('link', { name });
 	const mobileSidebarOpen = await page.getByRole('dialog', { name: 'Sidebar' }).isVisible();
-	await button.click();
+	await link.click();
 	if (mobileSidebarOpen) await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
-}
-
-async function chooseWorkspace(page: Page, option: string) {
-	await openSidebar(page);
-	await chooseSelect(page, 'Workspace', option);
-	await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
 }
 
 function emptyInsightsResponse(path: string, method: string): unknown | undefined {
@@ -131,7 +125,14 @@ async function mockLedger(page: Page) {
 			return json(route, []);
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/forecast` && method === 'GET') {
-			return json(route, []);
+			return json(route, {
+				estimate: true,
+				reportingCurrency: 'USD',
+				missingRate: false,
+				startingBalanceMinor: balance().toString(),
+				endingBalanceMinor: balance().toString(),
+				occurrences: []
+			});
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/balances/converted` && method === 'GET') {
 			return json(route, {
@@ -414,21 +415,21 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 	await page.getByLabel('Email').fill('ada@example.com');
 	await page.getByLabel('Password').fill('correct-horse-battery-staple');
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-	await expect(page).toHaveURL('/dashboard');
-	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
+	await expect(page).toHaveURL('/home');
+	await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible();
 });
 
-test('protects dashboard and routes authenticated users from root', async ({ page }) => {
+test('protects workspace routes and routes authenticated users from root', async ({ page }) => {
 	let authenticated = false;
 	await page.route('**/api/auth/get-session', (route) =>
 		json(route, authenticated ? { session: { id: 'session-e2e' } } : null)
 	);
 	await page.route('**/api/workspaces', (route) => json(route, []));
-	await page.goto('/dashboard');
+	await page.goto(`/workspaces/${workspaceId}`);
 	await expect(page).toHaveURL('/sign-in');
 	authenticated = true;
 	await page.goto('/');
-	await expect(page).toHaveURL('/dashboard');
+	await expect(page).toHaveURL('/home');
 });
 
 test('creates and selects a household workspace', async ({ page }) => {
@@ -469,21 +470,95 @@ test('creates and selects a household workspace', async ({ page }) => {
 		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
 	});
 
-	await page.goto('/dashboard');
-	await clickSidebarButton(page, 'Settings');
-	const creation = page
-		.getByText('Create a household', { exact: true })
-		.locator('xpath=ancestor::*[@data-slot="card"][1]');
-	await creation.getByLabel('Name', { exact: true }).fill('Lovelace household');
-	await creation.getByLabel('Reporting currency', { exact: true }).fill('eur');
-	await creation.getByRole('button', { name: 'Create household', exact: true }).click();
+	await page.goto('/home');
+	await page.getByRole('link', { name: 'New shared workspace' }).click();
+	await page.getByLabel('Name', { exact: true }).fill('Lovelace household');
+	await page.getByLabel('Reporting currency', { exact: true }).fill('eur');
+	await page.getByRole('button', { name: 'Create workspace', exact: true }).click();
+	await expect(page).toHaveURL(`/workspaces/${householdId}/manage`);
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
-	await openSidebar(page);
-	const selector = page.getByLabel('Workspace', { exact: true });
-	await expect(selector).toContainText('Lovelace household — Household');
+	await page.goto('/home');
+	await expect(page.getByText('Lovelace household', { exact: true })).toBeVisible();
 });
 
-test('discards stale responses after rapid workspace switches', async ({ page }) => {
+test('returns home after leaving or deleting shared workspaces', async ({ page }) => {
+	const householdId = 'household-leave-e2e';
+	const ownedHouseholdId = 'household-delete-e2e';
+	const household = {
+		id: householdId,
+		name: 'Shared household',
+		type: 'household' as const,
+		reportingCurrency: 'USD',
+		version: 1,
+		role: 'member' as const
+	};
+	const ownedHousehold = {
+		...household,
+		id: ownedHouseholdId,
+		name: 'Owned household',
+		role: 'owner' as const
+	};
+	let joined = true;
+	let owned = true;
+	let memberLoadsAfterLeave = 0;
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		const method = request.method();
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces')
+			return json(route, [
+				personalWorkspace,
+				...(joined ? [household] : []),
+				...(owned ? [ownedHousehold] : [])
+			]);
+		if (path.endsWith('/accounts') || path.endsWith('/categories')) return json(route, []);
+		if (
+			path === `/api/workspaces/${householdId}/members` ||
+			path === `/api/workspaces/${ownedHouseholdId}/members`
+		) {
+			if ((!joined && path.includes(householdId)) || (!owned && path.includes(ownedHouseholdId)))
+				memberLoadsAfterLeave++;
+			return json(route, [
+				{
+					userId: 'user-e2e',
+					name: 'Ada',
+					email: 'ada@example.com',
+					role: path.includes(ownedHouseholdId) ? 'owner' : 'member'
+				}
+			]);
+		}
+		if (path === `/api/workspaces/${ownedHouseholdId}/invitations`) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/leave` && method === 'POST') {
+			joined = false;
+			return json(route, null);
+		}
+		if (path === `/api/workspaces/${ownedHouseholdId}/delete` && method === 'POST') {
+			owned = false;
+			return json(route, null);
+		}
+		const insights = emptyInsightsResponse(path, method);
+		if (insights !== undefined) return json(route, insights);
+		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
+	});
+
+	await page.goto(`/workspaces/${householdId}/manage`);
+	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Leave household' }).click();
+	await expect(page).toHaveURL('/home');
+	await expect(page.getByText('Shared household', { exact: true })).toHaveCount(0);
+
+	await page.goto(`/workspaces/${ownedHouseholdId}/manage`);
+	await page.getByLabel('Type “Owned household”').fill('Owned household');
+	await page.getByLabel('Current password').fill('correct-horse-battery-staple');
+	await page.getByRole('button', { name: 'Delete household' }).click();
+	await expect(page).toHaveURL('/home');
+	await expect(page.getByText('Owned household', { exact: true })).toHaveCount(0);
+	expect(memberLoadsAfterLeave).toBe(0);
+});
+
+test('keeps workspace selection in the URL across browser navigation', async ({ page }) => {
 	const secondWorkspaceId = 'workspace-second';
 	const workspaces = [
 		personalWorkspace,
@@ -509,12 +584,6 @@ test('discards stale responses after rapid workspace switches', async ({ page })
 	});
 	const firstAccount = accountFor('account-first', 'First account');
 	const secondAccount = accountFor('account-second', 'Second account');
-	let releaseSecond!: () => void;
-	const secondResponseGate = new Promise<void>((resolve) => {
-		releaseSecond = resolve;
-	});
-	let delayedResponses = 0;
-
 	await page.route('**/api/**', async (route) => {
 		const request = route.request();
 		const path = new URL(request.url()).pathname;
@@ -522,33 +591,157 @@ test('discards stale responses after rapid workspace switches', async ({ page })
 		if (path === '/api/auth/get-session')
 			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
 		if (path === '/api/workspaces') return json(route, workspaces);
-		if (
-			path === `/api/workspaces/${secondWorkspaceId}/accounts` ||
-			path === `/api/workspaces/${secondWorkspaceId}/categories`
-		) {
-			await secondResponseGate;
-			delayedResponses++;
-			return json(route, path.endsWith('/accounts') ? [secondAccount] : []);
-		}
+		if (path === `/api/workspaces/${secondWorkspaceId}/accounts`)
+			return json(route, [secondAccount]);
+		if (path === `/api/workspaces/${secondWorkspaceId}/categories`) return json(route, []);
 		if (path === `/api/workspaces/${workspaceId}/accounts`) return json(route, [firstAccount]);
 		if (path === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
-		if (path.includes('/accounts/account-first/') && method === 'GET') return json(route, []);
+		if (path.includes('/accounts/') && method === 'GET') return json(route, []);
 		const insights = emptyInsightsResponse(path, method);
 		if (insights !== undefined) return json(route, insights);
 		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
 	});
 
-	await page.goto('/dashboard');
+	await page.goto(`/workspaces/${workspaceId}`);
 	await openSidebar(page);
-	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
-	await chooseWorkspace(page, 'Second workspace — Personal');
-	await chooseWorkspace(page, 'Personal — Personal');
+	await expect(page.getByRole('link', { name: /First account/ })).toBeVisible();
+	await page.goto(`/workspaces/${secondWorkspaceId}`);
+	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
 	await openSidebar(page);
-	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
-	releaseSecond();
-	await expect.poll(() => delayedResponses).toBe(2);
-	await expect(page.getByRole('button', { name: /First account/ })).toBeVisible();
-	await expect(page.getByRole('button', { name: /Second account/ })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: /Second account/ })).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}`);
+	await openSidebar(page);
+	await expect(page.getByRole('link', { name: /First account/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Second account/ })).toHaveCount(0);
+	await page.locator('[data-slot="sidebar-group-action"]').click();
+	await expect(page.getByLabel('Opening balance').filter({ visible: true })).toBeVisible();
+	await page.goForward();
+	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
+	await expect(page.getByLabel('Opening balance').filter({ visible: true })).toHaveCount(0);
+});
+
+test('keeps account URLs authoritative through stale loads and deletion', async ({ page }) => {
+	const firstAccountId = 'account-first';
+	const secondAccountId = 'account-second';
+	const accountFor = (id: string, name: string): Account & Record<string, unknown> => ({
+		id,
+		name,
+		type: 'current',
+		currency: 'USD',
+		openingBalanceMinor: '0',
+		balanceMinor: '0',
+		negativeBalance: false,
+		version: 1,
+		archivedAt: null,
+		canDelete: true,
+		canArchive: true,
+		canRestore: false
+	});
+	let accounts = [
+		accountFor(firstAccountId, 'First account'),
+		accountFor(secondAccountId, 'Second account')
+	];
+	let delaySecondAccount = false;
+	let invalidLedgerRequests = 0;
+	let accountListRequests = 0;
+	let signalSecondRequest!: () => void;
+	let releaseSecondRequest!: () => void;
+	const secondRequestStarted = new Promise<void>((resolve) => {
+		signalSecondRequest = resolve;
+	});
+	const secondRequestRelease = new Promise<void>((resolve) => {
+		releaseSecondRequest = resolve;
+	});
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		const method = request.method();
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces') return json(route, [personalWorkspace]);
+		if (path === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
+			accountListRequests++;
+			return json(route, accounts);
+		}
+		if (path === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
+		if (path.includes('/account-missing/')) {
+			invalidLedgerRequests++;
+			return json(route, { message: 'Account missing.' }, 404);
+		}
+		if (
+			path === `/api/workspaces/${workspaceId}/accounts/${secondAccountId}/transactions` &&
+			delaySecondAccount
+		) {
+			signalSecondRequest();
+			await secondRequestRelease;
+			return json(route, { message: 'Obsolete account failure.' }, 500);
+		}
+		if (path.endsWith('/transactions') && method === 'GET') {
+			const first = path.includes(`/${firstAccountId}/`);
+			return json(route, [
+				{
+					id: first ? 'transaction-first' : 'transaction-second',
+					kind: 'income',
+					amountMinor: '100',
+					date: '2026-08-01',
+					description: first ? 'First account transaction' : 'Second account transaction',
+					version: 1,
+					trashedAt: null
+				}
+			]);
+		}
+		if (
+			method === 'GET' &&
+			['transfers', 'balance-checks', 'corrections'].some((entity) => path.endsWith(`/${entity}`))
+		)
+			return json(route, []);
+		if (
+			path === `/api/workspaces/${workspaceId}/accounts/${secondAccountId}/delete` &&
+			method === 'POST'
+		) {
+			accounts = accounts.filter(({ id }) => id !== secondAccountId);
+			return json(route, null);
+		}
+		const insights = emptyInsightsResponse(path, method);
+		if (insights !== undefined) return json(route, insights);
+		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
+	});
+
+	await page.goto(`/workspaces/${workspaceId}/accounts/${secondAccountId}/activity`);
+	await expect(page.getByRole('heading', { name: 'Second account', level: 1 })).toBeVisible();
+	expect(accountListRequests).toBe(1);
+	await expect(
+		page.getByText('Second account transaction', { exact: true }).filter({ visible: true }).first()
+	).toBeVisible();
+	await clickSidebarLink(page, /First account/);
+	await expect(
+		page.getByText('First account transaction', { exact: true }).filter({ visible: true }).first()
+	).toBeVisible();
+
+	delaySecondAccount = true;
+	await clickSidebarLink(page, /Second account/);
+	await secondRequestStarted;
+	await clickSidebarLink(page, /First account/);
+	releaseSecondRequest();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts/${firstAccountId}/activity`);
+	await expect(
+		page.getByText('First account transaction', { exact: true }).filter({ visible: true }).first()
+	).toBeVisible();
+	await expect(page.getByText('Workspace unavailable', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('Account activity unavailable', { exact: true })).toHaveCount(0);
+
+	await page.goto(`/workspaces/${workspaceId}/accounts/account-missing/activity`);
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts`);
+	expect(invalidLedgerRequests).toBe(0);
+
+	delaySecondAccount = false;
+	await page.goto(`/workspaces/${workspaceId}/accounts/${secondAccountId}/activity`);
+	page.once('dialog', (dialog) => dialog.accept());
+	await page.getByRole('button', { name: 'Delete permanently' }).click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts`);
+	await expect(page.getByText('Second account', { exact: true })).toHaveCount(0);
 });
 
 test('renders a private incoming cross-workspace transfer without management controls', async ({
@@ -613,12 +806,11 @@ test('renders a private incoming cross-workspace transfer without management con
 		return json(route, { message: `Unexpected mocked request: ${request.method()} ${path}` }, 500);
 	});
 
-	await page.goto('/dashboard');
-	await chooseWorkspace(page, 'Shared home — Household');
+	await page.goto(`/workspaces/${householdId}`);
 	await expect(
 		page.getByText('Shared current account', { exact: true }).filter({ visible: true }).last()
 	).toBeVisible();
-	await clickSidebarButton(page, /Shared current account/);
+	await clickSidebarLink(page, /Shared current account/);
 	const transfer = page
 		.getByText('Incoming transfer', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
@@ -631,7 +823,7 @@ test('renders a private incoming cross-workspace transfer without management con
 test('completes the personal account and manual ledger workflow', async ({ page }) => {
 	test.setTimeout(60_000);
 	await mockLedger(page);
-	await page.goto('/dashboard');
+	await page.goto(`/workspaces/${workspaceId}`);
 
 	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Create account' }).click();
@@ -647,7 +839,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
 	await openSidebar(page);
-	const accountNavigation = page.getByRole('button', { name: /Everyday account/ });
+	const accountNavigation = page.getByRole('link', { name: /Everyday account/ });
 	await expect(accountNavigation).toBeVisible();
 	await expect(accountNavigation).toContainText('100,00 USD');
 	await accountNavigation.click();
@@ -708,7 +900,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Archive account' }).click();
 	await openSidebar(page);
 	await expect(page.getByText('Archived', { exact: true })).toBeVisible();
-	await clickSidebarButton(page, /Household account/);
+	await clickSidebarLink(page, /Household account/);
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Trash' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeHidden();
@@ -994,8 +1186,8 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
 	});
 
-	await page.goto('/dashboard');
-	await clickSidebarButton(page, /Everyday account/);
+	await page.goto(`/workspaces/${workspaceId}`);
+	await clickSidebarLink(page, /Everyday account/);
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Weekly shop');
@@ -1005,7 +1197,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
 	).toBeVisible();
 
-	await clickSidebarButton(page, 'Overview');
+	await clickSidebarLink(page, 'Overview');
 	const summaryGroup = page.getByRole('button', { name: /Groceries · expense 25,00\sUSD/ });
 	await expect(summaryGroup).toBeVisible();
 	await summaryGroup.click();
@@ -1013,7 +1205,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25,00 USD', { exact: true })
 	).toBeVisible();
 
-	await clickSidebarButton(page, 'CSV imports');
+	await clickSidebarLink(page, 'CSV imports');
 	await page
 		.getByLabel('CSV file')
 		.setInputFiles({ name: 'august.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
@@ -1049,7 +1241,9 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await page.getByRole('button', { name: 'Trash batch' }).click();
 	await expect(page.getByText('Trashed 3 imported transactions.')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Trash batch' })).toHaveCount(0);
-	expect(ledgerReads).toBeGreaterThan(readsBeforeTrash);
+	expect(ledgerReads).toBe(readsBeforeTrash);
+	await clickSidebarLink(page, /Everyday account/);
+	await expect.poll(() => ledgerReads).toBeGreaterThan(readsBeforeTrash);
 });
 
 test('transfers with a separate fee and explicitly reconciles a balance', async ({ page }) => {
@@ -1202,8 +1396,8 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
 	});
 
-	await page.goto('/dashboard');
-	await clickSidebarButton(page, /Checking/);
+	await page.goto(`/workspaces/${workspaceId}`);
+	await clickSidebarLink(page, /Checking/);
 	await page.getByRole('button', { name: 'New transfer' }).click();
 	await expect(page.getByLabel('Source account')).toContainText('Checking (USD)');
 	await chooseSelect(page, 'Destination account', 'Savings (USD)');
@@ -1233,7 +1427,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	await transfer.getByRole('button', { name: 'History' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await page.getByRole('button', { name: 'Close' }).click();
-	await page.getByRole('tab', { name: 'Reconciliation' }).click();
+	await page.getByRole('link', { name: 'Reconciliation' }).click();
 	await page.getByRole('button', { name: 'Add balance check' }).click();
 	await page.getByLabel('Observed balance').fill('80.00');
 	await submitDialog(page);

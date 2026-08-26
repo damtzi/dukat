@@ -218,12 +218,12 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	});
 	const page = await context.newPage();
 	const state = await mockRates(page);
-	await page.goto('/dashboard');
-	await expect(page.getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute(
+	await page.goto(`/workspaces/${workspaceId}`);
+	await expect(page.getByRole('link', { name: 'Overview', exact: true })).toHaveAttribute(
 		'data-active',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Transactions', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Transactions', exact: true })).toHaveAttribute(
 		'data-active',
 		'false'
 	);
@@ -238,7 +238,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		fullPage: true
 	});
 
-	await page.getByRole('button', { name: 'Exchange rates', exact: true }).click();
+	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
 	await page.getByLabel('Currency', { exact: true }).fill('CHF');
 	await page.getByLabel('Rate to PLN').fill('4.5');
 	await page.getByLabel('Effective date').fill('2026-08-01');
@@ -252,7 +252,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		fullPage: true
 	});
 
-	const euroAccount = page.getByRole('button', { name: /Euro wallet/ });
+	const euroAccount = page.getByRole('link', { name: /Euro wallet/ });
 	await euroAccount.click();
 	await expect(euroAccount).toHaveAttribute('data-active', 'true');
 	await expect(page.getByRole('heading', { name: 'Euro wallet', level: 1 })).toBeVisible();
@@ -300,12 +300,12 @@ test('manual rates remain available to a household member on a phone', async ({
 }, testInfo) => {
 	test.skip(testInfo.project.name !== 'phone-chromium');
 	await mockRates(page, { householdMember: true });
-	await page.goto('/dashboard');
+	await page.goto(`/workspaces/${workspaceId}`);
 	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-	await page.getByRole('button', { name: 'Exchange rates', exact: true }).click();
+	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
 	await expect(page.getByText('Manual exchange rates', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-	await page.getByRole('button', { name: 'Settings', exact: true }).click();
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.screenshot({
 		path: '../../.amp/in/artifacts/exchange-rates-member-mobile-proof.png',
