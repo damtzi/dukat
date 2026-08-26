@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
+  import { workspacesDataDependency } from '$lib/api'
   import {
     api,
     type Workspace,
@@ -30,6 +31,7 @@
         resolve('/(app)/workspaces/[workspaceId]/manage', {
           workspaceId: workspace.id,
         }),
+        { invalidate: [workspacesDataDependency] },
       )
     } catch (error) {
       message = (error as Error).message
@@ -41,14 +43,9 @@
 
 <svelte:head><title>New shared workspace · Dukat</title></svelte:head>
 
-<main
-  class="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-4 md:p-8"
->
+<div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
   <header>
-    <Button href={resolve('/home')} variant="link">Back to home</Button>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight">
-      New shared workspace
-    </h1>
+    <h1 class="text-3xl font-semibold tracking-tight">New shared workspace</h1>
     <p class="mt-1 text-muted-foreground">
       Create a financial space that you can share with household members.
     </p>
@@ -99,4 +96,4 @@
       </form>
     </Card.Content>
   </Card.Root>
-</main>
+</div>

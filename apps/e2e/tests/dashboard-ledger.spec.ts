@@ -432,6 +432,30 @@ test('protects workspace routes and routes authenticated users from root', async
 	await expect(page).toHaveURL('/home');
 });
 
+test('keeps global navigation available outside a workspace', async ({ page }) => {
+	await page.route('**/api/auth/get-session', (route) =>
+		json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } })
+	);
+	await page.route('**/api/workspaces', (route) => json(route, [personalWorkspace]));
+
+	await page.goto('/home');
+	await openSidebar(page);
+	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Create shared workspace' })).toBeVisible();
+	const results = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+		.analyze();
+	expect(results.violations).toEqual([]);
+	await clickSidebarLink(page, 'Settings');
+	await expect(page).toHaveURL('/settings');
+	await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+	await clickSidebarLink(page, 'Profile');
+	await expect(page).toHaveURL('/profile');
+	await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
+	await clickSidebarLink(page, 'Home');
+	await expect(page).toHaveURL('/home');
+});
+
 test('creates and selects a household workspace', async ({ page }) => {
 	const householdId = 'household-e2e';
 	const household = {
@@ -478,7 +502,9 @@ test('creates and selects a household workspace', async ({ page }) => {
 	await expect(page).toHaveURL(`/workspaces/${householdId}/manage`);
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.goto('/home');
-	await expect(page.getByText('Lovelace household', { exact: true })).toBeVisible();
+	await expect(
+		page.getByLabel('Shared', { exact: true }).getByText('Lovelace household', { exact: true })
+	).toBeVisible();
 });
 
 test('returns home after leaving or deleting shared workspaces', async ({ page }) => {
@@ -565,7 +591,9 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 		{
 			...personalWorkspace,
 			id: secondWorkspaceId,
-			name: 'Second workspace'
+			name: 'Second workspace',
+			type: 'household' as const,
+			role: 'member' as const
 		}
 	];
 	const accountFor = (id: string, name: string): Account & Record<string, unknown> => ({
@@ -604,8 +632,11 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 
 	await page.goto(`/workspaces/${workspaceId}`);
 	await openSidebar(page);
+	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Second workspace', exact: true })).toBeVisible();
+	await expect(page.getByRole('combobox', { name: 'Workspace' })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: /First account/ })).toBeVisible();
-	await page.goto(`/workspaces/${secondWorkspaceId}`);
+	await clickSidebarLink(page, 'Second workspace');
 	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
 	await openSidebar(page);
 	await expect(page.getByRole('link', { name: /Second account/ })).toBeVisible();
@@ -614,7 +645,12 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 	await openSidebar(page);
 	await expect(page.getByRole('link', { name: /First account/ })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Second account/ })).toHaveCount(0);
-	await page.locator('[data-slot="sidebar-group-action"]').click();
+	const mobileSidebar = page.getByRole('dialog', { name: 'Sidebar' });
+	if (await mobileSidebar.isVisible()) {
+		await page.keyboard.press('Control+b');
+		await expect(mobileSidebar).toBeHidden();
+	}
+	await page.getByRole('button', { name: 'Add account' }).click();
 	await expect(page.getByLabel('Opening balance').filter({ visible: true })).toBeVisible();
 	await page.goForward();
 	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
@@ -899,7 +935,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Archive account' }).click();
 	await openSidebar(page);
-	await expect(page.getByText('Archived', { exact: true })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Household account/ })).toContainText('Archived');
 	await clickSidebarLink(page, /Household account/);
 	await expect(page.getByRole('button', { name: 'Add transaction' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Trash' })).toBeHidden();

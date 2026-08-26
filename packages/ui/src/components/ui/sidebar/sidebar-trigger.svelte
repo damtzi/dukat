@@ -31,6 +31,6 @@
 	}}
 	{...restProps}
 >
-	<SidebarIcon />
+	<SidebarIcon aria-hidden="true" />
 	<span class="sr-only">Toggle Sidebar</span>
 </Button>

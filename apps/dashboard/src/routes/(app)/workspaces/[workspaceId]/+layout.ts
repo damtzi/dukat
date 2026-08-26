@@ -6,22 +6,16 @@ import { loadApi, workspaceDataDependency } from '$lib/api'
 import type {
   ConvertedBalances,
   RateStatus,
-  Workspace,
   WorkspaceForecast,
   WorkspaceRouteData,
 } from '$lib/controllers/workspace-controller.svelte'
 import type { LayoutLoad } from './$types'
 
-function failed(
-  workspaceId: string,
-  message: string,
-  workspaces: Workspace[] = [],
-): WorkspaceRouteData {
+function failed(workspaceId: string, message: string): WorkspaceRouteData {
   return {
     state: 'error',
     message,
     workspaceId,
-    workspaces,
     accounts: [],
     categories: [],
     selectedAccountId: '',
@@ -31,16 +25,11 @@ function failed(
   }
 }
 
-export const load: LayoutLoad = async ({ depends, fetch, params }) => {
+export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
   depends(workspaceDataDependency)
   const workspaceId = params.workspaceId
-
-  let workspaces: Workspace[]
-  try {
-    workspaces = (await loadApi(fetch, '/workspaces')) as Workspace[]
-  } catch (error) {
-    return failed(workspaceId, (error as Error).message)
-  }
+  const { workspaces, workspacesError } = await parent()
+  if (workspacesError) return failed(workspaceId, workspacesError)
 
   if (!workspaces.some(({ id }) => id === workspaceId))
     redirect(307, resolve('/home'))
@@ -57,7 +46,7 @@ export const load: LayoutLoad = async ({ depends, fetch, params }) => {
       >,
     ])
   } catch (error) {
-    return failed(workspaceId, (error as Error).message, workspaces)
+    return failed(workspaceId, (error as Error).message)
   }
 
   const requestedAccountId = params.accountId ?? ''
@@ -90,7 +79,6 @@ export const load: LayoutLoad = async ({ depends, fetch, params }) => {
     state: 'ready',
     message: '',
     workspaceId,
-    workspaces,
     accounts,
     categories,
     selectedAccountId:

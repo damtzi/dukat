@@ -1,17 +1,19 @@
 <script lang="ts">
-  import { goto } from '$app/navigation'
+  import { goto, invalidate } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { Empty } from '@dukat/ui'
+  import { workspacesDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
 
   const { workspace } = getWorkspaceDashboardContext()
-  let activeWorkspace = $derived(
-    workspace.workspaces.find(({ id }) => id === workspace.workspaceId) ?? null,
-  )
+  let activeWorkspace = $derived(workspace.activeWorkspace)
 
   async function leaveWorkspace() {
-    await goto(resolve('/home'), { replaceState: true })
+    await goto(resolve('/home'), {
+      replaceState: true,
+      invalidate: [workspacesDataDependency],
+    })
   }
 </script>
 
@@ -31,7 +33,7 @@
     {#key activeWorkspace.id}
       <WorkspaceSettings
         workspace={activeWorkspace}
-        onchanged={() => workspace.refresh()}
+        onchanged={() => invalidate(workspacesDataDependency)}
         onremoved={leaveWorkspace}
       />
     {/key}

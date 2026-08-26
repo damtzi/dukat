@@ -53,7 +53,6 @@ export type WorkspaceRouteData = {
   state: 'ready' | 'error'
   message: string
   workspaceId: string
-  workspaces: Workspace[]
   accounts: Account[]
   categories: Category[]
   selectedAccountId: string
@@ -64,6 +63,7 @@ export type WorkspaceRouteData = {
 
 type WorkspaceCallbacks = {
   getRouteData: () => WorkspaceRouteData
+  getWorkspaces: () => Workspace[]
   refreshRouteData: () => Promise<void>
 }
 
@@ -82,11 +82,15 @@ export class WorkspaceController {
   }
 
   get workspaces() {
-    return this.callbacks.getRouteData().workspaces
+    return this.callbacks.getWorkspaces()
   }
 
   get workspaceId() {
     return this.callbacks.getRouteData().workspaceId
+  }
+
+  get activeWorkspace() {
+    return this.workspaces.find(({ id }) => id === this.workspaceId) ?? null
   }
 
   get accounts() {

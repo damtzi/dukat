@@ -9,9 +9,6 @@
   import { formatMoney } from '$lib/money'
 
   const { ledger, workspace } = getWorkspaceDashboardContext()
-  let activeWorkspace = $derived(
-    workspace.workspaces.find(({ id }) => id === workspace.workspaceId) ?? null,
-  )
 
   function selectAccount(accountId: string) {
     void goto(
@@ -63,7 +60,7 @@
         <Card.Content>
           <p class="text-sm text-muted-foreground">
             {workspace.convertedBalances?.reportingCurrency ??
-              activeWorkspace?.reportingCurrency ??
+              workspace.activeWorkspace?.reportingCurrency ??
               'Reporting currency'}
           </p>
         </Card.Content>

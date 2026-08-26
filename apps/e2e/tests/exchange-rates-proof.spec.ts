@@ -223,7 +223,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		'data-active',
 		'true'
 	);
-	await expect(page.getByRole('link', { name: 'Transactions', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Accounts', exact: true })).toHaveAttribute(
 		'data-active',
 		'false'
 	);
@@ -305,7 +305,8 @@ test('manual rates remain available to a household member on a phone', async ({
 	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
 	await expect(page.getByText('Manual exchange rates', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-	await page.getByRole('link', { name: 'Settings', exact: true }).click();
+	await page.getByRole('link', { name: 'Manage workspace', exact: true }).click();
+	await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.screenshot({
 		path: '../../.amp/in/artifacts/exchange-rates-member-mobile-proof.png',

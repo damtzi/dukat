@@ -1,5 +1,6 @@
 type Fetch = typeof globalThis.fetch
 
+export const workspacesDataDependency = 'dukat:workspaces'
 export const workspaceDataDependency = 'dukat:workspace'
 
 async function request(fetcher: Fetch, path: string, options?: RequestInit) {

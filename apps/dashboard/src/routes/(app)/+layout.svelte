@@ -3,9 +3,11 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { Alert, Button } from '@dukat/ui'
+  import AppShell from '$lib/components/dashboard/AppShell.svelte'
   import { getBrowserSession } from '$lib/session'
+  import type { LayoutProps } from './$types'
 
-  let { children } = $props()
+  let { data, children }: LayoutProps = $props()
   let guardState = $state<'loading' | 'authenticated' | 'error'>('loading')
   let message = $state('')
 
@@ -35,5 +37,7 @@
     </Alert.Root>
   </main>
 {:else}
-  {@render children()}
+  <AppShell workspaces={data.workspaces}>
+    {@render children()}
+  </AppShell>
 {/if}

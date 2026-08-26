@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { resolve } from '$app/paths'
+  import { invalidate } from '$app/navigation'
   import { Alert, Button, Card, Checkbox, Field, Input } from '@dukat/ui'
+  import { workspacesDataDependency } from '$lib/api'
   import {
     api,
     type Workspace,
@@ -29,7 +30,10 @@
         method: 'POST',
         body: JSON.stringify({ version: workspace.version }),
       })
-      await loadRecoverable()
+      await Promise.all([
+        loadRecoverable(),
+        invalidate(workspacesDataDependency),
+      ])
     } catch (error) {
       message = (error as Error).message
     } finally {
@@ -74,12 +78,9 @@
 
 <svelte:head><title>Profile · Dukat</title></svelte:head>
 
-<main
-  class="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-4 md:p-8"
->
+<div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
   <header>
-    <Button href={resolve('/home')} variant="link">Back to home</Button>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight">Profile</h1>
+    <h1 class="text-3xl font-semibold tracking-tight">Profile</h1>
     <p class="mt-1 text-muted-foreground">
       Manage account access, recovery, and deletion.
     </p>
@@ -173,4 +174,4 @@
       {/if}
     </Card.Content>
   </Card.Root>
-</main>
+</div>
