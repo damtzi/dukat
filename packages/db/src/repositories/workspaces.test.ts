@@ -347,6 +347,36 @@ test('invitation normalization, secrecy, conflicts, resend, revoke, acceptance a
 	}
 });
 
+test('accepted workspace is the same shared workspace for owner and member', async () => {
+	const f = await fixture();
+	try {
+		const shared = await f.repo.createHousehold('owner', {
+			name: 'Shared home',
+			reportingCurrency: 'EUR'
+		});
+		let token = '';
+		await f.repo.invite(
+			{ userId: 'owner', workspaceId: shared.id },
+			{
+				email: 'invitee@example.com',
+				version: shared.version,
+				invitationUrl: (value) => (token = value)
+			}
+		);
+		await f.repo.acceptInvitation('invitee', 'invitee@example.com', token);
+
+		const ownerView = (await f.repo.listAuthorized('owner')).find(({ id }) => id === shared.id);
+		const memberView = (await f.repo.listAuthorized('invitee')).find(({ id }) => id === shared.id);
+		assert.ok(ownerView);
+		assert.ok(memberView);
+		assert.equal(ownerView.id, memberView.id);
+		assert.equal(ownerView.role, 'owner');
+		assert.equal(memberView.role, 'member');
+	} finally {
+		await f.close();
+	}
+});
+
 test('membership changes enforce sole-owner safety and remove access immediately', async () => {
 	const f = await fixture();
 	try {
