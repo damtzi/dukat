@@ -44,10 +44,10 @@
 </script>
 
 <svelte:head><title>Sign in · Dukat</title></svelte:head>
-<main class="mx-auto flex min-h-screen max-w-md items-center p-4">
-  <Card.Root class="w-full">
+<main class="flex min-h-screen w-full items-center justify-center px-4">
+  <Card.Root class="mx-auto w-full max-w-sm">
     <Card.Header>
-      <Card.Title>Sign in to Dukat</Card.Title>
+      <Card.Title class="text-2xl">Sign in to Dukat</Card.Title>
       <Card.Description
         >Enter your email and password to see your finances.</Card.Description
       >
@@ -66,6 +66,7 @@
               name="email"
               type="email"
               autocomplete="email"
+              placeholder="m@example.com"
               required
             />
           </Field.Field>
@@ -79,18 +80,16 @@
               required
             />
           </Field.Field>
-          <Button type="submit" class="w-full" disabled={pending}
-            >{#if pending}<Spinner aria-hidden="true" />{/if}Sign in</Button
-          >
+          <Field.Field>
+            <Button type="submit" class="w-full" disabled={pending}
+              >{#if pending}<Spinner aria-hidden="true" />{/if}Sign in</Button
+            >
+            <Field.Description class="text-center">
+              New to Dukat? <a href={resolve('/sign-up')}>Create an account</a>
+            </Field.Description>
+          </Field.Field>
         </Field.Group>
       </form>
     </Card.Content>
-    <Card.Footer class="justify-center text-sm"
-      ><span>New to Dukat?</span><Button
-        href="/sign-up"
-        variant="link"
-        class="px-2">Create an account</Button
-      ></Card.Footer
-    >
   </Card.Root>
 </main>

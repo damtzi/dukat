@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
 
   let error = $state('')
@@ -40,13 +41,14 @@
 </script>
 
 <svelte:head><title>Create account · Dukat</title></svelte:head>
-<main class="mx-auto flex min-h-screen max-w-md items-center p-4">
-  <Card.Root class="w-full">
-    <Card.Header
-      ><Card.Title>Create your account</Card.Title><Card.Description
+<main class="flex min-h-screen w-full items-center justify-center px-4">
+  <Card.Root class="mx-auto w-full max-w-sm">
+    <Card.Header>
+      <Card.Title class="text-2xl">Create your account</Card.Title>
+      <Card.Description
         >Create an account to start managing your finances.</Card.Description
-      ></Card.Header
-    >
+      >
+    </Card.Header>
     <Card.Content>
       {#if error}<Alert.Root variant="destructive" class="mb-4" role="alert"
           ><Alert.Title>Could not continue</Alert.Title><Alert.Description
@@ -65,6 +67,7 @@
               id="name"
               name="name"
               autocomplete="name"
+              placeholder="John Doe"
               required
             />
           </Field.Field>
@@ -74,6 +77,7 @@
               name="email"
               type="email"
               autocomplete="email"
+              placeholder="m@example.com"
               required
             />
           </Field.Field>
@@ -86,19 +90,20 @@
               minlength={8}
               required
             />
+            <Field.Description>
+              Must be at least 8 characters long.
+            </Field.Description>
           </Field.Field>
-          <Button type="submit" class="w-full" disabled={pending}
-            >{#if pending}<Spinner aria-hidden="true" />{/if}Create account</Button
-          >
+          <Field.Field>
+            <Button type="submit" class="w-full" disabled={pending}
+              >{#if pending}<Spinner aria-hidden="true" />{/if}Create account</Button
+            >
+            <Field.Description class="px-6 text-center">
+              Already have an account? <a href={resolve('/sign-in')}>Sign in</a>
+            </Field.Description>
+          </Field.Field>
         </Field.Group>
       </form>
     </Card.Content>
-    <Card.Footer class="justify-center text-sm"
-      ><span>Already have an account?</span><Button
-        href="/sign-in"
-        variant="link"
-        class="px-2">Sign in</Button
-      ></Card.Footer
-    >
   </Card.Root>
 </main>
