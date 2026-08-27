@@ -15,4 +15,6 @@ export { Input } from './components/ui/input/index.js';
 export { Label } from './components/ui/label/index.js';
 export { Separator } from './components/ui/separator/index.js';
 export { Spinner } from './components/ui/spinner/index.js';
+export { Toaster } from './components/ui/sonner/index.js';
+export { toast } from 'svelte-sonner';
 export { Textarea } from './components/ui/textarea/index.js';
