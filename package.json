@@ -6,6 +6,7 @@
 		"check-types": "turbo run check-types",
 		"db:seed": "pnpm --filter @dukat/db db:seed",
 		"dev": "turbo run dev",
+		"dev:app": "turbo run dev --filter=@dukat/dashboard --filter=@dukat/server",
 		"format": "prettier --write .",
 		"lint": "turbo run lint",
 		"test": "turbo run test",

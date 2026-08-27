@@ -85,4 +85,18 @@ pnpm db:seed
 Sign in with `demo@dukat.local` and password `dukat-demo`. The command applies migrations and
 replaces this demo user's data each time. It refuses hosted database URLs.
 
+### Run the full app locally
+
+After configuring `.env` and optionally seeding the demo data, run:
+
+```sh
+pnpm dev:app
+```
+
+Open [http://localhost:3001](http://localhost:3001). Vite reloads dashboard changes and proxies
+`/api/*` to the Node server on port `9999`.
+
+`pnpm dev` starts every app in the monorepo. Use `pnpm dev:app` when you only need the dashboard and
+API.
+
 Production releases use `db:migrate:release`; backup and restore procedures are documented in [`docs/operations/recovery.md`](docs/operations/recovery.md).
