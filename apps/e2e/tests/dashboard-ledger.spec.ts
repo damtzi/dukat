@@ -484,6 +484,41 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page).toHaveURL('/home');
 });
 
+test('logs out from the global navigation', async ({ page }) => {
+	let authenticated = true;
+	let signOutRequested = false;
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const { pathname } = new URL(request.url());
+		const method = request.method();
+
+		if (pathname === '/api/auth/get-session' && method === 'GET') {
+			return json(
+				route,
+				authenticated ? { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } } : null
+			);
+		}
+		if (pathname === '/api/auth/sign-out' && method === 'POST') {
+			expect(request.postData()).toBeNull();
+			expect(await request.headerValue('content-type')).toBeNull();
+			authenticated = false;
+			signOutRequested = true;
+			return route.fulfill({ status: 204 });
+		}
+		if (pathname === '/api/workspaces' && method === 'GET') return json(route, [personalWorkspace]);
+		if (pathname === '/api/favorites' && method === 'GET') return json(route, []);
+
+		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
+	});
+
+	await page.goto('/home');
+	await openSidebar(page);
+	await page.getByRole('button', { name: 'Log out', exact: true }).click();
+	await expect(page).toHaveURL('/sign-in');
+	expect(signOutRequested).toBe(true);
+});
+
 test('pins workspace pages in global Favorites', async ({ page }) => {
 	await mockLedger(page);
 	await page.goto(`/workspaces/${workspaceId}`);
