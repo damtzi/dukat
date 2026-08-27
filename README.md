@@ -76,4 +76,13 @@ pnpm --filter @dukat/db db:migrate
 pnpm --filter @dukat/db db:studio
 ```
 
+Seed the local database with a verified demo user and sample finances:
+
+```sh
+pnpm db:seed
+```
+
+Sign in with `demo@dukat.local` and password `dukat-demo`. The command applies migrations and
+replaces this demo user's data each time. It refuses hosted database URLs.
+
 Production releases use `db:migrate:release`; backup and restore procedures are documented in [`docs/operations/recovery.md`](docs/operations/recovery.md).

@@ -8,6 +8,7 @@
 		"db:studio": "drizzle-kit studio",
 		"db:migrate": "drizzle-kit migrate",
 		"db:migrate:release": "drizzle-kit migrate",
+		"db:seed": "tsx src/seed.ts",
 		"db:backup": "tsx src/recovery-cli.ts backup",
 		"db:restore": "tsx src/recovery-cli.ts restore",
 		"db:integrity": "tsx src/recovery-cli.ts integrity",
