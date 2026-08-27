@@ -47,3 +47,23 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 	);
 	assert.equal(delegatedRequest?.method, 'POST');
 });
+
+test('auth sign-out normalizes the internal Better Auth request body', async () => {
+	let delegatedRequest: Request | undefined;
+	const services = {
+		auth: {
+			async handler(request: Request) {
+				delegatedRequest = request;
+				return Response.json({ delegated: true });
+			}
+		}
+	} as unknown as APIServices;
+
+	const response = await createAPI(services).request('http://dukat.test/api/auth/sign-out', {
+		method: 'POST'
+	});
+
+	assert.equal(response.status, 200);
+	assert.equal(await delegatedRequest?.text(), '{}');
+	assert.equal(delegatedRequest?.headers.get('content-type'), 'application/json');
+});

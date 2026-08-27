@@ -383,8 +383,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		const signOutCookie = await signIn('first@example.com', 'replacement-password-1');
 		const signedOut = await app.request(`${origin}/api/auth/sign-out`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json', origin, cookie: signOutCookie },
-			body: '{}'
+			headers: { origin, cookie: signOutCookie }
 		});
 		assert.equal(signedOut.status, 200);
 		const signedOutSession = await app.request(`${origin}/api/auth/get-session`, {

@@ -4,9 +4,13 @@ export const workspacesDataDependency = 'dukat:workspaces'
 export const workspaceDataDependency = 'dukat:workspace'
 
 async function request(fetcher: Fetch, path: string, options?: RequestInit) {
+  const headers = new Headers(options?.headers)
+  if (typeof options?.body === 'string' && !headers.has('content-type'))
+    headers.set('content-type', 'application/json')
+
   const response = await fetcher(`/api${path}`, {
     ...options,
-    headers: { 'content-type': 'application/json', ...options?.headers },
+    headers,
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
