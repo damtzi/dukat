@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { invalidate } from '$app/navigation'
+  import { goto, invalidate } from '$app/navigation'
   import { base, resolve } from '$app/paths'
   import { page } from '$app/state'
   import type { Account } from '@dukat/core/ledger'
-  import { Sidebar } from '@dukat/ui'
+  import { Sidebar, Spinner, toast } from '@dukat/ui'
   import ArrowLeftRightIcon from 'phosphor-svelte/lib/ArrowsLeftRight'
   import FileUpIcon from 'phosphor-svelte/lib/FileArrowUp'
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
@@ -14,6 +14,7 @@
   import TagIcon from 'phosphor-svelte/lib/Tag'
   import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import SharedIcon from 'phosphor-svelte/lib/UsersThree'
+  import SignOutIcon from 'phosphor-svelte/lib/SignOut'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
   import { api } from '$lib/api'
   import FavoriteAction from '$lib/components/dashboard/FavoriteAction.svelte'
@@ -37,6 +38,7 @@
   const sidebar = Sidebar.useSidebar()
   let pendingFavoritePath = $state('')
   let favoriteMessage = $state('')
+  let logoutPending = $state(false)
   let personalWorkspaces = $derived(
     workspaces.filter(({ type }) => type === 'personal'),
   )
@@ -87,6 +89,21 @@
       favoriteMessage = (error as Error).message
     } finally {
       pendingFavoritePath = ''
+    }
+  }
+
+  async function logout() {
+    if (logoutPending) return
+    logoutPending = true
+    try {
+      await api('/auth/sign-out', { method: 'POST' })
+      await goto(resolve('/sign-in'), { replaceState: true })
+    } catch (error) {
+      toast.error((error as Error).message, {
+        action: { label: 'Try again', onClick: logout },
+      })
+    } finally {
+      logoutPending = false
     }
   }
 </script>
@@ -561,6 +578,22 @@
               <UserIcon aria-hidden="true" />
               <span>Profile</span>
             </a>
+          {/snippet}
+        </Sidebar.MenuButton>
+      </Sidebar.MenuItem>
+      <Sidebar.MenuItem>
+        <Sidebar.MenuButton
+          tooltipContent={logoutPending ? 'Signing out…' : 'Log out'}
+          aria-label={logoutPending ? 'Signing out…' : 'Log out'}
+          onclick={logout}
+        >
+          {#snippet child({ props })}
+            <button {...props} type="button" disabled={logoutPending}>
+              {#if logoutPending}<Spinner
+                  aria-hidden="true"
+                />{:else}<SignOutIcon aria-hidden="true" />{/if}
+              <span>{logoutPending ? 'Signing out…' : 'Log out'}</span>
+            </button>
           {/snippet}
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
