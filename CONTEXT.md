@@ -74,6 +74,10 @@ A user-confirmed link between one planned transaction and the completed transact
 
 A projection from current account balances through expected, unmatched planned transactions. Tentative plans can be included as a possible outcome, and overdue plans are treated as due today until resolved.
 
+### Cash flow
+
+Completed income and spending over a selected period. Net cash flow is income minus spending. Transfers and balance corrections are excluded because they are not income or spending; transaction fees are spending. Cash flow describes recorded activity, while a forecast describes expected future activity.
+
 ### Account currency
 
 The single currency used by a financial account. Transactions on the account use this currency.
