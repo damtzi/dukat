@@ -116,7 +116,9 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 				missingRate: false,
 				startingBalanceMinor: '840000',
 				endingBalanceMinor: '840000',
-				occurrences: []
+				occurrences: [],
+				points: [],
+				accounts: []
 			});
 		if (pathname === `/api/workspaces/${workspaceId}/cash-flow`) {
 			cashFlowRequests.push(search);

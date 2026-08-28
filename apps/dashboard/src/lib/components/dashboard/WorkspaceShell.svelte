@@ -104,6 +104,7 @@
   error={ledger.transactionError}
   pending={ledger.pending}
   categories={ledger.categories}
+  accounts={ledger.accounts}
   onsubmit={ledger.saveTransaction}
 />
 <TransferDialog
