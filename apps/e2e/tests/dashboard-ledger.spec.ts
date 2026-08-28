@@ -970,7 +970,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.goto(`/workspaces/${workspaceId}`);
 
 	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Create account' }).click();
+	await page.getByRole('button', { name: 'Add account' }).click();
 	const accountDialog = page.getByRole('dialog');
 	await accountDialog.getByLabel('Name', { exact: true }).fill('Everyday account');
 	await expect(accountDialog.getByLabel('Type', { exact: true })).toContainText('Current');
