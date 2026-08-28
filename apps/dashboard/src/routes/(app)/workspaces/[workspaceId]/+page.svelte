@@ -3,6 +3,7 @@
   import { Alert, Button, Card, Empty } from '@dukat/ui'
   import OverviewOutlookChart from '$lib/components/forecast/OverviewOutlookChart.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
+  import OverviewCashFlow from '$lib/components/insights/OverviewCashFlow.svelte'
   import { lowestProjectedBalance } from '$lib/forecast'
   import { formatMoney } from '$lib/money'
   import { absoluteMinor, significantAccounts } from '$lib/overview'
@@ -238,59 +239,72 @@
     {/if}
 
     {#if activeAccounts.length > 0}
-      <Card.Root>
-        <Card.Header class="flex-row items-start justify-between gap-3">
-          <div>
-            <Card.Title>Accounts</Card.Title>
-            <Card.Description>
-              Significant active balances in {currency ||
-                'the reporting currency'}.
-            </Card.Description>
-          </div>
-          <Button variant="outline" href={accountsPath}
-            >View all accounts</Button
-          >
-        </Card.Header>
-        <Card.Content>
-          {#if accountPreview.length > 0}
-            <div class="flex flex-col gap-4">
-              {#each accountPreview as account (account.id)}
-                <div
-                  class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,2fr)_auto] sm:items-center"
-                >
-                  <div class="min-w-0">
-                    <strong class="block truncate">{account.name}</strong>
-                    <span class="text-sm text-muted-foreground">
-                      {formatMoney(account.balanceMinor, account.currency)}
-                    </span>
-                  </div>
-                  <div
-                    class="h-2 overflow-hidden rounded-full bg-muted"
-                    aria-hidden="true"
-                  >
-                    <div
-                      class={[
-                        'h-full rounded-full',
-                        BigInt(account.convertedBalanceMinor!) < 0n
-                          ? 'bg-destructive'
-                          : 'bg-primary',
-                      ]}
-                      style:width={`${barWidth(account.convertedBalanceMinor!)}%`}
-                    ></div>
-                  </div>
-                  <strong class="sm:text-right">
-                    {formatMoney(account.convertedBalanceMinor!, currency)}
-                  </strong>
-                </div>
-              {/each}
+      <div
+        class="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+      >
+        <OverviewCashFlow
+          workspaceId={workspace.workspaceId}
+          current={data.cashFlowCurrent}
+          previous={data.cashFlowPrevious}
+          currentRange={data.cashFlowCurrentRange}
+          previousRange={data.cashFlowPreviousRange}
+          showRatesAction={!missingRate}
+        />
+
+        <Card.Root class="h-full min-w-0">
+          <Card.Header class="gap-3">
+            <div>
+              <Card.Title>Accounts</Card.Title>
+              <Card.Description>
+                Significant active balances in {currency ||
+                  'the reporting currency'}.
+              </Card.Description>
             </div>
-          {:else}
-            <p class="text-sm text-muted-foreground">
-              Converted account values are unavailable.
-            </p>
-          {/if}
-        </Card.Content>
-      </Card.Root>
+            <Button class="self-start" variant="outline" href={accountsPath}
+              >View all accounts</Button
+            >
+          </Card.Header>
+          <Card.Content>
+            {#if accountPreview.length > 0}
+              <div class="flex flex-col gap-5">
+                {#each accountPreview as account (account.id)}
+                  <div class="flex min-w-0 flex-col gap-2">
+                    <div class="flex min-w-0 items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <strong class="block truncate">{account.name}</strong>
+                        <span class="text-sm text-muted-foreground">
+                          {formatMoney(account.balanceMinor, account.currency)}
+                        </span>
+                      </div>
+                      <strong class="shrink-0 text-right">
+                        {formatMoney(account.convertedBalanceMinor!, currency)}
+                      </strong>
+                    </div>
+                    <div
+                      class="h-2 overflow-hidden rounded-full bg-muted"
+                      aria-hidden="true"
+                    >
+                      <div
+                        class={[
+                          'h-full rounded-full',
+                          BigInt(account.convertedBalanceMinor!) < 0n
+                            ? 'bg-destructive'
+                            : 'bg-primary',
+                        ]}
+                        style:width={`${barWidth(account.convertedBalanceMinor!)}%`}
+                      ></div>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="text-sm text-muted-foreground">
+                Converted account values are unavailable.
+              </p>
+            {/if}
+          </Card.Content>
+        </Card.Root>
+      </div>
     {/if}
   {/key}
 </section>

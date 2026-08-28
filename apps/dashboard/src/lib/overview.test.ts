@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { monthlyForecastPoints, significantAccounts } from './overview'
+import {
+  monthlyForecastPoints,
+  overviewSpendingCategories,
+  significantAccounts,
+} from './overview'
 
 const account = (
   id: string,
@@ -27,6 +31,39 @@ describe('significantAccounts', () => {
         account('known', '-25000'),
       ]).map(({ id }) => id),
     ).toEqual(['known'])
+  })
+})
+
+describe('overviewSpendingCategories', () => {
+  it('ranks the five largest categories and groups the remainder as Other', () => {
+    expect(
+      overviewSpendingCategories([
+        { categoryId: 'travel', categoryName: 'Travel', amountMinor: '5000' },
+        { categoryId: 'food', categoryName: 'Food', amountMinor: '9000' },
+        { categoryId: 'bills', categoryName: 'Bills', amountMinor: '8000' },
+        { categoryId: 'health', categoryName: 'Health', amountMinor: '4000' },
+        { categoryId: 'home', categoryName: 'Home', amountMinor: '7000' },
+        { categoryId: 'fun', categoryName: 'Fun', amountMinor: '3000' },
+        { categoryId: 'gifts', categoryName: 'Gifts', amountMinor: '2000' },
+      ]),
+    ).toEqual([
+      { categoryId: 'food', categoryName: 'Food', amountMinor: '9000' },
+      { categoryId: 'bills', categoryName: 'Bills', amountMinor: '8000' },
+      { categoryId: 'home', categoryName: 'Home', amountMinor: '7000' },
+      { categoryId: 'travel', categoryName: 'Travel', amountMinor: '5000' },
+      { categoryId: 'health', categoryName: 'Health', amountMinor: '4000' },
+      { categoryId: null, categoryName: 'Other', amountMinor: '5000' },
+    ])
+  })
+
+  it('does not add Other when five or fewer categories exist', () => {
+    expect(
+      overviewSpendingCategories([
+        { categoryId: 'food', categoryName: 'Food', amountMinor: '9000' },
+      ]),
+    ).toEqual([
+      { categoryId: 'food', categoryName: 'Food', amountMinor: '9000' },
+    ])
   })
 })
 

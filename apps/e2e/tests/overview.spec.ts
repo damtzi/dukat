@@ -56,7 +56,58 @@ async function chooseSelect(page: Page, label: string, option: string) {
 	await page.getByRole('option', { name: new RegExp(`^${option}`) }).click();
 }
 
-type State = 'data' | 'no-accounts' | 'no-plans' | 'missing-rate';
+type State = 'data' | 'no-accounts' | 'no-plans' | 'missing-rate' | 'no-transactions';
+
+function cashFlowResponse(state: State, previous: boolean) {
+	const empty = state === 'no-transactions';
+	const missingRate = state === 'missing-rate';
+	const incomeMinor = previous ? '700000' : '900000';
+	const spendingMinor = previous ? '300000' : '360000';
+	const categories = [
+		['groceries', 'Groceries', '90000'],
+		['housing', 'Housing', '80000'],
+		['transport', 'Transport', '70000'],
+		['health', 'Health', '50000'],
+		['leisure', 'Leisure', '30000'],
+		['gifts', 'Gifts', '25000'],
+		['fees', 'Fees', '15000']
+	] as const;
+	return {
+		currencies: empty
+			? []
+			: [
+					{
+						currency: 'PLN',
+						incomeMinor,
+						spendingMinor,
+						uncategorizedMinor: '0',
+						groups: []
+					}
+				],
+		reporting: {
+			currency: 'PLN',
+			incomeMinor: missingRate ? null : empty ? '0' : incomeMinor,
+			spendingMinor: missingRate ? null : empty ? '0' : spendingMinor,
+			uncategorizedMinor: missingRate ? null : '0',
+			netMinor: missingRate
+				? null
+				: empty
+					? '0'
+					: (BigInt(incomeMinor) - BigInt(spendingMinor)).toString(),
+			missingRate,
+			rates: [],
+			months: [],
+			spendingCategories:
+				missingRate || empty || previous
+					? []
+					: categories.map(([categoryId, categoryName, amountMinor]) => ({
+							categoryId,
+							categoryName,
+							amountMinor
+						}))
+		}
+	};
+}
 
 async function mockOverview(page: Page, state: State = 'data') {
 	let savingsBalance = 50000n;
@@ -151,6 +202,12 @@ async function mockOverview(page: Page, state: State = 'data') {
 				accounts: []
 			});
 		}
+		if (pathname === `/api/workspaces/${workspaceId}/cash-flow`) {
+			return json(
+				route,
+				cashFlowResponse(state, url.searchParams.get('startDate') === '2026-07-01')
+			);
+		}
 		if (
 			pathname === `/api/workspaces/${workspaceId}/accounts/savings/transactions` &&
 			method === 'POST'
@@ -210,6 +267,43 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 		'href',
 		`/workspaces/${workspaceId}/forecast`
 	);
+	const thisMonthCard = page
+		.getByText('This month', { exact: true })
+		.locator('xpath=ancestor::*[@data-slot="card"][1]');
+	await expect(thisMonthCard).toContainText('9000,00 zł');
+	await expect(thisMonthCard).toContainText('3600,00 zł');
+	await expect(thisMonthCard).toContainText('5400,00 zł');
+	await expect(thisMonthCard).toContainText('Aug 1, 2026–Aug 27, 2026');
+	await expect(thisMonthCard).toContainText('Jul 1, 2026–Jul 27, 2026');
+	await expect(thisMonthCard).toContainText('Difference in net cash flow: 1400,00 zł');
+	await expect(thisMonthCard).toContainText('Groceries');
+	await expect(thisMonthCard).toContainText('Other');
+	await expect(thisMonthCard).toContainText('400,00 zł');
+	await expect(page.getByRole('link', { name: 'View cash flow' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/cash-flow`
+	);
+	await expect(page.getByRole('button', { name: '12 months' })).toHaveCount(0);
+	for (const name of [
+		/Aug 1, 2026–Aug 27, 2026 income/,
+		/Aug 1, 2026–Aug 27, 2026 spending/,
+		/Jul 1, 2026–Jul 27, 2026 income/,
+		/Jul 1, 2026–Jul 27, 2026 spending/
+	]) {
+		const cashFlowBar = page.getByRole('button', { name });
+		await cashFlowBar.focus();
+		await expect(cashFlowBar).toBeFocused();
+	}
+	const previousIncomeBar = page.getByRole('button', {
+		name: /Jul 1, 2026–Jul 27, 2026 income/
+	});
+	const currentIncomeBar = page.getByRole('button', {
+		name: /Aug 1, 2026–Aug 27, 2026 income/
+	});
+	expect((await previousIncomeBar.boundingBox())!.x).toBeLessThan(
+		(await currentIncomeBar.boundingBox())!.x
+	);
+	await expect(page.getByText('All compared cash-flow values')).toBeVisible();
 
 	const point = page.getByRole('link', {
 		name: /Expense, Everyday checking.*Expected/
@@ -251,9 +345,21 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	if (testInfo.project.name === 'phone-chromium') {
 		const balance = await page.getByText('Your balance', { exact: true }).boundingBox();
 		const outlook = await page.getByRole('heading', { name: 'Outlook', level: 2 }).boundingBox();
+		const thisMonth = await page.getByText('This month', { exact: true }).boundingBox();
 		const accountsHeading = await overview.getByText('Accounts', { exact: true }).boundingBox();
 		expect(balance!.y).toBeLessThan(outlook!.y);
-		expect(outlook!.y).toBeLessThan(accountsHeading!.y);
+		expect(outlook!.y).toBeLessThan(thisMonth!.y);
+		expect(thisMonth!.y).toBeLessThan(accountsHeading!.y);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			await page.evaluate(() => window.innerWidth)
+		);
+	} else {
+		const accountsCard = overview
+			.getByText('Accounts', { exact: true })
+			.locator('xpath=ancestor::*[@data-slot="card"][1]');
+		const thisMonthBox = await thisMonthCard.boundingBox();
+		const accountsBox = await accountsCard.boundingBox();
+		expect(thisMonthBox!.width / accountsBox!.width).toBeGreaterThan(1.7);
 	}
 
 	await expectNoSeriousAxeViolations(page);
@@ -287,11 +393,31 @@ test('uses direct empty and missing-rate states', async ({ page }) => {
 	await expect(missingRateCard).toBeVisible();
 	await expect(missingRateCard).toContainText('1200,00 zł');
 	await expect(missingRateCard).toContainText('500,00 zł');
-	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toHaveAttribute(
-		'href',
-		`/workspaces/${workspaceId}/rates`
-	);
+	await expect(
+		missingRateCard.getByRole('link', { name: 'Review exchange rates' })
+	).toHaveAttribute('href', `/workspaces/${workspaceId}/rates`);
+	const missingCashFlow = page
+		.getByText('Combined cash flow unavailable')
+		.locator('xpath=ancestor::*[@data-slot="card"][1]');
+	await expect(missingCashFlow).toContainText('PLN');
+	await expect(missingCashFlow.getByRole('link')).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toHaveCount(1);
+	await expect(page.getByText('Income and spending comparison')).toBeHidden();
 	await expect(page.getByText('Outlook: 12-month projected balance')).toHaveCount(0);
+	await expectNoSeriousAxeViolations(page);
+});
+
+test('replaces the monthly charts when there are no completed transactions', async ({ page }) => {
+	await mockOverview(page, 'no-transactions');
+	await page.goto(`/workspaces/${workspaceId}`);
+
+	await expect(page.getByText('No completed transactions this month')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Import transactions' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/imports`
+	);
+	await expect(page.getByText('Income and spending comparison')).toBeHidden();
+	await expect(page.getByText('Top spending categories')).toBeHidden();
 	await expectNoSeriousAxeViolations(page);
 });
 

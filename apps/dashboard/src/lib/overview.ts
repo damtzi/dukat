@@ -6,6 +6,12 @@ type ConvertedAccount = {
 
 type ForecastPoint = { date: string; projectedBalanceMinor: string }
 
+type SpendingCategory = {
+  categoryId: string | null
+  categoryName: string
+  amountMinor: string
+}
+
 export function absoluteMinor(value: string | bigint) {
   const amount = BigInt(value)
   return amount < 0n ? -amount : amount
@@ -27,6 +33,33 @@ export function significantAccounts<T extends ConvertedAccount>(accounts: T[]) {
           : 1
     })
     .slice(0, 3)
+}
+
+export function overviewSpendingCategories(
+  categories: readonly SpendingCategory[],
+): SpendingCategory[] {
+  const ranked = [...categories].sort((left, right) => {
+    const leftAmount = BigInt(left.amountMinor)
+    const rightAmount = BigInt(right.amountMinor)
+    return leftAmount === rightAmount
+      ? left.categoryName.localeCompare(right.categoryName)
+      : leftAmount > rightAmount
+        ? -1
+        : 1
+  })
+  const remaining = ranked.slice(5)
+  if (remaining.length === 0) return ranked
+
+  return [
+    ...ranked.slice(0, 5),
+    {
+      categoryId: null,
+      categoryName: 'Other',
+      amountMinor: remaining
+        .reduce((total, category) => total + BigInt(category.amountMinor), 0n)
+        .toString(),
+    },
+  ]
 }
 
 export function monthlyForecastPoints(
