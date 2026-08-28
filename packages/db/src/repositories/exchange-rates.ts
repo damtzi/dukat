@@ -411,6 +411,126 @@ export function createExchangeRateRepository(
 				}
 			};
 		},
+		async reportingCashFlow(
+			workspaceId: string,
+			summary: Summary,
+			startDate: string,
+			endDate: string
+		) {
+			const filterSummary = (
+				includeGroup: (group: Summary['currencies'][number]['groups'][number]) => boolean,
+				includeTransaction: (
+					transaction: Summary['currencies'][number]['groups'][number]['transactions'][number]
+				) => boolean = () => true
+			): Summary => ({
+				currencies: summary.currencies
+					.map((source) => {
+						const groups = source.groups
+							.filter(includeGroup)
+							.map((group) => {
+								const transactions = group.transactions.filter(includeTransaction);
+								return {
+									...group,
+									amountMinor: transactions
+										.reduce((total, transaction) => total + BigInt(transaction.amountMinor), 0n)
+										.toString(),
+									transactions
+								};
+							})
+							.filter((group) => group.transactions.length > 0);
+						const total = (kind: 'income' | 'expense') =>
+							groups
+								.filter((group) => group.kind === kind)
+								.reduce((value, group) => value + BigInt(group.amountMinor), 0n)
+								.toString();
+						return {
+							currency: source.currency,
+							incomeMinor: total('income'),
+							spendingMinor: total('expense'),
+							uncategorizedMinor: groups
+								.filter((group) => !group.categoryId)
+								.reduce((value, group) => value + BigInt(group.amountMinor), 0n)
+								.toString(),
+							groups
+						};
+					})
+					.filter((source) => source.groups.length > 0)
+			});
+			const reporting = (await this.reportingSummary(workspaceId, summary)).reporting;
+			if (reporting.missingRate)
+				return {
+					...summary,
+					reporting: {
+						...reporting,
+						netMinor: null,
+						months: [],
+						spendingCategories: []
+					}
+				};
+			const months: Array<{
+				month: string;
+				incomeMinor: string;
+				spendingMinor: string;
+				netMinor: string;
+			}> = [];
+			let cursor = startDate.slice(0, 7);
+			const lastMonth = endDate.slice(0, 7);
+			while (cursor <= lastMonth) {
+				const monthly = await this.reportingSummary(
+					workspaceId,
+					filterSummary(
+						() => true,
+						(transaction) => transaction.date.slice(0, 7) === cursor
+					)
+				);
+				const incomeMinor = monthly.reporting.incomeMinor!;
+				const spendingMinor = monthly.reporting.spendingMinor!;
+				months.push({
+					month: cursor,
+					incomeMinor,
+					spendingMinor,
+					netMinor: (BigInt(incomeMinor) - BigInt(spendingMinor)).toString()
+				});
+				const [year, month] = cursor.split('-').map(Number);
+				const next = new Date(Date.UTC(year!, month!, 1));
+				cursor = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`;
+			}
+			const categoryKeys = new Map<string, { categoryId: string | null; categoryName: string }>();
+			for (const source of summary.currencies)
+				for (const group of source.groups)
+					if (group.kind === 'expense')
+						categoryKeys.set(JSON.stringify([group.categoryId, group.categoryName]), {
+							categoryId: group.categoryId,
+							categoryName: group.categoryName
+						});
+			const spendingCategories = await Promise.all(
+				[...categoryKeys.entries()].map(async ([key, category]) => {
+					const converted = await this.reportingSummary(
+						workspaceId,
+						filterSummary(
+							(group) =>
+								group.kind === 'expense' &&
+								JSON.stringify([group.categoryId, group.categoryName]) === key
+						)
+					);
+					return { ...category, amountMinor: converted.reporting.spendingMinor! };
+				})
+			);
+			spendingCategories.sort(
+				(left, right) =>
+					Number(BigInt(right.amountMinor) - BigInt(left.amountMinor)) ||
+					left.categoryName.localeCompare(right.categoryName)
+			);
+			return {
+				...summary,
+				reporting: {
+					...reporting,
+					netMinor: (BigInt(reporting.incomeMinor!) - BigInt(reporting.spendingMinor!)).toString(),
+					months,
+					spendingCategories
+				}
+			};
+		},
 		async workspaceForecast(
 			userId: string,
 			workspaceId: string,

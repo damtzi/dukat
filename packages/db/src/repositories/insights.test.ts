@@ -170,6 +170,44 @@ test('NBP cache, effective-date lookup, manual override and removal stay reprodu
 				['PLN', 'identity', '2026-08-02']
 			]
 		);
+		const cashFlow = await rates.reportingCashFlow(
+			f.context.workspaceId,
+			{
+				currencies: [
+					{
+						currency: 'EUR',
+						incomeMinor: '100',
+						spendingMinor: '0',
+						uncategorizedMinor: '100',
+						groups: [
+							{
+								kind: 'income',
+								categoryId: null,
+								categoryName: 'Uncategorized',
+								amountMinor: '100',
+								transactions: [
+									{
+										id: 'cash-flow-transaction',
+										accountId: 'eur',
+										date: '2026-08-02',
+										kind: 'income',
+										amountMinor: '100',
+										description: null
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			'2026-07-01',
+			'2026-08-31'
+		);
+		assert.deepEqual(cashFlow.reporting.months, [
+			{ month: '2026-07', incomeMinor: '0', spendingMinor: '0', netMinor: '0' },
+			{ month: '2026-08', incomeMinor: '600', spendingMinor: '0', netMinor: '600' }
+		]);
+		assert.equal(cashFlow.reporting.netMinor, '600');
 		await f.financial.db
 			.update(workspace)
 			.set({ reportingCurrency: 'USD' })
@@ -570,7 +608,7 @@ test('categories enforce workspace, archive and transaction selection rules', as
 	}
 });
 
-test('summary filters date, account and workspace while grouping currencies and drill-down ids', async () => {
+test('summary includes archived cash-flow history and fees while excluding transfers', async () => {
 	const f = await fixture();
 	try {
 		const category = (await f.repo.listCategories(f.context)).find((x) => x.name === 'Salary')!;
@@ -596,7 +634,8 @@ test('summary filters date, account and workspace while grouping currencies and 
 				accountId: 'eur',
 				kind: 'expense',
 				amountMinor: 30n,
-				date: '2026-08-03'
+				date: '2026-08-03',
+				description: 'Transfer fee'
 			},
 			{
 				id: 'usd-expense',
@@ -643,6 +682,10 @@ test('summary filters date, account and workspace while grouping currencies and 
 				date: '2026-08-03'
 			}
 		]);
+		await f.financial.db
+			.update(financialAccount)
+			.set({ archivedAt: new Date() })
+			.where(eq(financialAccount.id, 'eur'));
 		const all = await f.repo.summary(f.context, { startDate: '2026-08-01', endDate: '2026-08-31' });
 		assert.deepEqual(
 			all.currencies.map((x) => [x.currency, x.incomeMinor, x.spendingMinor, x.uncategorizedMinor]),

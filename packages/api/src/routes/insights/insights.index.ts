@@ -62,6 +62,18 @@ export const insightsRouter = router
 				: result;
 		})
 	)
+	.openapi(routes.cashFlow, (c) =>
+		success(c, async () => {
+			const query = c.req.valid('query');
+			const result = await c.var.services.insights.summary(context(c), query);
+			return c.var.services.exchangeRates!.reportingCashFlow(
+				context(c).workspaceId,
+				result,
+				query.startDate,
+				query.endDate
+			);
+		})
+	)
 	.openapi(routes.preview, (c) =>
 		success(c, () => c.var.services.insights.preview(context(c), c.req.valid('json')))
 	)

@@ -5,6 +5,7 @@
   import type { Account } from '@dukat/core/ledger'
   import { Sidebar, Spinner, toast } from '@dukat/ui'
   import ArrowLeftRightIcon from 'phosphor-svelte/lib/ArrowsLeftRight'
+  import ChartBarIcon from 'phosphor-svelte/lib/ChartBar'
   import FileUpIcon from 'phosphor-svelte/lib/FileArrowUp'
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
   import HomeIcon from 'phosphor-svelte/lib/House'
@@ -301,6 +302,10 @@
         '/(app)/workspaces/[workspaceId]/accounts',
         { workspaceId },
       )}
+      {@const cashFlowPath = resolve(
+        '/(app)/workspaces/[workspaceId]/cash-flow',
+        { workspaceId },
+      )}
       {@const categoriesPath = resolve(
         '/(app)/workspaces/[workspaceId]/categories',
         { workspaceId },
@@ -342,6 +347,36 @@
                 pending={pendingFavoritePath === overviewPath}
                 path={overviewPath}
                 label={`${activeWorkspace.name} · Overview`}
+                ontoggle={toggleFavorite}
+              />
+            </Sidebar.MenuItem>
+
+            <Sidebar.MenuItem>
+              <Sidebar.MenuButton
+                isActive={routeId ===
+                  '/(app)/workspaces/[workspaceId]/cash-flow'}
+                tooltipContent="Cash flow"
+              >
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={cashFlowPath}
+                    aria-current={routeId ===
+                    '/(app)/workspaces/[workspaceId]/cash-flow'
+                      ? 'page'
+                      : undefined}
+                    onclick={closeMobile}
+                  >
+                    <ChartBarIcon aria-hidden="true" />
+                    <span>Cash flow</span>
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+              <FavoriteAction
+                active={favoriteFor(cashFlowPath) !== undefined}
+                pending={pendingFavoritePath === cashFlowPath}
+                path={cashFlowPath}
+                label={`${activeWorkspace.name} · Cash flow`}
                 ontoggle={toggleFavorite}
               />
             </Sidebar.MenuItem>

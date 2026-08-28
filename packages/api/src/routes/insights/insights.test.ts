@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { Summary } from '@dukat/core';
 import type { APIServices } from '../../services';
 import { createAPI } from '../../app';
 
@@ -49,6 +50,15 @@ test('insights routes require authentication and reject malformed categories, su
 		).status,
 		400
 	);
+	assert.equal((await app.request('/api/workspaces/w/cash-flow')).status, 401);
+	assert.equal(
+		(
+			await app.request('/api/workspaces/w/cash-flow?startDate=2026-08-02&endDate=2026-08-01', {
+				headers: auth
+			})
+		).status,
+		400
+	);
 	assert.equal(
 		(
 			await app.request('/api/workspaces/w/imports/preview', {
@@ -69,6 +79,52 @@ test('insights routes require authentication and reject malformed categories, su
 		).status,
 		400
 	);
+});
+
+test('cash-flow route returns reporting-currency monthly and category analysis', async () => {
+	const configured = services();
+	let received: unknown;
+	configured.insights.summary = async (_context, input) => {
+		received = input;
+		return { currencies: [] };
+	};
+	configured.exchangeRates = {
+		reportingCashFlow: async (
+			_workspaceId: string,
+			summary: Summary,
+			startDate: string,
+			_endDate: string
+		) => ({
+			...summary,
+			reporting: {
+				currency: 'PLN',
+				incomeMinor: '1000',
+				spendingMinor: '400',
+				uncategorizedMinor: '0',
+				netMinor: '600',
+				missingRate: false,
+				rates: [],
+				months: [
+					{
+						month: startDate.slice(0, 7),
+						incomeMinor: '1000',
+						spendingMinor: '400',
+						netMinor: '600'
+					}
+				],
+				spendingCategories: [{ categoryId: 'food', categoryName: 'Food', amountMinor: '400' }]
+			}
+		})
+	} as unknown as NonNullable<APIServices['exchangeRates']>;
+	const response = await createAPI(configured).request(
+		'/api/workspaces/w/cash-flow?startDate=2026-01-01&endDate=2026-08-27',
+		{ headers: auth }
+	);
+	assert.equal(response.status, 200);
+	assert.deepEqual(received, { startDate: '2026-01-01', endDate: '2026-08-27' });
+	const body = (await response.json()) as { reporting: { netMinor: string; months: unknown[] } };
+	assert.equal(body.reporting.netMinor, '600');
+	assert.equal(body.reporting.months.length, 1);
 });
 
 test('category writes require and forward version and idempotency bodies', async () => {
