@@ -6,6 +6,7 @@
   import { Sidebar, Spinner, toast } from '@dukat/ui'
   import ArrowLeftRightIcon from 'phosphor-svelte/lib/ArrowsLeftRight'
   import ChartBarIcon from 'phosphor-svelte/lib/ChartBar'
+  import ChartLineIcon from 'phosphor-svelte/lib/ChartLine'
   import FileUpIcon from 'phosphor-svelte/lib/FileArrowUp'
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
   import HomeIcon from 'phosphor-svelte/lib/House'
@@ -306,6 +307,10 @@
         '/(app)/workspaces/[workspaceId]/cash-flow',
         { workspaceId },
       )}
+      {@const forecastPath = resolve(
+        '/(app)/workspaces/[workspaceId]/forecast',
+        { workspaceId },
+      )}
       {@const categoriesPath = resolve(
         '/(app)/workspaces/[workspaceId]/categories',
         { workspaceId },
@@ -347,6 +352,36 @@
                 pending={pendingFavoritePath === overviewPath}
                 path={overviewPath}
                 label={`${activeWorkspace.name} · Overview`}
+                ontoggle={toggleFavorite}
+              />
+            </Sidebar.MenuItem>
+
+            <Sidebar.MenuItem>
+              <Sidebar.MenuButton
+                isActive={routeId ===
+                  '/(app)/workspaces/[workspaceId]/forecast'}
+                tooltipContent="Forecast"
+              >
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={forecastPath}
+                    aria-current={routeId ===
+                    '/(app)/workspaces/[workspaceId]/forecast'
+                      ? 'page'
+                      : undefined}
+                    onclick={closeMobile}
+                  >
+                    <ChartLineIcon aria-hidden="true" />
+                    <span>Forecast</span>
+                  </a>
+                {/snippet}
+              </Sidebar.MenuButton>
+              <FavoriteAction
+                active={favoriteFor(forecastPath) !== undefined}
+                pending={pendingFavoritePath === forecastPath}
+                path={forecastPath}
+                label={`${activeWorkspace.name} · Forecast`}
                 ontoggle={toggleFavorite}
               />
             </Sidebar.MenuItem>

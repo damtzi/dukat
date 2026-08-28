@@ -40,13 +40,35 @@ export type ConvertedBalances = {
   rates: RateProvenance[]
 }
 
+export type WorkspaceForecastOccurrence = {
+  planId: string
+  accountId: string
+  kind: 'income' | 'expense'
+  amountMinor: string
+  status: 'expected' | 'tentative'
+  originalDate: string
+  date: string
+  sourceCurrency: string
+  sourceAmountMinor: string
+}
+
+export type WorkspaceAccountForecast = {
+  id: string
+  currency: string
+  currentBalanceMinor: string
+  startingBalanceMinor: string
+  endingBalanceMinor: string
+}
+
 export type WorkspaceForecast = {
   estimate: true
   reportingCurrency: string | null
   missingRate: boolean
   startingBalanceMinor: string | null
   endingBalanceMinor: string | null
-  occurrences: unknown[]
+  occurrences: WorkspaceForecastOccurrence[]
+  points: Array<WorkspaceForecastOccurrence & { projectedBalanceMinor: string }>
+  accounts: WorkspaceAccountForecast[]
 }
 
 export type WorkspaceRouteData = {
