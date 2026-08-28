@@ -12,6 +12,26 @@ type SpendingCategory = {
   amountMinor: string
 }
 
+type AttentionInput = {
+  expectedLowestMinor: string | null
+  tentativeLowestMinor: string | null
+  overdueCount: number
+  missingRate: boolean
+  uncategorizedCount: number
+  staleRate: boolean
+}
+
+export type OverviewAttentionItem =
+  | {
+      kind: 'shortfall'
+      scenario: 'expected' | 'tentative'
+      balanceMinor: string
+    }
+  | { kind: 'overdue'; count: number }
+  | { kind: 'missing-rate' }
+  | { kind: 'uncategorized'; count: number }
+  | { kind: 'stale-rate' }
+
 export function absoluteMinor(value: string | bigint) {
   const amount = BigInt(value)
   return amount < 0n ? -amount : amount
@@ -60,6 +80,39 @@ export function overviewSpendingCategories(
         .toString(),
     },
   ]
+}
+
+export function overviewAttentionItems({
+  expectedLowestMinor,
+  tentativeLowestMinor,
+  overdueCount,
+  missingRate,
+  uncategorizedCount,
+  staleRate,
+}: AttentionInput): OverviewAttentionItem[] {
+  const items: OverviewAttentionItem[] = []
+  if (expectedLowestMinor !== null && BigInt(expectedLowestMinor) < 0n) {
+    items.push({
+      kind: 'shortfall',
+      scenario: 'expected',
+      balanceMinor: expectedLowestMinor,
+    })
+  } else if (
+    tentativeLowestMinor !== null &&
+    BigInt(tentativeLowestMinor) < 0n
+  ) {
+    items.push({
+      kind: 'shortfall',
+      scenario: 'tentative',
+      balanceMinor: tentativeLowestMinor,
+    })
+  }
+  if (overdueCount > 0) items.push({ kind: 'overdue', count: overdueCount })
+  if (missingRate) items.push({ kind: 'missing-rate' })
+  if (uncategorizedCount > 0)
+    items.push({ kind: 'uncategorized', count: uncategorizedCount })
+  if (staleRate) items.push({ kind: 'stale-rate' })
+  return items
 }
 
 export function monthlyForecastPoints(

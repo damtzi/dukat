@@ -4,9 +4,15 @@
   import OverviewOutlookChart from '$lib/components/forecast/OverviewOutlookChart.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import OverviewCashFlow from '$lib/components/insights/OverviewCashFlow.svelte'
+  import OverviewAttention from '$lib/components/overview/OverviewAttention.svelte'
+  import { todayInWarsaw } from '$lib/date'
   import { lowestProjectedBalance } from '$lib/forecast'
   import { formatMoney } from '$lib/money'
-  import { absoluteMinor, significantAccounts } from '$lib/overview'
+  import {
+    absoluteMinor,
+    overviewAttentionItems,
+    significantAccounts,
+  } from '$lib/overview'
   import type { PageProps } from './$types'
 
   let { data }: PageProps = $props()
@@ -41,6 +47,52 @@
   let lowestExpected = $derived(
     expected ? lowestProjectedBalance(expected) : null,
   )
+  let lowestTentative = $derived(
+    tentative ? lowestProjectedBalance(tentative) : null,
+  )
+  const today = todayInWarsaw()
+  let overdueCount = $derived(
+    new Set(
+      (tentative ?? expected)?.occurrences
+        .filter(({ originalDate }) => originalDate < today)
+        .map(({ planId, originalDate }) => `${planId}:${originalDate}`) ?? [],
+    ).size,
+  )
+  let uncategorizedCount = $derived(
+    data.cashFlowCurrent?.currencies.reduce(
+      (total, value) =>
+        total +
+        value.groups
+          .filter(({ categoryId }) => categoryId === null)
+          .reduce((count, group) => count + group.transactions.length, 0),
+      0,
+    ) ?? 0,
+  )
+  let uncategorizedAccountId = $derived(
+    data.cashFlowCurrent?.currencies
+      .flatMap(({ groups }) => groups)
+      .find(({ categoryId, transactions }) =>
+        Boolean(categoryId === null && transactions.length),
+      )?.transactions[0]?.accountId ?? null,
+  )
+  let staleRate = $derived(
+    Boolean(
+      workspace.rateStatus?.stale &&
+      activeAccounts.some(
+        ({ currency: accountCurrency }) => accountCurrency !== currency,
+      ),
+    ),
+  )
+  let attentionItems = $derived(
+    overviewAttentionItems({
+      expectedLowestMinor: lowestExpected,
+      tentativeLowestMinor: lowestTentative,
+      overdueCount,
+      missingRate: Boolean(missingRate),
+      uncategorizedCount,
+      staleRate,
+    }),
+  )
   let planningAccount = $derived(activeAccounts[0] ?? null)
   let accountsPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/accounts', {
@@ -56,6 +108,17 @@
     resolve('/(app)/workspaces/[workspaceId]/rates', {
       workspaceId: workspace.workspaceId,
     }),
+  )
+  let categorizationPath = $derived(
+    uncategorizedAccountId
+      ? resolve(
+          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
+          {
+            workspaceId: workspace.workspaceId,
+            accountId: uncategorizedAccountId,
+          },
+        )
+      : accountsPath,
   )
   let planningPath = $derived(
     planningAccount
@@ -94,16 +157,6 @@
   </div>
 
   {#key `${workspace.workspaceId}-${workspace.refreshVersion}`}
-    {#if workspace.rateStatus?.stale}
-      <Alert.Root>
-        <Alert.Title>Exchange rates are stale</Alert.Title>
-        <Alert.Description>
-          The latest cached NBP table is from {workspace.rateStatus.latest
-            ?.effectiveDate ?? 'an unknown date'}. Cached rates remain in use.
-        </Alert.Description>
-      </Alert.Root>
-    {/if}
-
     {#if activeAccounts.length === 0}
       <Empty.Root class="rounded-xl border bg-card">
         <Empty.Header>
@@ -114,7 +167,7 @@
           </Empty.Description>
         </Empty.Header>
         <Empty.Content>
-          <Button onclick={ledger.newAccount}>Create account</Button>
+          <Button onclick={ledger.newAccount}>Add account</Button>
         </Empty.Content>
       </Empty.Root>
     {:else if missingRate}
@@ -236,6 +289,17 @@
           Dukat could not load the current combined balance and forecast.
         </Alert.Description>
       </Alert.Root>
+    {/if}
+
+    {#if activeAccounts.length > 0 && attentionItems.length > 0}
+      <OverviewAttention
+        items={attentionItems}
+        {currency}
+        {forecastPath}
+        {categorizationPath}
+        {ratesPath}
+        latestRateDate={workspace.rateStatus?.latest?.effectiveDate ?? null}
+      />
     {/if}
 
     {#if activeAccounts.length > 0}

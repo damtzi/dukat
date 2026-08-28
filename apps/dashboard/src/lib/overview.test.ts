@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   monthlyForecastPoints,
+  overviewAttentionItems,
   overviewSpendingCategories,
   significantAccounts,
 } from './overview'
@@ -64,6 +65,55 @@ describe('overviewSpendingCategories', () => {
     ).toEqual([
       { categoryId: 'food', categoryName: 'Food', amountMinor: '9000' },
     ])
+  })
+})
+
+describe('overviewAttentionItems', () => {
+  it('orders objective issues by financial urgency', () => {
+    expect(
+      overviewAttentionItems({
+        expectedLowestMinor: '-2500',
+        tentativeLowestMinor: '-5000',
+        overdueCount: 2,
+        missingRate: true,
+        uncategorizedCount: 4,
+        staleRate: true,
+      }),
+    ).toEqual([
+      { kind: 'shortfall', scenario: 'expected', balanceMinor: '-2500' },
+      { kind: 'overdue', count: 2 },
+      { kind: 'missing-rate' },
+      { kind: 'uncategorized', count: 4 },
+      { kind: 'stale-rate' },
+    ])
+  })
+
+  it('uses tentative wording only when the expected scenario stays non-negative', () => {
+    expect(
+      overviewAttentionItems({
+        expectedLowestMinor: '1000',
+        tentativeLowestMinor: '-500',
+        overdueCount: 0,
+        missingRate: false,
+        uncategorizedCount: 0,
+        staleRate: false,
+      }),
+    ).toEqual([
+      { kind: 'shortfall', scenario: 'tentative', balanceMinor: '-500' },
+    ])
+  })
+
+  it('returns no issues when no user action is needed', () => {
+    expect(
+      overviewAttentionItems({
+        expectedLowestMinor: '0',
+        tentativeLowestMinor: '0',
+        overdueCount: 0,
+        missingRate: false,
+        uncategorizedCount: 0,
+        staleRate: false,
+      }),
+    ).toEqual([])
   })
 })
 

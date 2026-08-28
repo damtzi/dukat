@@ -58,11 +58,19 @@ async function chooseSelect(page: Page, label: string, option: string) {
 
 type State = 'data' | 'no-accounts' | 'no-plans' | 'missing-rate' | 'no-transactions';
 
-function cashFlowResponse(state: State, previous: boolean) {
+type AttentionOptions = {
+	shortfall?: 'expected' | 'tentative';
+	overdue?: boolean;
+	uncategorized?: number;
+	staleRate?: boolean;
+};
+
+function cashFlowResponse(state: State, previous: boolean, attention: AttentionOptions) {
 	const empty = state === 'no-transactions';
 	const missingRate = state === 'missing-rate';
 	const incomeMinor = previous ? '700000' : '900000';
 	const spendingMinor = previous ? '300000' : '360000';
+	const uncategorized = previous ? 0 : (attention.uncategorized ?? 0);
 	const categories = [
 		['groceries', 'Groceries', '90000'],
 		['housing', 'Housing', '80000'],
@@ -80,15 +88,32 @@ function cashFlowResponse(state: State, previous: boolean) {
 						currency: 'PLN',
 						incomeMinor,
 						spendingMinor,
-						uncategorizedMinor: '0',
-						groups: []
+						uncategorizedMinor: (uncategorized * 1000).toString(),
+						groups: uncategorized
+							? [
+									{
+										kind: 'expense',
+										categoryId: null,
+										categoryName: 'Uncategorized',
+										amountMinor: (uncategorized * 1000).toString(),
+										transactions: Array.from({ length: uncategorized }, (_, index) => ({
+											id: `uncategorized-${index}`,
+											accountId: 'checking',
+											date: '2026-08-20',
+											kind: 'expense',
+											amountMinor: '1000',
+											description: null
+										}))
+									}
+								]
+							: []
 					}
 				],
 		reporting: {
 			currency: 'PLN',
 			incomeMinor: missingRate ? null : empty ? '0' : incomeMinor,
 			spendingMinor: missingRate ? null : empty ? '0' : spendingMinor,
-			uncategorizedMinor: missingRate ? null : '0',
+			uncategorizedMinor: missingRate ? null : (uncategorized * 1000).toString(),
 			netMinor: missingRate
 				? null
 				: empty
@@ -109,7 +134,7 @@ function cashFlowResponse(state: State, previous: boolean) {
 	};
 }
 
-async function mockOverview(page: Page, state: State = 'data') {
+async function mockOverview(page: Page, state: State = 'data', attention: AttentionOptions = {}) {
 	let savingsBalance = 50000n;
 	const requests: Array<{ pathname: string; body: Record<string, unknown> }> = [];
 	const currentAccounts = () =>
@@ -119,6 +144,7 @@ async function mockOverview(page: Page, state: State = 'data') {
 					item.id === 'savings'
 						? {
 								...item,
+								currency: attention.staleRate ? 'EUR' : item.currency,
 								balanceMinor: savingsBalance.toString(),
 								openingBalanceMinor: savingsBalance.toString()
 							}
@@ -150,7 +176,11 @@ async function mockOverview(page: Page, state: State = 'data') {
 				}
 			]);
 		if (pathname === '/api/rates/status')
-			return json(route, { available: true, stale: false, latest: null });
+			return json(route, {
+				available: true,
+				stale: attention.staleRate ?? false,
+				latest: attention.staleRate ? { effectiveDate: '2026-08-18' } : null
+			});
 		if (pathname === `/api/workspaces/${workspaceId}/accounts`)
 			return json(route, currentAccounts());
 		if (pathname === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
@@ -175,15 +205,15 @@ async function mockOverview(page: Page, state: State = 'data') {
 				'rent',
 				'checking',
 				'expected',
-				'2026-09-01',
-				(currentTotal() - 100000n).toString()
+				attention.overdue ? '2026-08-20' : '2026-09-01',
+				attention.shortfall === 'expected' ? '-19000' : (currentTotal() - 10000n).toString()
 			);
 			const tentative = occurrence(
 				'move',
 				'savings',
 				'tentative',
 				'2027-01-15',
-				(currentTotal() - 140000n).toString()
+				attention.shortfall === 'tentative' ? '-59000' : (currentTotal() - 14000n).toString()
 			);
 			const points = noPlans ? [] : includeTentative ? [expected, tentative] : [expected];
 			return json(route, {
@@ -205,7 +235,7 @@ async function mockOverview(page: Page, state: State = 'data') {
 		if (pathname === `/api/workspaces/${workspaceId}/cash-flow`) {
 			return json(
 				route,
-				cashFlowResponse(state, url.searchParams.get('startDate') === '2026-07-01')
+				cashFlowResponse(state, url.searchParams.get('startDate') === '2026-07-01', attention)
 			);
 		}
 		if (
@@ -255,6 +285,7 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await page.goto(`/workspaces/${workspaceId}`);
 
 	await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+	await expect(page.getByText('Needs attention', { exact: true })).toHaveCount(0);
 	await expect(page.getByText('Financial cockpit')).toHaveCount(0);
 	await expect(page.getByText('Your balance', { exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Outlook', level: 2 })).toBeVisible();
@@ -367,11 +398,105 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts/checking/planning`);
 });
 
+test('shows objective attention items in priority order and limits initial density', async ({
+	page
+}, testInfo) => {
+	test.skip(!['desktop-chromium', 'phone-chromium'].includes(testInfo.project.name));
+	await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
+	await mockOverview(page, 'data', {
+		shortfall: 'expected',
+		overdue: true,
+		uncategorized: 3,
+		staleRate: true
+	});
+	await page.goto(`/workspaces/${workspaceId}`);
+
+	const attention = page.getByRole('region', { name: 'Needs attention' });
+	await expect(attention).toBeVisible();
+	const visibleItems = attention.locator('li');
+	await expect(visibleItems).toHaveCount(3);
+	await expect(visibleItems.nth(0)).toContainText('Projected balance below zero');
+	await expect(visibleItems.nth(0)).toContainText('Expected plans');
+	await expect(visibleItems.nth(0)).toContainText('not a guaranteed outcome');
+	await expect(visibleItems.nth(1)).toContainText('Overdue planned transactions');
+	await expect(visibleItems.nth(1)).toContainText('1 planned transaction');
+	await expect(visibleItems.nth(2)).toContainText('Uncategorized transactions');
+	await expect(visibleItems.nth(2)).toContainText('3 completed transactions');
+	await expect(attention.getByText('Stale exchange rates')).toHaveCount(0);
+
+	const more = attention.getByRole('button', { name: 'View 1 more issue' });
+	await more.focus();
+	await expect(more).toBeFocused();
+	await more.click();
+	await expect(attention.getByRole('button', { name: 'Hide 1 additional issue' })).toBeFocused();
+	await expect(visibleItems).toHaveCount(4);
+	await expect(visibleItems.nth(3)).toContainText('Stale exchange rates');
+	await expect(visibleItems.nth(3)).toContainText('2026-08-18');
+	await expect(attention.getByRole('link', { name: 'Review forecast' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/forecast`
+	);
+	await expect(attention.getByRole('link', { name: 'Review overdue plans' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/forecast`
+	);
+	await expect(attention.getByRole('link', { name: 'Categorize transactions' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/accounts/checking/activity`
+	);
+	await expect(attention.getByRole('link', { name: 'Review exchange rates' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/rates`
+	);
+
+	const outlook = await page.getByRole('heading', { name: 'Outlook', level: 2 }).boundingBox();
+	const attentionBox = await attention.boundingBox();
+	const thisMonth = await page.getByText('This month', { exact: true }).boundingBox();
+	expect(outlook!.y).toBeLessThan(attentionBox!.y);
+	expect(attentionBox!.y).toBeLessThan(thisMonth!.y);
+	if (testInfo.project.name === 'phone-chromium') {
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			await page.evaluate(() => window.innerWidth)
+		);
+	}
+	await expectNoSeriousAxeViolations(page);
+
+	await attention.getByRole('link', { name: 'Review overdue plans' }).click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/forecast`);
+	await page.goto(`/workspaces/${workspaceId}`);
+	await page
+		.getByRole('region', { name: 'Needs attention' })
+		.getByRole('link', {
+			name: 'Categorize transactions'
+		})
+		.click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts/checking/activity`);
+	await page.goto(`/workspaces/${workspaceId}`);
+	const restoredAttention = page.getByRole('region', { name: 'Needs attention' });
+	await restoredAttention.getByRole('button', { name: 'View 1 more issue' }).click();
+	await restoredAttention.getByRole('link', { name: 'Review exchange rates' }).click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/rates`);
+});
+
+test('distinguishes a tentative shortfall and navigates to recovery', async ({ page }) => {
+	await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
+	await mockOverview(page, 'data', { shortfall: 'tentative' });
+	await page.goto(`/workspaces/${workspaceId}`);
+
+	const attention = page.getByRole('region', { name: 'Needs attention' });
+	await expect(attention).toContainText(
+		'Including Tentative plans creates a possible lowest balance'
+	);
+	await expect(attention).toContainText('Expected plans alone stay at or above zero');
+	await attention.getByRole('link', { name: 'Review forecast' }).click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/forecast`);
+});
+
 test('uses direct empty and missing-rate states', async ({ page }) => {
 	await mockOverview(page, 'no-accounts');
 	await page.goto(`/workspaces/${workspaceId}`);
 	await expect(page.getByText('No accounts', { exact: true })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Add account' })).toBeVisible();
 	await expect(page.getByText('Outlook: 12-month projected balance')).toHaveCount(0);
 
 	await page.unrouteAll({ behavior: 'wait' });
@@ -396,12 +521,20 @@ test('uses direct empty and missing-rate states', async ({ page }) => {
 	await expect(
 		missingRateCard.getByRole('link', { name: 'Review exchange rates' })
 	).toHaveAttribute('href', `/workspaces/${workspaceId}/rates`);
+	const missingRateAttention = page.getByRole('region', { name: 'Needs attention' });
+	await expect(missingRateAttention).toContainText('Missing exchange rates');
+	await expect(missingRateAttention).toContainText(
+		'Combined balance, Cash flow, and Forecast values cannot be calculated'
+	);
+	await expect(
+		missingRateAttention.getByRole('link', { name: 'Review exchange rates' })
+	).toHaveAttribute('href', `/workspaces/${workspaceId}/rates`);
 	const missingCashFlow = page
 		.getByText('Combined cash flow unavailable')
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await expect(missingCashFlow).toContainText('PLN');
 	await expect(missingCashFlow.getByRole('link')).toHaveCount(0);
-	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toHaveCount(1);
+	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toHaveCount(2);
 	await expect(page.getByText('Income and spending comparison')).toBeHidden();
 	await expect(page.getByText('Outlook: 12-month projected balance')).toHaveCount(0);
 	await expectNoSeriousAxeViolations(page);
