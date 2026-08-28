@@ -166,6 +166,37 @@ export const summarySchema = z.object({
 		})
 	)
 });
+export const cashFlowInputSchema = z
+	.object({ startDate: isoCalendarDateSchema, endDate: isoCalendarDateSchema })
+	.refine((value) => value.startDate <= value.endDate, {
+		message: 'Start date must not be after end date'
+	});
+export const cashFlowSchema = summarySchema.extend({
+	reporting: z.object({
+		currency: z.string().length(3),
+		incomeMinor: z.string().nullable(),
+		spendingMinor: z.string().nullable(),
+		uncategorizedMinor: z.string().nullable(),
+		netMinor: z.string().nullable(),
+		missingRate: z.boolean(),
+		rates: z.array(exchangeRateProvenanceSchema),
+		months: z.array(
+			z.object({
+				month: z.string().regex(/^\d{4}-\d{2}$/),
+				incomeMinor: z.string(),
+				spendingMinor: z.string(),
+				netMinor: z.string()
+			})
+		),
+		spendingCategories: z.array(
+			z.object({
+				categoryId: idSchema.nullable(),
+				categoryName: z.string(),
+				amountMinor: z.string()
+			})
+		)
+	})
+});
 export const previewInputSchema = z.object({
 	filename: filenameSchema,
 	accountId: idSchema,
@@ -248,6 +279,7 @@ export const trashImportInputSchema = mutationSchema;
 
 export type Category = z.infer<typeof categorySchema>;
 export type Summary = z.infer<typeof summarySchema>;
+export type CashFlow = z.infer<typeof cashFlowSchema>;
 export type CsvPreview = z.infer<typeof previewSchema>;
 export type CsvPreviewRow = z.infer<typeof previewRowSchema>;
 export type CsvConfirmInput = z.infer<typeof confirmInputSchema>;

@@ -1,5 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import {
+	cashFlowInputSchema,
+	cashFlowSchema,
 	categoryActionSchema,
 	categoryActionInputSchema,
 	categorySchema,
@@ -71,6 +73,13 @@ export const summary = createRoute({
 	path: '/workspaces/{workspaceId}/summary',
 	request: { params, query: summaryInputSchema },
 	responses: responses(summarySchema, 'Summary')
+});
+export const cashFlow = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/cash-flow',
+	request: { params, query: cashFlowInputSchema },
+	responses: responses(cashFlowSchema, 'Cash flow')
 });
 export const preview = createRoute({
 	...common(),
