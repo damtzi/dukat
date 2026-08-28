@@ -43,6 +43,12 @@ describe('cash-flow periods', () => {
   it('builds fair preset and custom comparison periods', () => {
     expect(
       equivalentCashFlowRange(
+        { startDate: '2026-08-01', endDate: '2026-08-27' },
+        'month',
+      ),
+    ).toEqual({ startDate: '2026-07-01', endDate: '2026-07-27' })
+    expect(
+      equivalentCashFlowRange(
         { startDate: '2026-01-01', endDate: '2026-08-27' },
         'ytd',
       ),
