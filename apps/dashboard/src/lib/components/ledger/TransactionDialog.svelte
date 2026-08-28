@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Transaction } from '@dukat/core/ledger'
+  import type { Account, Transaction } from '@dukat/core/ledger'
   import type { Category } from '@dukat/core/csv-import'
   import {
     Alert,
@@ -20,9 +20,11 @@
     pending,
     onsubmit,
     categories,
+    accounts,
   }: {
     open: boolean
     form: {
+      accountId: string
       kind: Transaction['kind']
       amount: string
       date: string
@@ -34,6 +36,7 @@
     pending: boolean
     onsubmit: (event: SubmitEvent) => void
     categories: Category[]
+    accounts: Account[]
   } = $props()
   const transactionKinds = [
     { value: 'expense', label: 'Expense' },
@@ -48,6 +51,12 @@
   )
   let selectedCategory = $derived(
     availableCategories.find((category) => category.id === form.categoryId),
+  )
+  let activeAccounts = $derived(
+    accounts.filter(({ archivedAt }) => !archivedAt),
+  )
+  let selectedAccount = $derived(
+    activeAccounts.find(({ id }) => id === form.accountId),
   )
 </script>
 
@@ -67,6 +76,29 @@
           ><Alert.Title>Could not save transaction</Alert.Title
           ><Alert.Description>{error}</Alert.Description></Alert.Root
         >{/if}
+      {#if !editingTransaction}
+        <div class="flex flex-col gap-2">
+          <Label for="transaction-account">Account</Label><Select.Root
+            type="single"
+            bind:value={form.accountId}
+          >
+            <Select.Trigger id="transaction-account" class="w-full">
+              {selectedAccount
+                ? `${selectedAccount.name} · ${selectedAccount.currency}`
+                : 'Select account'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each activeAccounts as account (account.id)}
+                  <Select.Item value={account.id} label={account.name}
+                    >{account.name} · {account.currency}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </div>
+      {/if}
       <div class="flex flex-col gap-2">
         <Label for="kind">Kind</Label><Select.Root
           type="single"

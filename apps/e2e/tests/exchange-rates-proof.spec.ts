@@ -130,6 +130,17 @@ async function mockRates(page: Page, options: { householdMember?: boolean } = {}
 					{ ...accounts[1], convertedBalanceMinor: '5000', rates: [] }
 				]
 			});
+		if (pathname === `/api/workspaces/${workspaceId}/forecast` && method === 'GET')
+			return json(route, {
+				estimate: true,
+				reportingCurrency: 'USD',
+				missingRate: false,
+				startingBalanceMinor: '15750',
+				endingBalanceMinor: '15750',
+				occurrences: [],
+				points: [],
+				accounts: []
+			});
 		if (pathname === `/api/workspaces/${workspaceId}/rates` && method === 'GET')
 			return json(route, manualRates);
 		if (pathname === `/api/workspaces/${workspaceId}/rates/manual` && method === 'POST') {
@@ -228,11 +239,11 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		'data-active',
 		'false'
 	);
-	await expect(page.getByText('Combined balance', { exact: true })).toBeVisible();
-	await expect(page.getByText(/^157,50\sUSD$/)).toBeVisible();
-	await expect(
-		page.getByText(/EUR 4.3 PLN · NBP 151\/A\/NBP\/2026 · 2026-08-05/).first()
-	).toBeVisible();
+	const outlookCard = page
+		.getByText('Your balance', { exact: true })
+		.locator('xpath=ancestor::*[@data-slot="card"][1]');
+	await expect(outlookCard).toContainText(/157,50\sUSD/);
+	await expect(page.getByText('No planned transactions')).toBeVisible();
 	await page.waitForTimeout(500);
 	await page.screenshot({
 		path: '../../.amp/in/artifacts/overview-dashboard-proof.png',

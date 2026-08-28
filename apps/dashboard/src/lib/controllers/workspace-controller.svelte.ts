@@ -37,6 +37,12 @@ export type ConvertedBalances = {
   reportingCurrency: string
   totalMinor: string | null
   missingRate: boolean
+  accounts: Array<
+    Account & {
+      convertedBalanceMinor: string | null
+      rates: RateProvenance[]
+    }
+  >
   rates: RateProvenance[]
 }
 

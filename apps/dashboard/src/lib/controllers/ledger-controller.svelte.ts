@@ -109,6 +109,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     amount: '0',
   })
   let transactionForm = $state({
+    accountId: '',
     kind: 'expense' as Transaction['kind'],
     amount: '',
     date: todayInWarsaw(),
@@ -260,10 +261,15 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     }
   }
   function newTransaction() {
+    const account = selected()
     editingTransaction = null
     transactionError = ''
     transactionIntentKey = key()
     transactionForm = {
+      accountId:
+        (account && !account.archivedAt ? account.id : '') ||
+        accounts.find(({ archivedAt }) => !archivedAt)?.id ||
+        '',
       kind: 'expense',
       amount: '',
       date: todayInWarsaw(),
@@ -277,6 +283,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     transactionIntentKey = key()
     editingTransaction = item
     transactionForm = {
+      accountId: selected()!.id,
       kind: item.kind,
       amount: minorToDecimal(item.amountMinor, selected()!.currency),
       date: item.date,
@@ -287,7 +294,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   }
   async function saveTransaction(event: SubmitEvent) {
     event.preventDefault()
-    const account = selected()
+    const account = accounts.find(({ id }) => id === transactionForm.accountId)
     if (!account || pending) return
     transactionError = ''
     pending = true

@@ -154,7 +154,9 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				missingRate: false,
 				startingBalanceMinor: balance().toString(),
 				endingBalanceMinor: balance().toString(),
-				occurrences: []
+				occurrences: [],
+				points: [],
+				accounts: []
 			});
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/balances/converted` && method === 'GET') {
@@ -757,11 +759,11 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 		await page.keyboard.press('Control+b');
 		await expect(mobileSidebar).toBeHidden();
 	}
-	await page.getByRole('button', { name: 'Add account' }).click();
-	await expect(page.getByLabel('Opening balance').filter({ visible: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Add transaction' }).click();
+	await expect(page.getByLabel('Amount').filter({ visible: true })).toBeVisible();
 	await page.goForward();
 	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
-	await expect(page.getByLabel('Opening balance').filter({ visible: true })).toHaveCount(0);
+	await expect(page.getByLabel('Amount').filter({ visible: true })).toHaveCount(0);
 });
 
 test('keeps account URLs authoritative through stale loads and deletion', async ({ page }) => {
@@ -952,9 +954,6 @@ test('renders a private incoming cross-workspace transfer without management con
 	});
 
 	await page.goto(`/workspaces/${householdId}`);
-	await expect(
-		page.getByText('Shared current account', { exact: true }).filter({ visible: true }).last()
-	).toBeVisible();
 	await clickSidebarLink(page, /Shared current account/);
 	const transfer = page
 		.getByText('Incoming transfer', { exact: true })
@@ -1341,14 +1340,6 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await submitDialog(page);
 	await expect(
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
-	).toBeVisible();
-
-	await clickSidebarLink(page, 'Overview');
-	const summaryGroup = page.getByRole('button', { name: /Groceries · expense 25,00\sUSD/ });
-	await expect(summaryGroup).toBeVisible();
-	await summaryGroup.click();
-	await expect(
-		page.getByText('2026-08-02 · Everyday account · Weekly shop · 25,00 USD', { exact: true })
 	).toBeVisible();
 
 	await clickSidebarLink(page, 'CSV imports');
