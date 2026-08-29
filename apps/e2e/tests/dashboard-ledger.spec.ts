@@ -462,15 +462,45 @@ test('protects workspace routes and routes authenticated users from root', async
 });
 
 test('keeps global navigation available outside a workspace', async ({ page }) => {
+	const personalAccount = {
+		id: accountId,
+		name: 'Everyday account',
+		type: 'current',
+		currency: 'USD',
+		openingBalanceMinor: '120000',
+		balanceMinor: '120000',
+		negativeBalance: false,
+		version: 1,
+		archivedAt: null,
+		canDelete: true,
+		canArchive: false,
+		canRestore: false
+	};
 	await page.route('**/api/auth/get-session', (route) =>
 		json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } })
 	);
 	await page.route('**/api/workspaces', (route) => json(route, [personalWorkspace]));
+	await page.route(`**/api/workspaces/${workspaceId}/accounts`, (route) =>
+		json(route, [personalAccount])
+	);
 	await page.route('**/api/favorites', (route) => json(route, []));
 
 	await page.goto('/home');
 	await openSidebar(page);
-	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toBeVisible();
+	await expect(
+		page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Personal$/ })
+	).toHaveCount(1);
+	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'Overview', exact: true })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Add Personal · Accounts to favorites' })
+	).toBeAttached();
+	await expect(
+		page.getByRole('button', { name: 'Add Personal · Everyday account to favorites' })
+	).toHaveCount(0);
+	await page.getByRole('button', { name: 'Collapse Personal accounts' }).click();
+	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeHidden();
 	await expect(page.getByRole('link', { name: 'Create shared workspace' })).toBeVisible();
 	const results = await new AxeBuilder({ page })
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -484,6 +514,9 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
 	await clickSidebarLink(page, 'Home');
 	await expect(page).toHaveURL('/home');
+	await openSidebar(page);
+	await expect(page.getByRole('button', { name: 'Expand Personal accounts' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeHidden();
 });
 
 test('logs out from the global navigation', async ({ page }) => {
@@ -741,13 +774,20 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 
 	await page.goto(`/workspaces/${workspaceId}`);
 	await openSidebar(page);
-	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toBeVisible();
+	await expect(
+		page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Personal$/ })
+	).toHaveCount(1);
 	await expect(page.getByRole('link', { name: 'Second workspace', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Expand Second workspace' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Second account/ })).toHaveCount(0);
 	await expect(page.getByRole('combobox', { name: 'Workspace' })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: /First account/ })).toBeVisible();
 	await clickSidebarLink(page, 'Second workspace');
 	await expect(page).toHaveURL(`/workspaces/${secondWorkspaceId}`);
 	await openSidebar(page);
+	await expect(
+		page.getByRole('button', { name: 'Collapse Second workspace', exact: true })
+	).toBeVisible();
 	await expect(page.getByRole('link', { name: /Second account/ })).toBeVisible();
 	await page.goBack();
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}`);

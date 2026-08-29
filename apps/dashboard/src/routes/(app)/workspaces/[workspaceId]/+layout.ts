@@ -28,19 +28,29 @@ function failed(workspaceId: string, message: string): WorkspaceRouteData {
 export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
   depends(workspaceDataDependency)
   const workspaceId = params.workspaceId
-  const { workspaces, workspacesError } = await parent()
+  const {
+    workspaces,
+    workspacesError,
+    personalAccounts,
+    personalAccountsError,
+  } = await parent()
   if (workspacesError) return failed(workspaceId, workspacesError)
 
   if (!workspaces.some(({ id }) => id === workspaceId))
     redirect(307, resolve('/home'))
 
+  const workspace = workspaces.find(({ id }) => id === workspaceId)!
   let accounts: Account[]
   let categories: Category[]
   try {
+    if (workspace.type === 'personal' && personalAccountsError)
+      throw new Error(personalAccountsError)
     ;[accounts, categories] = await Promise.all([
-      loadApi(fetch, `/workspaces/${workspaceId}/accounts`) as Promise<
-        Account[]
-      >,
+      workspace.type === 'personal'
+        ? Promise.resolve(personalAccounts)
+        : (loadApi(fetch, `/workspaces/${workspaceId}/accounts`) as Promise<
+            Account[]
+          >),
       loadApi(fetch, `/workspaces/${workspaceId}/categories`) as Promise<
         Category[]
       >,

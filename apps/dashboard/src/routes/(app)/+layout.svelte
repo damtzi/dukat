@@ -39,6 +39,7 @@
 {:else}
   <AppShell
     workspaces={data.workspaces}
+    personalAccounts={data.personalAccounts}
     favorites={data.favorites}
     favoritesError={data.favoritesError}
   >

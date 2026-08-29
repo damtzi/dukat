@@ -4,23 +4,16 @@
   import { page } from '$app/state'
   import type { Account } from '@dukat/core/ledger'
   import { Sidebar, Spinner, toast } from '@dukat/ui'
-  import ArrowLeftRightIcon from 'phosphor-svelte/lib/ArrowsLeftRight'
-  import ChartBarIcon from 'phosphor-svelte/lib/ChartBar'
-  import ChartLineIcon from 'phosphor-svelte/lib/ChartLine'
-  import FileUpIcon from 'phosphor-svelte/lib/FileArrowUp'
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
   import HomeIcon from 'phosphor-svelte/lib/House'
   import PlusIcon from 'phosphor-svelte/lib/Plus'
-  import StarIcon from 'phosphor-svelte/lib/Star'
-  import LayoutDashboardIcon from 'phosphor-svelte/lib/SquaresFour'
-  import TagIcon from 'phosphor-svelte/lib/Tag'
-  import UserIcon from 'phosphor-svelte/lib/UserCircle'
-  import SharedIcon from 'phosphor-svelte/lib/UsersThree'
   import SignOutIcon from 'phosphor-svelte/lib/SignOut'
-  import WalletIcon from 'phosphor-svelte/lib/Wallet'
+  import StarIcon from 'phosphor-svelte/lib/Star'
+  import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import { api } from '$lib/api'
   import FavoriteAction from '$lib/components/dashboard/FavoriteAction.svelte'
-  import { formatMoney } from '$lib/money'
+  import HouseholdNavigation from '$lib/components/dashboard/HouseholdNavigation.svelte'
+  import WorkspaceNavigation from '$lib/components/dashboard/WorkspaceNavigation.svelte'
   import type {
     Workspace,
     WorkspaceRouteData,
@@ -29,10 +22,12 @@
 
   let {
     workspaces,
+    personalAccounts,
     favorites,
     favoritesError,
   }: {
     workspaces: Workspace[]
+    personalAccounts: Account[]
     favorites: Favorite[]
     favoritesError: string
   } = $props()
@@ -41,25 +36,19 @@
   let pendingFavoritePath = $state('')
   let favoriteMessage = $state('')
   let logoutPending = $state(false)
-  let personalWorkspaces = $derived(
-    workspaces.filter(({ type }) => type === 'personal'),
+  let personalWorkspace = $derived(
+    workspaces.find(({ type }) => type === 'personal') ?? null,
   )
   let sharedWorkspaces = $derived(
     workspaces.filter(({ type }) => type === 'household'),
   )
-  let workspaceId = $derived(page.params.workspaceId ?? '')
-  let accounts = $derived<Account[]>(
-    workspaceId
+  let routeWorkspaceId = $derived(page.params.workspaceId ?? '')
+  let routeAccounts = $derived<Account[]>(
+    routeWorkspaceId
       ? ((page.data as Partial<WorkspaceRouteData>).accounts ?? [])
       : [],
   )
-  let activeWorkspace = $derived(
-    workspaces.find(({ id }) => id === workspaceId) ?? null,
-  )
   let routeId = $derived(page.route.id)
-  let accountsActive = $derived(
-    routeId?.startsWith('/(app)/workspaces/[workspaceId]/accounts') ?? false,
-  )
   let visibleFavoriteError = $derived(favoriteMessage || favoritesError)
 
   function closeMobile() {
@@ -213,38 +202,17 @@
       </Sidebar.Group>
     {/if}
 
-    {#if personalWorkspaces.length > 0}
+    {#if personalWorkspace}
       <Sidebar.Group>
         <Sidebar.GroupLabel>Personal</Sidebar.GroupLabel>
         <Sidebar.GroupContent>
-          <Sidebar.Menu>
-            {#each personalWorkspaces as workspace (workspace.id)}
-              <Sidebar.MenuItem>
-                <Sidebar.MenuButton
-                  isActive={workspaceId === workspace.id}
-                  tooltipContent={workspace.name}
-                >
-                  {#snippet child({ props })}
-                    <a
-                      {...props}
-                      href={resolve('/(app)/workspaces/[workspaceId]', {
-                        workspaceId: workspace.id,
-                      })}
-                      aria-current={routeId ===
-                        '/(app)/workspaces/[workspaceId]' &&
-                      workspaceId === workspace.id
-                        ? 'page'
-                        : undefined}
-                      onclick={closeMobile}
-                    >
-                      <WalletIcon aria-hidden="true" />
-                      <span>{workspace.name}</span>
-                    </a>
-                  {/snippet}
-                </Sidebar.MenuButton>
-              </Sidebar.MenuItem>
-            {/each}
-          </Sidebar.Menu>
+          <WorkspaceNavigation
+            workspace={personalWorkspace}
+            accounts={personalAccounts}
+            {favorites}
+            {pendingFavoritePath}
+            ontogglefavorite={toggleFavorite}
+          />
         </Sidebar.GroupContent>
       </Sidebar.Group>
     {/if}
@@ -266,351 +234,18 @@
       <Sidebar.GroupContent>
         <Sidebar.Menu>
           {#each sharedWorkspaces as workspace (workspace.id)}
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={workspaceId === workspace.id}
-                tooltipContent={workspace.name}
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={resolve('/(app)/workspaces/[workspaceId]', {
-                      workspaceId: workspace.id,
-                    })}
-                    aria-current={routeId ===
-                      '/(app)/workspaces/[workspaceId]' &&
-                    workspaceId === workspace.id
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <SharedIcon aria-hidden="true" />
-                    <span>{workspace.name}</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-            </Sidebar.MenuItem>
+            <HouseholdNavigation
+              {workspace}
+              accounts={routeWorkspaceId === workspace.id ? routeAccounts : []}
+              active={routeWorkspaceId === workspace.id}
+              {favorites}
+              {pendingFavoritePath}
+              ontogglefavorite={toggleFavorite}
+            />
           {/each}
         </Sidebar.Menu>
       </Sidebar.GroupContent>
     </Sidebar.Group>
-
-    {#if activeWorkspace}
-      {@const overviewPath = resolve('/(app)/workspaces/[workspaceId]', {
-        workspaceId,
-      })}
-      {@const accountsPath = resolve(
-        '/(app)/workspaces/[workspaceId]/accounts',
-        { workspaceId },
-      )}
-      {@const cashFlowPath = resolve(
-        '/(app)/workspaces/[workspaceId]/cash-flow',
-        { workspaceId },
-      )}
-      {@const forecastPath = resolve(
-        '/(app)/workspaces/[workspaceId]/forecast',
-        { workspaceId },
-      )}
-      {@const categoriesPath = resolve(
-        '/(app)/workspaces/[workspaceId]/categories',
-        { workspaceId },
-      )}
-      {@const importsPath = resolve('/(app)/workspaces/[workspaceId]/imports', {
-        workspaceId,
-      })}
-      {@const ratesPath = resolve('/(app)/workspaces/[workspaceId]/rates', {
-        workspaceId,
-      })}
-      {@const managePath = resolve('/(app)/workspaces/[workspaceId]/manage', {
-        workspaceId,
-      })}
-      <Sidebar.Group>
-        <Sidebar.GroupLabel>{activeWorkspace.name}</Sidebar.GroupLabel>
-        <Sidebar.GroupContent>
-          <Sidebar.Menu>
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId === '/(app)/workspaces/[workspaceId]'}
-                tooltipContent="Overview"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={overviewPath}
-                    aria-current={routeId === '/(app)/workspaces/[workspaceId]'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <LayoutDashboardIcon aria-hidden="true" />
-                    <span>Overview</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(overviewPath) !== undefined}
-                pending={pendingFavoritePath === overviewPath}
-                path={overviewPath}
-                label={`${activeWorkspace.name} · Overview`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId ===
-                  '/(app)/workspaces/[workspaceId]/forecast'}
-                tooltipContent="Forecast"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={forecastPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/forecast'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <ChartLineIcon aria-hidden="true" />
-                    <span>Forecast</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(forecastPath) !== undefined}
-                pending={pendingFavoritePath === forecastPath}
-                path={forecastPath}
-                label={`${activeWorkspace.name} · Forecast`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId ===
-                  '/(app)/workspaces/[workspaceId]/cash-flow'}
-                tooltipContent="Cash flow"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={cashFlowPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/cash-flow'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <ChartBarIcon aria-hidden="true" />
-                    <span>Cash flow</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(cashFlowPath) !== undefined}
-                pending={pendingFavoritePath === cashFlowPath}
-                path={cashFlowPath}
-                label={`${activeWorkspace.name} · Cash flow`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={accountsActive}
-                tooltipContent="Accounts"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={accountsPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/accounts'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <WalletIcon aria-hidden="true" />
-                    <span>Accounts</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(accountsPath) !== undefined}
-                pending={pendingFavoritePath === accountsPath}
-                path={accountsPath}
-                label={`${activeWorkspace.name} · Accounts`}
-                ontoggle={toggleFavorite}
-              />
-              {#if accounts.length > 0}
-                <Sidebar.MenuSub>
-                  {#each accounts as account (account.id)}
-                    {@const accountPath = resolve(
-                      '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
-                      { workspaceId, accountId: account.id },
-                    )}
-                    <Sidebar.MenuSubItem>
-                      <Sidebar.MenuSubButton
-                        class="pr-7"
-                        isActive={page.params.accountId === account.id}
-                      >
-                        {#snippet child({ props })}
-                          <a
-                            {...props}
-                            href={accountPath}
-                            aria-current={page.params.accountId === account.id
-                              ? 'page'
-                              : undefined}
-                            onclick={closeMobile}
-                          >
-                            <span class="truncate">
-                              {account.name}{account.archivedAt
-                                ? ' · Archived'
-                                : ''}
-                            </span>
-                            <span
-                              class="ml-auto shrink-0 text-sidebar-foreground/70"
-                            >
-                              {formatMoney(
-                                account.balanceMinor,
-                                account.currency,
-                              )}
-                            </span>
-                          </a>
-                        {/snippet}
-                      </Sidebar.MenuSubButton>
-                      <FavoriteAction
-                        submenu
-                        active={favoriteFor(accountPath) !== undefined}
-                        pending={pendingFavoritePath === accountPath}
-                        path={accountPath}
-                        label={`${activeWorkspace.name} · ${account.name}`}
-                        ontoggle={toggleFavorite}
-                      />
-                    </Sidebar.MenuSubItem>
-                  {/each}
-                </Sidebar.MenuSub>
-              {/if}
-            </Sidebar.MenuItem>
-
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId ===
-                  '/(app)/workspaces/[workspaceId]/categories'}
-                tooltipContent="Categories"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={categoriesPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/categories'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <TagIcon aria-hidden="true" />
-                    <span>Categories</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(categoriesPath) !== undefined}
-                pending={pendingFavoritePath === categoriesPath}
-                path={categoriesPath}
-                label={`${activeWorkspace.name} · Categories`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId === '/(app)/workspaces/[workspaceId]/imports'}
-                tooltipContent="CSV imports"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={importsPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/imports'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <FileUpIcon aria-hidden="true" />
-                    <span>CSV imports</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(importsPath) !== undefined}
-                pending={pendingFavoritePath === importsPath}
-                path={importsPath}
-                label={`${activeWorkspace.name} · CSV imports`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId === '/(app)/workspaces/[workspaceId]/rates'}
-                tooltipContent="Exchange rates"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={ratesPath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/rates'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <ArrowLeftRightIcon aria-hidden="true" />
-                    <span>Exchange rates</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(ratesPath) !== undefined}
-                pending={pendingFavoritePath === ratesPath}
-                path={ratesPath}
-                label={`${activeWorkspace.name} · Exchange rates`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-            <Sidebar.MenuItem>
-              <Sidebar.MenuButton
-                isActive={routeId === '/(app)/workspaces/[workspaceId]/manage'}
-                tooltipContent="Manage workspace"
-              >
-                {#snippet child({ props })}
-                  <a
-                    {...props}
-                    href={managePath}
-                    aria-current={routeId ===
-                    '/(app)/workspaces/[workspaceId]/manage'
-                      ? 'page'
-                      : undefined}
-                    onclick={closeMobile}
-                  >
-                    <SettingsIcon aria-hidden="true" />
-                    <span>Manage workspace</span>
-                  </a>
-                {/snippet}
-              </Sidebar.MenuButton>
-              <FavoriteAction
-                active={favoriteFor(managePath) !== undefined}
-                pending={pendingFavoritePath === managePath}
-                path={managePath}
-                label={`${activeWorkspace.name} · Manage workspace`}
-                ontoggle={toggleFavorite}
-              />
-            </Sidebar.MenuItem>
-          </Sidebar.Menu>
-        </Sidebar.GroupContent>
-      </Sidebar.Group>
-    {/if}
   </Sidebar.Content>
 
   <Sidebar.Footer>

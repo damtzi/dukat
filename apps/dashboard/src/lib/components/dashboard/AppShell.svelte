@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Account } from '@dukat/core/ledger'
   import { Separator, Sidebar } from '@dukat/ui'
   import type { Snippet } from 'svelte'
   import AppSidebar from '$lib/components/dashboard/AppSidebar.svelte'
@@ -7,11 +8,13 @@
 
   let {
     workspaces,
+    personalAccounts,
     favorites,
     favoritesError,
     children,
   }: {
     workspaces: Workspace[]
+    personalAccounts: Account[]
     favorites: Favorite[]
     favoritesError: string
     children: Snippet
@@ -19,7 +22,7 @@
 </script>
 
 <Sidebar.Provider style="--sidebar-width: 17rem;">
-  <AppSidebar {workspaces} {favorites} {favoritesError} />
+  <AppSidebar {workspaces} {personalAccounts} {favorites} {favoritesError} />
   <Sidebar.Inset class="min-w-0 overflow-hidden">
     <header
       class="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur"

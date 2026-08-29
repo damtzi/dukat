@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { Button, Empty } from '@dukat/ui'
+  import { workspaceDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import AccountSummary from '$lib/components/ledger/AccountSummary.svelte'
 
@@ -23,7 +24,7 @@
       resolve('/(app)/workspaces/[workspaceId]/accounts', {
         workspaceId,
       }),
-      { replaceState: true },
+      { replaceState: true, invalidate: [workspaceDataDependency] },
     )
   }
 </script>

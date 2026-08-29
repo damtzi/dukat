@@ -9,6 +9,7 @@
     label,
     submenu = false,
     showOnHover,
+    class: className,
     ontoggle,
   }: {
     active: boolean
@@ -17,6 +18,7 @@
     label: string
     submenu?: boolean
     showOnHover?: boolean
+    class?: string
     ontoggle: (path: string, label: string) => void
   } = $props()
 
@@ -30,6 +32,7 @@
   type="button"
   showOnHover={revealOnHover}
   class={[
+    className,
     'peer-data-[active=true]/menu-button:opacity-100',
     submenu &&
       'top-1 group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100',
