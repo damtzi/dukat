@@ -2,6 +2,7 @@ export { Button, Root as ButtonRoot, buttonVariants } from './components/ui/butt
 export type { ButtonProps, ButtonSize, ButtonVariant } from './components/ui/button/index.js';
 export * as Alert from './components/ui/alert/index.js';
 export * as Card from './components/ui/card/index.js';
+export * as Collapsible from './components/ui/collapsible/index.js';
 export * as Dialog from './components/ui/dialog/index.js';
 export * as Empty from './components/ui/empty/index.js';
 export * as Field from './components/ui/field/index.js';
