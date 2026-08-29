@@ -21,19 +21,20 @@
   let {
     workspace,
     accounts,
+    accountsOpen = $bindable(true),
     favorites,
     pendingFavoritePath,
     ontogglefavorite,
   }: {
     workspace: Workspace
     accounts: Account[]
+    accountsOpen?: boolean
     favorites: Favorite[]
     pendingFavoritePath: string
     ontogglefavorite: (path: string, label: string) => void
   } = $props()
 
   const sidebar = Sidebar.useSidebar()
-  let accountsOpen = $state(true)
   let workspaceId = $derived(workspace.id)
   let routeId = $derived(page.route.id)
   let workspaceActive = $derived(page.params.workspaceId === workspaceId)

@@ -36,6 +36,7 @@
   let pendingFavoritePath = $state('')
   let favoriteMessage = $state('')
   let logoutPending = $state(false)
+  let personalAccountsOpen = $state(true)
   let personalWorkspace = $derived(
     workspaces.find(({ type }) => type === 'personal') ?? null,
   )
@@ -209,6 +210,7 @@
           <WorkspaceNavigation
             workspace={personalWorkspace}
             accounts={personalAccounts}
+            bind:accountsOpen={personalAccountsOpen}
             {favorites}
             {pendingFavoritePath}
             ontogglefavorite={toggleFavorite}
