@@ -30,7 +30,7 @@ The ownership and collaboration boundary for financial data. An account or trans
 
 ### Personal workspace
 
-A workspace whose financial data is private to one user.
+The single workspace whose financial data is private to one user. Each user has exactly one personal workspace.
 
 ### Household workspace
 
