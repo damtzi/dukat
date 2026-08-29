@@ -6,6 +6,24 @@ Dukat gives an individual or household a trustworthy view of what money they hav
 
 ## Glossary
 
+### User
+
+An authenticated identity represented by a name, unique username, email address, and optional profile image.
+
+### Name
+
+A user-chosen public name. It can be a full name, first name, mononym, or preferred name and need not be a legal name.
+_Avoid_: First name, last name, full name, display name
+
+### Username
+
+A globally unique, case-insensitive public handle that identifies a user independently of their name.
+
+### Profile image
+
+An optional image that visually represents a user to other users.
+_Avoid_: Avatar
+
 ### Workspace
 
 The ownership and collaboration boundary for financial data. An account or transaction belongs to exactly one workspace.
