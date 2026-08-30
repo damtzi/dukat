@@ -401,11 +401,20 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 		if (pathname === '/api/auth/sign-up/email') {
 			expect(body).toEqual({
 				name: 'Ada Lovelace',
+				username: 'ada_lovelace',
 				email: 'ada@example.com',
 				password: 'correct-horse-battery-staple',
 				callbackURL: '/'
 			});
 			return json(route, { user: { id: 'user-e2e' }, token: null });
+		}
+		if (pathname === '/api/auth/username-availability') {
+			expect(new URL(request.url()).searchParams.get('username')).toBe('ada_lovelace');
+			return json(route, {
+				available: true,
+				username: 'ada_lovelace',
+				message: 'Username is available.'
+			});
 		}
 		if (pathname === '/api/auth/sign-in/email') {
 			expect(body).toEqual({
@@ -431,10 +440,16 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 	await expect(page.getByText('Sign in to Dukat', { exact: true })).toBeVisible();
 	await page.getByRole('link', { name: 'Create an account' }).click();
 	await expect(page).toHaveURL('/sign-up');
-	await page.getByLabel('Name').fill('Ada Lovelace');
+	await page.getByLabel('Name', { exact: true }).fill('Ada Lovelace');
+	await page.getByLabel('Username').fill('Ada_Lovelace');
+	await expect(page.getByLabel('Username')).toHaveValue('ada_lovelace');
+	await expect(page.getByText('Username is available.')).toBeVisible();
 	await page.getByLabel('Email').fill('ada@example.com');
 	await page.getByLabel('Password').fill('correct-horse-battery-staple');
 	await page.getByRole('button', { name: 'Create account', exact: true }).click();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true
+	);
 	await expect(
 		page.getByText('Check your email to verify your account, then sign in.')
 	).toBeVisible();
@@ -445,6 +460,52 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page).toHaveURL('/home');
 	await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible();
+});
+
+test('explains username availability and signup conflicts with keyboard and accessible feedback', async ({
+	page
+}, testInfo) => {
+	test.skip(testInfo.project.name !== 'desktop-chromium');
+	let availabilityRequests = 0;
+	await page.route('**/api/auth/username-availability**', (route) => {
+		availabilityRequests += 1;
+		const username = new URL(route.request().url()).searchParams.get('username');
+		return json(route, {
+			available: username !== 'taken_name',
+			username,
+			message:
+				username === 'taken_name' ? 'That username is already taken.' : 'Username is available.'
+		});
+	});
+	await page.route('**/api/auth/sign-up/email', (route) =>
+		json(route, { code: 'USERNAME_UNAVAILABLE', message: 'That username is already taken.' }, 409)
+	);
+
+	await page.goto('/sign-up');
+	await page.getByLabel('Name', { exact: true }).focus();
+	await expect(page.getByLabel('Name', { exact: true })).toBeFocused();
+	await page.keyboard.type('Ada Lovelace');
+	await page.keyboard.press('Tab');
+	await expect(page.getByLabel('Username')).toBeFocused();
+	await page.keyboard.type('admin');
+	await expect(page.getByText('That username is reserved.')).toBeVisible();
+	await expect(page.getByLabel('Username')).toHaveAttribute('aria-invalid', 'true');
+	expect(availabilityRequests).toBe(0);
+	await page.getByLabel('Username').fill('taken_name');
+	await expect(page.getByText('That username is already taken.')).toBeVisible();
+	expect(availabilityRequests).toBe(1);
+	await page.getByLabel('Username').fill('available_name');
+	await expect(page.getByText('Username is available.')).toBeVisible();
+	expect(availabilityRequests).toBe(2);
+	await page.getByLabel('Email').fill('ada@example.com');
+	await page.getByLabel('Password').fill('correct-horse-battery-staple');
+	await page.getByLabel('Password').press('Enter');
+	await expect(page.getByRole('alert')).toContainText('That username is already taken.');
+
+	const results = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+		.analyze();
+	expect(results.violations).toEqual([]);
 });
 
 test('protects workspace routes and routes authenticated users from root', async ({ page }) => {

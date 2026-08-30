@@ -30,10 +30,10 @@ async function fixture() {
 		migrationsFolder
 	});
 	await connection.db.insert(user).values([
-		{ id: 'owner', name: 'Owner', email: 'owner@example.com' },
-		{ id: 'member', name: 'Member', email: 'member@example.com' },
-		{ id: 'invitee', name: 'Invitee', email: 'invitee@example.com' },
-		{ id: 'other', name: 'Other', email: 'other@example.com' }
+		{ id: 'owner', name: 'Owner', username: 'owner', email: 'owner@example.com' },
+		{ id: 'member', name: 'Member', username: 'member', email: 'member@example.com' },
+		{ id: 'invitee', name: 'Invitee', username: 'invitee', email: 'invitee@example.com' },
+		{ id: 'other', name: 'Other', username: 'other', email: 'other@example.com' }
 	]);
 	return {
 		...connection,
@@ -204,9 +204,13 @@ test('detached legacy transfers backfill both aggregates before constraints appl
 			JSON.stringify({ ...journal, entries: beforeConstraints })
 		);
 		await migrate(connection.db, { migrationsFolder: partialMigrations });
-		await connection.db
-			.insert(user)
-			.values({ id: 'legacy-owner', name: 'Owner', email: 'legacy-owner@example.com' });
+		await connection.client.execute(
+			"INSERT INTO user (id, name, email) VALUES ('legacy-owner', 'Owner', 'legacy-owner@example.com')"
+		);
+		await connection.client.batch([
+			"INSERT INTO account (id, account_id, provider_id, user_id, password, updated_at) VALUES ('legacy-account', 'legacy-owner', 'credential', 'legacy-owner', 'hash', unixepoch())",
+			"INSERT INTO session (id, expires_at, token, updated_at, user_id) VALUES ('legacy-session', unixepoch() + 3600, 'legacy-token', unixepoch(), 'legacy-owner')"
+		]);
 		const personal = await connection.client.execute(
 			"SELECT id FROM workspace WHERE personal_owner_user_id = 'legacy-owner'"
 		);
@@ -217,6 +221,14 @@ test('detached legacy transfers backfill both aggregates before constraints appl
 			`INSERT INTO ledger_transaction (id,workspace_id,account_id,kind,amount_minor,date,source,transfer_id,transfer_side) VALUES ('legacy-leg','${workspaceId}','legacy-source','expense',1250,'2026-08-01','transfer','legacy-detached','from')`
 		]);
 		await migrate(connection.db, { migrationsFolder });
+		const preservedAuth = await connection.client.batch([
+			"SELECT username FROM user WHERE id = 'legacy-owner'",
+			"SELECT id FROM account WHERE id = 'legacy-account'",
+			"SELECT id FROM session WHERE id = 'legacy-session'"
+		]);
+		assert.match(String(preservedAuth[0].rows[0].username), /^[a-z][a-z0-9_]{2,29}$/);
+		assert.equal(preservedAuth[1].rows.length, 1);
+		assert.equal(preservedAuth[2].rows.length, 1);
 		financial = createFinancialDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
 		const [transfer] = await createLedgerRepository(financial.db).listTransfers(
 			{ userId: 'legacy-owner', workspaceId },
