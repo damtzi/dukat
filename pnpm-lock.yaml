@@ -329,6 +329,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@dukat/core':
+        specifier: workspace:*
+        version: link:../core
       '@dukat/db':
         specifier: workspace:*
         version: link:../db

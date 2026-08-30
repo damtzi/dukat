@@ -7,6 +7,9 @@ import type { APIServices } from '../../services';
 function createServices(readiness: () => Promise<unknown>): APIServices {
 	return {
 		auth: {
+			async usernameAvailability(username) {
+				return { available: true, username, message: 'Username is available.' };
+			},
 			async handler() {
 				return new Response(null, { status: 404 });
 			},

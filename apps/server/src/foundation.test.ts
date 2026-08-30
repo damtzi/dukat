@@ -57,11 +57,38 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				new URL('../../../packages/db/src/migrations', import.meta.url)
 			)
 		});
+		const userColumns = await source.client.execute('PRAGMA table_info(user)');
+		const usernameColumn = userColumns.rows.find((column) => column.name === 'username');
+		assert.equal(usernameColumn?.notnull, 1);
+		const userIndexes = await source.client.execute('PRAGMA index_list(user)');
+		assert.equal(
+			userIndexes.rows.some(
+				(index) => index.name === 'user_username_unique' && Number(index.unique) === 1
+			),
+			true
+		);
+		const userTriggers = await source.client.execute(
+			"SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'user'"
+		);
+		assert.deepEqual(userTriggers.rows.map((trigger) => trigger.name).sort(), [
+			'user_create_personal_workspace',
+			'user_household_sole_owner_guard',
+			'user_only_member_household_cleanup'
+		]);
 		await source.db.insert(user).values({
 			id: 'migration-trigger-user',
 			name: 'Migration Trigger',
+			username: 'migration_trigger',
 			email: 'migration-trigger@example.com'
 		});
+		await assert.rejects(
+			source.db.insert(user).values({
+				id: 'noncanonical-user',
+				name: 'Noncanonical',
+				username: 'Not_Canonical',
+				email: 'noncanonical@example.com'
+			})
+		);
 		assert.equal(
 			(
 				await source.db
@@ -117,22 +144,37 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		);
 		assert.equal(dashboardResponse.headers.get('strict-transport-security'), null);
 
-		async function signupAndVerify(name: string, email: string, password: string) {
+		async function signup(name: string, username: string, email: string, password: string) {
 			const beforeEmailCount = emails.length;
-			const signup = await postJson(app, '/api/auth/sign-up/email', {
+			const response = await postJson(app, '/api/auth/sign-up/email', {
 				name,
+				username,
 				email,
 				password,
 				callbackURL: '/'
 			});
-			assert.equal(signup.status, 200, await signup.text());
+			assert.equal(response.status, 200, await response.text());
 			assert.equal(emails.length, beforeEmailCount + 1);
+			return response;
+		}
+
+		async function verifyLatestEmail() {
 			const verificationUrl = emails.at(-1)!.text.match(/https?:\/\/\S+/)?.[0];
 			assert.ok(verificationUrl);
 			const verification = await app.request(verificationUrl, {
 				headers: { origin }
 			});
 			assert.ok([200, 302].includes(verification.status));
+		}
+
+		async function signupAndVerify(
+			name: string,
+			username: string,
+			email: string,
+			password: string
+		) {
+			await signup(name, username, email, password);
+			await verifyLatestEmail();
 		}
 
 		async function signIn(email: string, password: string) {
@@ -144,16 +186,130 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			return cookieFrom(response);
 		}
 
-		await signupAndVerify('First User', 'first@example.com', 'initial-password-1');
+		const available = await app.request(
+			`${origin}/api/auth/username-availability?username=%20First_User%20`
+		);
+		assert.deepEqual(await available.json(), {
+			available: true,
+			username: 'first_user',
+			message: 'Username is available.'
+		});
+		const reserved = await app.request(`${origin}/api/auth/username-availability?username=Support`);
+		assert.deepEqual(await reserved.json(), {
+			available: false,
+			username: 'support',
+			message: 'That username is reserved.'
+		});
+		for (const [name, username, message] of [
+			['Valid Name', 'ab', 'Username must be 3–30 characters long.'],
+			['Valid Name', `a${'b'.repeat(30)}`, 'Username must be 3–30 characters long.'],
+			['Valid Name', '2invalid', 'Username must start with a letter'],
+			['Valid Name', '_invalid', 'Username must start with a letter'],
+			['Valid Name', 'invalid-name', 'Username must start with a letter'],
+			['Valid Name', 'admin', 'That username is reserved.'],
+			['Valid Name', 'administrator', 'That username is reserved.'],
+			['Valid Name', 'support', 'That username is reserved.'],
+			['Valid Name', 'security', 'That username is reserved.'],
+			['Valid Name', 'system', 'That username is reserved.'],
+			['Valid Name', 'dukat', 'That username is reserved.'],
+			['\u0000Invalid', 'valid_name', 'Name cannot contain control characters.'],
+			['\u200eInvalid', 'valid_name', 'non-printable characters.'],
+			[' '.repeat(3), 'valid_name', 'Name must be 1–100 characters long.'],
+			['a'.repeat(101), 'valid_name', 'Name must be 1–100 characters long.']
+		] as const) {
+			const response = await postJson(app, '/api/auth/sign-up/email', {
+				name,
+				username,
+				email: 'invalid@example.com',
+				password: 'initial-password-invalid'
+			});
+			assert.equal(response.status, 400);
+			assert.match((await response.json()).message, new RegExp(message));
+		}
+
+		await signup('  First  User!  ', ' First_User ', 'first@example.com', 'initial-password-1');
+		const duplicateUsername = await postJson(app, '/api/auth/sign-up/email', {
+			name: 'Other User',
+			username: 'FIRST_USER',
+			email: 'other@example.com',
+			password: 'initial-password-other'
+		});
+		assert.equal(duplicateUsername.status, 409);
+		assert.deepEqual(await duplicateUsername.json(), {
+			code: 'USERNAME_UNAVAILABLE',
+			message: 'That username is already taken.'
+		});
+		const [unverified] = await source.db
+			.select({
+				id: user.id,
+				name: user.name,
+				username: user.username,
+				verified: user.emailVerified
+			})
+			.from(user)
+			.where(eq(user.email, 'first@example.com'));
+		assert.equal(unverified.name, 'First  User!');
+		assert.equal(unverified.username, 'first_user');
+		assert.equal(unverified.verified, false);
+		assert.equal(
+			(
+				await source.db
+					.select()
+					.from(workspace)
+					.where(eq(workspace.personalOwnerUserId, unverified.id))
+			).length,
+			1
+		);
+		await verifyLatestEmail();
+		const raceResponses = await Promise.all([
+			postJson(app, '/api/auth/sign-up/email', {
+				name: 'Race One',
+				username: 'race_winner',
+				email: 'race-one@example.com',
+				password: 'initial-password-race'
+			}),
+			postJson(app, '/api/auth/sign-up/email', {
+				name: 'Race Two',
+				username: 'RACE_WINNER',
+				email: 'race-two@example.com',
+				password: 'initial-password-race'
+			})
+		]);
+		assert.deepEqual(raceResponses.map((response) => response.status).sort(), [200, 409]);
+		const [raceUser] = await source.db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.username, 'race_winner'));
+		assert.equal(
+			(
+				await source.db
+					.select()
+					.from(workspace)
+					.where(eq(workspace.personalOwnerUserId, raceUser.id))
+			).length,
+			1
+		);
+		await source.db.delete(user).where(eq(user.id, raceUser.id));
 		const firstCookie = await signIn('first@example.com', 'initial-password-1');
 		const firstSessionResponse = await app.request(`${origin}/api/auth/get-session`, {
 			headers: { cookie: firstCookie }
 		});
 		assert.equal(firstSessionResponse.status, 200);
 		const firstSession = (await firstSessionResponse.json()) as {
-			user: { id: string };
+			user: { id: string; name: string; username: string };
 			session: { id: string };
 		};
+		assert.equal(firstSession.user.name, 'First  User!');
+		assert.equal(firstSession.user.username, 'first_user');
+		assert.equal(
+			(
+				await postJson(app, '/api/auth/sign-in/username', {
+					username: 'first_user',
+					password: 'initial-password-1'
+				})
+			).status,
+			404
+		);
 
 		const firstWorkspacesResponse = await app.request(`${origin}/api/workspaces`, {
 			headers: { cookie: firstCookie }
@@ -271,7 +427,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			'0'
 		);
 
-		await signupAndVerify('Second User', 'second@example.com', 'initial-password-2');
+		await signupAndVerify('Second User', 'second_user', 'second@example.com', 'initial-password-2');
 		const secondCookie = await signIn('second@example.com', 'initial-password-2');
 		const secondSession = (await (
 			await app.request(`${origin}/api/auth/get-session`, {

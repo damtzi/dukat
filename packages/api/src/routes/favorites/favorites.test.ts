@@ -10,6 +10,9 @@ const headers = { authorization: 'Session test' };
 function createServices(favorites: FavoriteService): APIServices {
 	return {
 		auth: {
+			async usernameAvailability(username) {
+				return { available: true, username, message: 'Username is available.' };
+			},
 			async handler() {
 				return new Response(null, { status: 404 });
 			},

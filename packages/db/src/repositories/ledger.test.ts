@@ -34,9 +34,12 @@ test('account archive preflight guards and atomically applies plan impact with a
 		await migrate(connection.db, {
 			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 		});
-		await connection.db
-			.insert(user)
-			.values({ id: 'archive-owner', name: 'Owner', email: 'archive@example.com' });
+		await connection.db.insert(user).values({
+			id: 'archive-owner',
+			name: 'Owner',
+			username: 'archive_owner',
+			email: 'archive@example.com'
+		});
 		const [personal] = await connection.db
 			.select()
 			.from(workspace)
@@ -173,8 +176,13 @@ test('cross-workspace transfers project private counterpart data and require acc
 			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 		});
 		await connection.db.insert(user).values([
-			{ id: 'cross-owner', name: 'Owner', email: 'cross-owner@example.com' },
-			{ id: 'house-member', name: 'Member', email: 'member@example.com' }
+			{
+				id: 'cross-owner',
+				name: 'Owner',
+				username: 'cross_owner',
+				email: 'cross-owner@example.com'
+			},
+			{ id: 'house-member', name: 'Member', username: 'house_member', email: 'member@example.com' }
 		]);
 		const [personal] = await connection.db
 			.select()
@@ -312,9 +320,12 @@ test(
 			await migrate(connection.db, {
 				migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 			});
-			await connection.db
-				.insert(user)
-				.values({ id: 'busy-owner', name: 'Busy Owner', email: 'busy@example.com' });
+			await connection.db.insert(user).values({
+				id: 'busy-owner',
+				name: 'Busy Owner',
+				username: 'busy_owner',
+				email: 'busy@example.com'
+			});
 			const [personal] = await connection.db
 				.select()
 				.from(workspace)
@@ -405,7 +416,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 		});
 		await connection.db
 			.insert(user)
-			.values({ id: 'owner', name: 'Owner', email: 'owner@example.com' });
+			.values({ id: 'owner', name: 'Owner', username: 'owner', email: 'owner@example.com' });
 		const workspaces = await connection.client.execute(
 			"select id from workspace where personal_owner_user_id = 'owner'"
 		);
@@ -691,9 +702,12 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 		await migrate(connection.db, {
 			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 		});
-		await connection.db
-			.insert(user)
-			.values({ id: 'transfer-owner', name: 'Owner', email: 'transfer@example.com' });
+		await connection.db.insert(user).values({
+			id: 'transfer-owner',
+			name: 'Owner',
+			username: 'transfer_owner',
+			email: 'transfer@example.com'
+		});
 		const result = await connection.client.execute(
 			"select id from workspace where personal_owner_user_id = 'transfer-owner'"
 		);

@@ -15,6 +15,9 @@ import { createAPI } from '../../app';
 function createServices(): APIServices {
 	return {
 		auth: {
+			async usernameAvailability(username) {
+				return { available: true, username, message: 'Username is available.' };
+			},
 			async handler() {
 				return new Response(null, { status: 404 });
 			},
@@ -199,9 +202,12 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 		await migrate(connection.db, {
 			migrationsFolder: fileURLToPath(new URL('../../../../db/src/migrations', import.meta.url))
 		});
-		await connection.db
-			.insert(user)
-			.values({ id: 'integration-owner', name: 'Owner', email: 'integration@example.com' });
+		await connection.db.insert(user).values({
+			id: 'integration-owner',
+			name: 'Owner',
+			username: 'integration_owner',
+			email: 'integration@example.com'
+		});
 		const workspaces = await connection.client.execute(
 			"select id from workspace where personal_owner_user_id = 'integration-owner'"
 		);

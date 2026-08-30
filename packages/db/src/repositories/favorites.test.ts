@@ -17,8 +17,8 @@ async function fixture() {
 	const connection = createDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
 	await migrate(connection.db, { migrationsFolder });
 	await connection.db.insert(user).values([
-		{ id: 'user-1', name: 'One', email: 'one@example.com' },
-		{ id: 'user-2', name: 'Two', email: 'two@example.com' }
+		{ id: 'user-1', name: 'One', username: 'user_one', email: 'one@example.com' },
+		{ id: 'user-2', name: 'Two', username: 'user_two', email: 'two@example.com' }
 	]);
 	return {
 		...connection,

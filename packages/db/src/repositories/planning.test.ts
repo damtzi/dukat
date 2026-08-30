@@ -21,9 +21,12 @@ test('planning persists recurrence, forecasts corrections, and matches only once
 		await migrate(connection.db, {
 			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 		});
-		await connection.db
-			.insert(user)
-			.values({ id: 'planner', name: 'Planner', email: 'planner@example.com' });
+		await connection.db.insert(user).values({
+			id: 'planner',
+			name: 'Planner',
+			username: 'planner',
+			email: 'planner@example.com'
+		});
 		const [personal] = await connection.db
 			.select({ id: workspace.id })
 			.from(workspace)

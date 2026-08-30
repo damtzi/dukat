@@ -13,6 +13,7 @@ import { createPlanningRepository } from './repositories/planning';
 import { account as authAccount, ledgerCategory, session, user, workspace } from './schema';
 
 export const DEMO_CREDENTIALS = {
+	username: 'demo',
 	email: 'demo@dukat.local',
 	password: 'dukat-demo'
 } as const;
@@ -65,16 +66,25 @@ export async function seedDatabase(options: SeedOptions): Promise<SeedResult> {
 		await migrate(connection.db, { migrationsFolder: MIGRATIONS_FOLDER });
 
 		const matchingUsers = await connection.db
-			.select({ id: user.id, email: user.email })
+			.select({ id: user.id, email: user.email, username: user.username })
 			.from(user)
-			.where(or(eq(user.id, USER_ID), eq(user.email, DEMO_CREDENTIALS.email)));
+			.where(
+				or(
+					eq(user.id, USER_ID),
+					eq(user.email, DEMO_CREDENTIALS.email),
+					eq(user.username, DEMO_CREDENTIALS.username)
+				)
+			);
 		if (
 			matchingUsers.some(
-				(candidate) => candidate.id !== USER_ID || candidate.email !== DEMO_CREDENTIALS.email
+				(candidate) =>
+					candidate.id !== USER_ID ||
+					candidate.email !== DEMO_CREDENTIALS.email ||
+					candidate.username !== DEMO_CREDENTIALS.username
 			)
 		) {
 			throw new Error(
-				`Cannot seed because ${DEMO_CREDENTIALS.email} or its seed ID is already in use`
+				`Cannot seed because ${DEMO_CREDENTIALS.email}, ${DEMO_CREDENTIALS.username}, or its seed ID is already in use`
 			);
 		}
 
@@ -84,13 +94,21 @@ export async function seedDatabase(options: SeedOptions): Promise<SeedResult> {
 				await tx.insert(user).values({
 					id: USER_ID,
 					name: 'Demo User',
+					username: DEMO_CREDENTIALS.username,
 					email: DEMO_CREDENTIALS.email,
-					emailVerified: true
+					emailVerified: true,
+					image: null
 				});
 			}
 			await tx
 				.update(user)
-				.set({ name: 'Demo User', emailVerified: true, updatedAt: new Date() })
+				.set({
+					name: 'Demo User',
+					username: DEMO_CREDENTIALS.username,
+					emailVerified: true,
+					image: null,
+					updatedAt: new Date()
+				})
 				.where(eq(user.id, USER_ID));
 			await tx.delete(session).where(eq(session.userId, USER_ID));
 			await tx.delete(authAccount).where(eq(authAccount.userId, USER_ID));

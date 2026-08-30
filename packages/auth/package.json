@@ -18,6 +18,7 @@
 		"typescript": "catalog:"
 	},
 	"dependencies": {
+		"@dukat/core": "workspace:*",
 		"@dukat/db": "workspace:*",
 		"@dukat/env": "workspace:*",
 		"better-auth": "^1.6.11"

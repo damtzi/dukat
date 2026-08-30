@@ -1,20 +1,30 @@
 import { relations, sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-export const user = sqliteTable('user', {
-	id: text('id').primaryKey(),
-	name: text('name').notNull(),
-	email: text('email').notNull().unique(),
-	emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
-	image: text('image'),
-	createdAt: integer('created_at', { mode: 'timestamp' })
-		.default(sql`(unixepoch())`)
-		.notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp' })
-		.default(sql`(unixepoch())`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull()
-});
+export const user = sqliteTable(
+	'user',
+	{
+		id: text('id').primaryKey(),
+		name: text('name').notNull(),
+		username: text('username').notNull().unique(),
+		email: text('email').notNull().unique(),
+		emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
+		image: text('image'),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: integer('updated_at', { mode: 'timestamp' })
+			.default(sql`(unixepoch())`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull()
+	},
+	(table) => [
+		check(
+			'user_username_canonical_check',
+			sql`length(${table.username}) BETWEEN 3 AND 30 AND ${table.username} GLOB '[a-z]*' AND ${table.username} NOT GLOB '*[^a-z0-9_]*'`
+		)
+	]
+);
 
 export const session = sqliteTable(
 	'session',

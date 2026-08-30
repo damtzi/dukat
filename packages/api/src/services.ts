@@ -17,6 +17,11 @@ import type { PlanningRepository } from '@dukat/db/repositories/planning';
 
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
+	usernameAvailability(username: string): Promise<{
+		available: boolean;
+		username: string;
+		message: string;
+	}>;
 	api: {
 		getSession(options: {
 			headers: Headers;

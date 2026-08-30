@@ -6,6 +6,9 @@ import { createAPI } from '../../app';
 
 const services = (): APIServices => ({
 	auth: {
+		async usernameAvailability(username) {
+			return { available: true, username, message: 'Username is available.' };
+		},
 		handler: async () => new Response(null, { status: 404 }),
 		api: {
 			getSession: async ({ headers }) =>

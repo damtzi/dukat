@@ -33,8 +33,8 @@ async function fixture() {
 		migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
 	});
 	await connection.db.insert(user).values([
-		{ id: 'owner', name: 'Owner', email: 'owner@insights.test' },
-		{ id: 'outsider', name: 'Outsider', email: 'outsider@insights.test' }
+		{ id: 'owner', name: 'Owner', username: 'owner', email: 'owner@insights.test' },
+		{ id: 'outsider', name: 'Outsider', username: 'outsider', email: 'outsider@insights.test' }
 	]);
 	const rows = await connection.client.execute(
 		'select id, personal_owner_user_id from workspace where personal_owner_user_id is not null'
