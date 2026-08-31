@@ -13,7 +13,8 @@
 				"TURSO_AUTH_TOKEN",
 				"BETTER_AUTH_SECRET",
 				"BETTER_AUTH_URL",
-				"CORS_ORIGIN"
+				"CORS_ORIGIN",
+				"PROFILE_IMAGE_PUBLIC_BASE_URL"
 			]
 		},
 		"lint": {
@@ -34,7 +35,8 @@
 				"TURSO_AUTH_TOKEN",
 				"BETTER_AUTH_SECRET",
 				"BETTER_AUTH_URL",
-				"CORS_ORIGIN"
+				"CORS_ORIGIN",
+				"PROFILE_IMAGE_PUBLIC_BASE_URL"
 			]
 		}
 	}

@@ -40,6 +40,9 @@
 		"node": ">=18"
 	},
 	"pnpm": {
+		"overrides": {
+			"@aws-sdk/util-locate-window": "3.804.0"
+		},
 		"onlyBuiltDependencies": [
 			"esbuild",
 			"lightningcss"

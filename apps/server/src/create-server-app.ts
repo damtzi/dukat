@@ -1,6 +1,7 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono as HonoApp } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
+import { readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
 interface FetchApplication {
@@ -11,6 +12,7 @@ export interface CreateServerAppOptions {
 	api: FetchApplication;
 	dashboardDirectory: string;
 	profileImagesDirectory?: string;
+	profileImageOrigin?: string;
 	isProduction?: boolean;
 }
 
@@ -25,19 +27,47 @@ export function resolveDashboardDirectory(
 	return resolve(options.cwd ?? process.cwd(), directory);
 }
 
+export function verifyDashboardProfileImageOrigin(
+	dashboardDirectory: string,
+	profileImageOrigin: string
+) {
+	const index = readFileSync(join(dashboardDirectory, 'index.html'), 'utf8');
+	const policyTag = index.match(
+		/<meta\s+[^>]*http-equiv=["']content-security-policy["'][^>]*>/i
+	)?.[0];
+	const policy = policyTag?.match(/\scontent=(["'])(.*?)\1/i)?.[2];
+	const imageSources = policy
+		?.split(';')
+		.find((directive) => directive.trim().startsWith('img-src'))
+		?.trim()
+		.split(/\s+/)
+		.slice(1);
+
+	if (!imageSources?.includes(profileImageOrigin)) {
+		throw new Error(
+			`Dashboard CSP does not permit ${profileImageOrigin}; rebuild it with the same PROFILE_IMAGE_PUBLIC_BASE_URL.`
+		);
+	}
+}
+
 export function createServerApp({
 	api,
 	dashboardDirectory,
 	profileImagesDirectory,
+	profileImageOrigin,
 	isProduction = false
 }: CreateServerAppOptions) {
+	if (isProduction && profileImageOrigin) {
+		verifyDashboardProfileImageOrigin(dashboardDirectory, profileImageOrigin);
+	}
 	const app = new HonoApp();
 
 	app.use(
 		'*',
 		secureHeaders({
 			contentSecurityPolicy: {
-				frameAncestors: ["'none'"]
+				frameAncestors: ["'none'"],
+				imgSrc: ["'self'", 'data:', 'blob:', ...(profileImageOrigin ? [profileImageOrigin] : [])]
 			},
 			permissionsPolicy: {
 				camera: [],
