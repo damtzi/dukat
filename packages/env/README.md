@@ -10,6 +10,12 @@ The Node exports load `.env` files by walking upward from the current working di
 - `@dukat/env/db` — Turso database configuration (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`).
 - `@dukat/env/server` — server runtime configuration.
 
+Production server configuration requires a dedicated public S3-compatible bucket for profile
+images. Set `PROFILE_IMAGE_S3_ENDPOINT`, `PROFILE_IMAGE_S3_REGION`,
+`PROFILE_IMAGE_S3_ACCESS_KEY_ID`, `PROFILE_IMAGE_S3_SECRET_ACCESS_KEY`,
+`PROFILE_IMAGE_S3_BUCKET`, and `PROFILE_IMAGE_PUBLIC_BASE_URL`. Supply the public origin when
+building the dashboard so its CSP permits that image origin. Keep the credentials server-only.
+
 ## Local development
 
 Create a root `.env` file with the values needed by the packages you run:

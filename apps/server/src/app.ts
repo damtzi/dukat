@@ -14,7 +14,7 @@ import { serverEnv } from '@dukat/env/server';
 import { resolve } from 'node:path';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
-import { createLocalProfileImageStorage } from './profile-image-storage';
+import { createProfileImageStorage } from './profile-image-storage';
 
 const workspaceRepository = createWorkspaceRepository(db);
 type OutboxRepository = Pick<
@@ -112,14 +112,28 @@ const refreshRates = () =>
 const exchangeRateTimer = setInterval(() => void refreshRates(), 60 * 60 * 1000);
 exchangeRateTimer.unref();
 void refreshRates();
-const profileImagesDirectory = resolve(serverEnv.PROFILE_IMAGE_DIRECTORY);
+const profileImageStorage = createProfileImageStorage({
+	nodeEnv: serverEnv.NODE_ENV,
+	localDirectory: resolve(serverEnv.PROFILE_IMAGE_DIRECTORY),
+	s3:
+		serverEnv.NODE_ENV === 'production'
+			? {
+					endpoint: serverEnv.PROFILE_IMAGE_S3_ENDPOINT!,
+					region: serverEnv.PROFILE_IMAGE_S3_REGION!,
+					accessKeyId: serverEnv.PROFILE_IMAGE_S3_ACCESS_KEY_ID!,
+					secretAccessKey: serverEnv.PROFILE_IMAGE_S3_SECRET_ACCESS_KEY!,
+					bucket: serverEnv.PROFILE_IMAGE_S3_BUCKET!,
+					publicBaseUrl: serverEnv.PROFILE_IMAGE_PUBLIC_BASE_URL!
+				}
+			: undefined
+});
 const api = createAPI({
 	auth,
 	trustedOrigins,
 	favorites: createFavoriteRepository(db),
 	profileImages: createProfileImageService({
 		auth,
-		storage: createLocalProfileImageStorage(profileImagesDirectory)
+		storage: profileImageStorage.storage
 	}),
 	ledger: ledgerRepository,
 	planning: createPlanningRepository(financialDb),
@@ -134,6 +148,7 @@ export const app = createServerApp({
 	dashboardDirectory: resolveDashboardDirectory(serverEnv.DASHBOARD_DIRECTORY, {
 		production: serverEnv.NODE_ENV === 'production'
 	}),
-	profileImagesDirectory,
+	profileImagesDirectory: profileImageStorage.localDirectory,
+	profileImageOrigin: profileImageStorage.publicOrigin,
 	isProduction: serverEnv.NODE_ENV === 'production'
 });

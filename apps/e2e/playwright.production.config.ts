@@ -11,7 +11,7 @@ export default defineConfig({
 	},
 	webServer: {
 		command:
-			'pnpm --filter @dukat/dashboard build && pnpm --filter @dukat/e2e exec tsx tests/production-server.ts',
+			'export PROFILE_IMAGE_PUBLIC_BASE_URL=https://images.example.com && pnpm --filter @dukat/dashboard build && pnpm --filter @dukat/e2e exec tsx tests/production-server.ts',
 		cwd: '../..',
 		url: 'http://127.0.0.1:4174/api/health/live',
 		reuseExistingServer: false

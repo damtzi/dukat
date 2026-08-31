@@ -9,11 +9,12 @@
 		"test": "tsx --test src/*.test.ts"
 	},
 	"dependencies": {
-		"@hono/node-server": "^1.19.14",
+		"@aws-sdk/client-s3": "3.850.0",
 		"@dukat/api": "workspace:*",
 		"@dukat/auth": "workspace:*",
 		"@dukat/db": "workspace:*",
 		"@dukat/env": "workspace:*",
+		"@hono/node-server": "^1.19.14",
 		"hono": "^4.12.23",
 		"tsx": "^4.7.1"
 	},

@@ -11,10 +11,15 @@ import {
 	type AuthenticationService,
 	type ProfileImageStorage
 } from '@dukat/api';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Hono } from 'hono';
 import sharp from 'sharp';
 
 import { createServerApp } from './create-server-app';
-import { createLocalProfileImageStorage } from './profile-image-storage';
+import {
+	createLocalProfileImageStorage,
+	createS3ProfileImageStorage
+} from './profile-image-storage';
 
 const origin = 'http://localhost:9999';
 const portalOrigin = 'https://dukat-portal.example';
@@ -163,6 +168,50 @@ test('profile image HTTP flow normalizes, replaces, serves, and removes images',
 			rm(dashboard, { recursive: true, force: true })
 		]);
 	}
+});
+
+test('production storage returns a retrievable public profile image', async () => {
+	const objects = new Map<string, Uint8Array>();
+	const storage = createS3ProfileImageStorage({
+		bucket: 'dukat-profile-images',
+		publicBaseUrl: 'https://images.example.com',
+		client: {
+			async send(command) {
+				if (command instanceof PutObjectCommand) {
+					objects.set(command.input.Key!, command.input.Body as Uint8Array);
+				} else if (command instanceof DeleteObjectCommand) {
+					objects.delete(command.input.Key!);
+				}
+				return {};
+			}
+		}
+	});
+	const publicBucket = new Hono();
+	publicBucket.get('*', (context) => {
+		const object = objects.get(context.req.path.slice(1));
+		if (!object) return context.notFound();
+		const body = object.buffer.slice(
+			object.byteOffset,
+			object.byteOffset + object.byteLength
+		) as ArrayBuffer;
+		return new Response(body, { headers: { 'content-type': 'image/webp' } });
+	});
+	const app = createAPI(createServices(storage));
+	const source = await sharp({ create: { width: 3, height: 2, channels: 3, background: 'red' } })
+		.png()
+		.toBuffer();
+
+	const response = await upload(app, source, 'image.png');
+	assert.equal(response.status, 200, await response.clone().text());
+	const identity = (await response.json()) as { image: string };
+	assert.match(identity.image, /^https:\/\/images\.example\.com\/users\//);
+	const publicResponse = await publicBucket.request(identity.image);
+	assert.equal(publicResponse.status, 200);
+	const metadata = await sharp(await publicResponse.arrayBuffer()).metadata();
+	assert.deepEqual(
+		{ format: metadata.format, width: metadata.width, height: metadata.height },
+		{ format: 'webp', width: 512, height: 512 }
+	);
 });
 
 test('profile image HTTP flow rejects unauthorized, cross-origin, malformed, and unsafe uploads', async () => {

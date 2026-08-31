@@ -8,6 +8,7 @@ const app = createServerApp({
 		fetch: () => Response.json(null)
 	},
 	dashboardDirectory: fileURLToPath(new URL('../../dashboard/build', import.meta.url)),
+	profileImageOrigin: new URL(process.env.PROFILE_IMAGE_PUBLIC_BASE_URL!).origin,
 	isProduction: true
 });
 
