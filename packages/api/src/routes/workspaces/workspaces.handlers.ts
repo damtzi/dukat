@@ -131,5 +131,10 @@ export const deleteAccount: AppRouteHandler<typeof Routes.deleteAccount> = async
 		headers: c.req.raw.headers
 	});
 	await c.var.services.workspaces.deleteAccount(c.var.userId);
+	try {
+		await c.var.services.profileImageCleanup?.drain();
+	} catch {
+		// Account deletion is complete; the durable job remains pending.
+	}
 	return c.json({ deleted: true }, 200);
 };

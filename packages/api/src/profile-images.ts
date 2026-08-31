@@ -14,6 +14,11 @@ export interface ProfileImageStorage {
 	remove(userId: string, publicUrl: string): Promise<void>;
 }
 
+export interface ProfileImageCleanupService {
+	enqueue(userId: string, publicUrl: string): Promise<void>;
+	drain(): Promise<void>;
+}
+
 export interface ProfileImageCrop {
 	x: number;
 	y: number;
@@ -120,6 +125,7 @@ async function normalizeImage(source: Uint8Array, crop: ProfileImageCrop) {
 export function createProfileImageService(options: {
 	auth: AuthenticationService;
 	storage: ProfileImageStorage;
+	cleanup: ProfileImageCleanupService;
 	now?: () => number;
 }) {
 	if (!options.auth.setProfileImage) {
@@ -142,12 +148,11 @@ export function createProfileImageService(options: {
 		attempts.set(userId, recent);
 	}
 
-	async function ignoreCleanupFailure(userId: string, publicUrl: string | null) {
-		if (!publicUrl) return;
+	async function drainCleanup() {
 		try {
-			await options.storage.remove(userId, publicUrl);
+			await options.cleanup.drain();
 		} catch {
-			// Durable cleanup retry is delivered separately.
+			// The durable jobs remain available for a later drain.
 		}
 	}
 
@@ -159,16 +164,17 @@ export function createProfileImageService(options: {
 			try {
 				await setProfileImage(input.userId, publicUrl);
 			} catch (error) {
-				await ignoreCleanupFailure(input.userId, publicUrl);
+				await options.cleanup.enqueue(input.userId, publicUrl);
+				await drainCleanup();
 				throw error;
 			}
-			await ignoreCleanupFailure(input.userId, input.currentImage);
+			await drainCleanup();
 			return publicUrl;
 		},
 		async remove(input) {
 			consume(input.userId);
 			await setProfileImage(input.userId, null);
-			await ignoreCleanupFailure(input.userId, input.currentImage);
+			await drainCleanup();
 		}
 	} satisfies ProfileImageService;
 }

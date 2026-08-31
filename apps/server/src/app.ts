@@ -6,6 +6,7 @@ import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
+import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import {
 	createExchangeRateRepository,
 	createNbpAdapter
@@ -14,6 +15,7 @@ import { serverEnv } from '@dukat/env/server';
 import { resolve } from 'node:path';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
+import { createProfileImageCleanup } from './profile-image-cleanup';
 import { createProfileImageStorage } from './profile-image-storage';
 
 const workspaceRepository = createWorkspaceRepository(db);
@@ -127,13 +129,26 @@ const profileImageStorage = createProfileImageStorage({
 				}
 			: undefined
 });
+const profileImageCleanup = createProfileImageCleanup({
+	repository: createProfileImageCleanupRepository(db),
+	storage: profileImageStorage.storage
+});
+const drainProfileImages = () =>
+	profileImageCleanup.drain().catch((error) =>
+		logOutboxError('profile_image_cleanup.drain_failed', {
+			errorName: error instanceof Error ? error.name : 'UnknownError'
+		})
+	);
+void drainProfileImages();
 const api = createAPI({
 	auth,
 	trustedOrigins,
 	favorites: createFavoriteRepository(db),
+	profileImageCleanup,
 	profileImages: createProfileImageService({
 		auth,
-		storage: profileImageStorage.storage
+		storage: profileImageStorage.storage,
+		cleanup: profileImageCleanup
 	}),
 	ledger: ledgerRepository,
 	planning: createPlanningRepository(financialDb),
