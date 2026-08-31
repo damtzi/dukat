@@ -1,5 +1,5 @@
-import { createAPI } from '@dukat/api';
-import { auth, emailSender } from '@dukat/auth';
+import { createAPI, createProfileImageService } from '@dukat/api';
+import { auth, emailSender, trustedOrigins } from '@dukat/auth';
 import { db, financialDb } from '@dukat/db';
 import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
@@ -11,8 +11,10 @@ import {
 	createNbpAdapter
 } from '@dukat/db/repositories/exchange-rates';
 import { serverEnv } from '@dukat/env/server';
+import { resolve } from 'node:path';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
+import { createLocalProfileImageStorage } from './profile-image-storage';
 
 const workspaceRepository = createWorkspaceRepository(db);
 type OutboxRepository = Pick<
@@ -110,9 +112,15 @@ const refreshRates = () =>
 const exchangeRateTimer = setInterval(() => void refreshRates(), 60 * 60 * 1000);
 exchangeRateTimer.unref();
 void refreshRates();
+const profileImagesDirectory = resolve(serverEnv.PROFILE_IMAGE_DIRECTORY);
 const api = createAPI({
 	auth,
+	trustedOrigins,
 	favorites: createFavoriteRepository(db),
+	profileImages: createProfileImageService({
+		auth,
+		storage: createLocalProfileImageStorage(profileImagesDirectory)
+	}),
 	ledger: ledgerRepository,
 	planning: createPlanningRepository(financialDb),
 	exchangeRates: exchangeRateRepository,
@@ -126,5 +134,6 @@ export const app = createServerApp({
 	dashboardDirectory: resolveDashboardDirectory(serverEnv.DASHBOARD_DIRECTORY, {
 		production: serverEnv.NODE_ENV === 'production'
 	}),
+	profileImagesDirectory,
 	isProduction: serverEnv.NODE_ENV === 'production'
 });

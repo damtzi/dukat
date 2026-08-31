@@ -15,8 +15,11 @@ import type { InsightsRepository } from '@dukat/db/repositories/insights';
 import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import type { PlanningRepository } from '@dukat/db/repositories/planning';
 
+import type { ProfileImageService } from './profile-images';
+
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
+	setProfileImage?(userId: string, image: string | null): Promise<void>;
 	usernameAvailability(username: string): Promise<{
 		available: boolean;
 		username: string;
@@ -208,7 +211,9 @@ export interface LedgerService {
 
 export interface APIServices {
 	auth: AuthenticationService;
+	trustedOrigins?: readonly string[];
 	favorites: FavoriteService;
+	profileImages?: ProfileImageService;
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
 	planning: PlanningRepository;

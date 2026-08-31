@@ -9,6 +9,7 @@ import { insightsRouter } from './routes/insights/insights.index';
 import { exchangeRatesRouter } from './routes/exchange-rates/exchange-rates.index';
 import type { APIServices } from './services';
 import { planningRouter } from './routes/planning/planning.index';
+import { profileImagesRouter } from './routes/profile-images/profile-images.index';
 
 export function createAPI(services: APIServices) {
 	const app = createApp(services);
@@ -16,6 +17,7 @@ export function createAPI(services: APIServices) {
 
 	return app
 		.route('/api', authRouter)
+		.route('/api', profileImagesRouter)
 		.route('/api', favoritesRouter)
 		.route('/api', healthRouter)
 		.route('/api', workspacesRouter)
