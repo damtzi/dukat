@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { createAPI } from '@dukat/api';
+import { createAPI, createProfileImageService } from '@dukat/api';
 import { createAuth } from '@dukat/auth/create-auth';
 import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/email';
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
@@ -20,8 +20,10 @@ import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
+import sharp from 'sharp';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
+import { createLocalProfileImageStorage } from './profile-image-storage';
 
 const origin = 'http://localhost:9999';
 const secret = 'test-secret-that-is-at-least-thirty-two-characters';
@@ -45,6 +47,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 	const sourceUrl = `file:${join(directory, 'source.db')}`;
 	const restoredUrl = `file:${join(directory, 'restored.db')}`;
 	const dashboardDirectory = join(directory, 'dashboard');
+	const profileImagesDirectory = join(directory, 'profile-images');
 	const backupPath = join(directory, 'backup.json');
 	const key = Buffer.alloc(32, 7).toString('base64');
 	const source = createDatabase({ url: sourceUrl });
@@ -115,10 +118,15 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			}
 		});
 		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
+		const profileImages = createProfileImageService({
+			auth,
+			storage: createLocalProfileImageStorage(profileImagesDirectory)
+		});
 		const app = createServerApp({
 			api: createAPI({
 				auth,
 				favorites: createFavoriteRepository(source.db),
+				profileImages,
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
 				planning: createPlanningRepository(sourceFinancial.db),
@@ -126,7 +134,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				exchangeRates,
 				workspaces: createWorkspaceRepository(source.db)
 			}),
-			dashboardDirectory
+			dashboardDirectory,
+			profileImagesDirectory
 		});
 
 		assert.equal((await app.request(`${origin}/api/health/live`)).status, 200);
@@ -373,6 +382,60 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			`${origin}/api/auth/username-availability?username=first_user`
 		);
 		assert.equal(((await oldUsername.json()) as { available: boolean }).available, true);
+		const genericImageUpdate = await app.request(`${origin}/api/auth/update-user`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
+			body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
+		});
+		assert.equal(genericImageUpdate.status, 400);
+		const profileImageForm = new FormData();
+		const profileImageSource = await sharp({
+			create: { width: 2, height: 2, channels: 3, background: 'red' }
+		})
+			.png()
+			.toBuffer();
+		const profileImageBytes = profileImageSource.buffer.slice(
+			profileImageSource.byteOffset,
+			profileImageSource.byteOffset + profileImageSource.byteLength
+		) as ArrayBuffer;
+		profileImageForm.set(
+			'image',
+			new File([profileImageBytes], 'profile.png', { type: 'image/png' })
+		);
+		profileImageForm.set('x', '0.5');
+		profileImageForm.set('y', '0.5');
+		profileImageForm.set('zoom', '1');
+		const profileImageUpload = await app.request(`${origin}/api/profile/image`, {
+			method: 'POST',
+			headers: { cookie: firstCookie, origin },
+			body: profileImageForm
+		});
+		assert.equal(profileImageUpload.status, 200, await profileImageUpload.clone().text());
+		const profileImageUrl = ((await profileImageUpload.json()) as { image: string }).image;
+		const imageSession = await app.request(`${origin}/api/auth/get-session`, {
+			headers: { cookie: firstCookie }
+		});
+		assert.equal(
+			((await imageSession.json()) as { user: { image: string } }).user.image,
+			profileImageUrl
+		);
+		assert.equal((await app.request(`${origin}${profileImageUrl}`)).status, 200);
+		assert.equal(
+			(
+				await app.request(`${origin}/api/profile/image`, {
+					method: 'DELETE',
+					headers: { cookie: firstCookie, origin }
+				})
+			).status,
+			204
+		);
+		const removedImageSession = await app.request(`${origin}/api/auth/get-session`, {
+			headers: { cookie: firstCookie }
+		});
+		assert.equal(
+			((await removedImageSession.json()) as { user: { image: string | null } }).user.image,
+			null
+		);
 		await signup('Username Reuser', 'first_user', 'reuser@example.com', 'initial-password-reuser');
 		const [reuser] = await source.db
 			.select({ id: user.id })

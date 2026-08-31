@@ -103,6 +103,11 @@ export function createAuth(options: CreateAuthOptions) {
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
 				if (ctx.path !== '/update-user') return;
+				if ('image' in ctx.body) {
+					throw new APIError('BAD_REQUEST', {
+						message: 'Use the profile image controls to change your image.'
+					});
+				}
 				if (typeof ctx.body.name === 'string') {
 					ctx.body.name = validName(ctx.body.name);
 				}
@@ -184,6 +189,9 @@ export function createAuth(options: CreateAuthOptions) {
 
 	return Object.assign(auth, {
 		usernameAvailability,
+		async setProfileImage(userId: string, image: string | null) {
+			await options.database.update(schema.user).set({ image }).where(eq(schema.user.id, userId));
+		},
 		async handler(request: Request) {
 			const pathname = new URL(request.url).pathname;
 			const isIdentityWrite =

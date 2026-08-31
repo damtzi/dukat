@@ -14,7 +14,7 @@ const config = {
         'connect-src': ['self'],
         'font-src': ['self'],
         'form-action': ['self'],
-        'img-src': ['self', 'data:'],
+        'img-src': ['self', 'data:', 'blob:'],
         'object-src': ['none'],
         'script-src': ['self'],
         'style-src': ['self', 'unsafe-inline'],

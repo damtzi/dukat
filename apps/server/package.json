@@ -23,6 +23,7 @@
 		"@types/node": "^20.11.17",
 		"drizzle-orm": "^0.45.2",
 		"eslint": "catalog:",
+		"sharp": "^0.34.5",
 		"typescript": "catalog:"
 	}
 }

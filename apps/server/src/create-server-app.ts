@@ -10,6 +10,7 @@ interface FetchApplication {
 export interface CreateServerAppOptions {
 	api: FetchApplication;
 	dashboardDirectory: string;
+	profileImagesDirectory?: string;
 	isProduction?: boolean;
 }
 
@@ -27,6 +28,7 @@ export function resolveDashboardDirectory(
 export function createServerApp({
 	api,
 	dashboardDirectory,
+	profileImagesDirectory,
 	isProduction = false
 }: CreateServerAppOptions) {
 	const app = new HonoApp();
@@ -51,6 +53,22 @@ export function createServerApp({
 		response.headers.set('cache-control', 'no-store');
 		return response;
 	});
+	if (profileImagesDirectory) {
+		app.use('/profile-images/*', async (c, next) => {
+			await next();
+			if (c.res.status === 200) {
+				c.header('cache-control', 'public, max-age=31536000, immutable');
+			}
+		});
+		app.use(
+			'/profile-images/*',
+			serveStatic({
+				root: profileImagesDirectory,
+				rewriteRequestPath: (path) => path.slice('/profile-images'.length)
+			})
+		);
+		app.get('/profile-images/*', (c) => c.notFound());
+	}
 	app.use('*', serveStatic({ root: dashboardDirectory }));
 	app.get('*', serveStatic({ path: join(dashboardDirectory, 'index.html') }));
 

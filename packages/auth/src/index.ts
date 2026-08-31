@@ -9,9 +9,12 @@ export { createAuth, type Auth } from './create-auth';
 export * from './email';
 
 export const emailSender = createResendEmailSender(authEnv.RESEND_API_KEY, authEnv.AUTH_EMAIL_FROM);
+export const trustedOrigins = [authEnv.CORS_ORIGIN].filter((origin): origin is string =>
+	Boolean(origin)
+);
 export const auth = createAuth({
 	database: db,
-	trustedOrigins: [authEnv.CORS_ORIGIN].filter((origin): origin is string => Boolean(origin)),
+	trustedOrigins,
 	emailSender,
 	secret: authEnv.BETTER_AUTH_SECRET,
 	baseURL: authEnv.BETTER_AUTH_URL,

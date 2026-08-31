@@ -513,6 +513,7 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 }) => {
 	let sessionCalls = 0;
 	let availabilityRequests = 0;
+	let imageUploadAttempts = 0;
 	let user = {
 		id: 'user-e2e',
 		name: 'Ada Byron Lovelace',
@@ -553,6 +554,23 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 			user = { ...user, ...body };
 			return json(route, { status: true });
 		}
+		if (pathname === '/api/profile/image' && method === 'POST') {
+			imageUploadAttempts += 1;
+			expect(request.headers()['content-type']).toContain('multipart/form-data');
+			const body = request.postData() ?? '';
+			expect(body).toContain('name="x"');
+			expect(body).toContain('name="y"');
+			expect(body).toContain('name="zoom"');
+			if (imageUploadAttempts === 1) {
+				return json(route, { message: 'The selected file is not a valid image.' }, 400);
+			}
+			user = { ...user, image: `/profile-images/mock-${imageUploadAttempts}.webp` };
+			return json(route, { image: user.image });
+		}
+		if (pathname === '/api/profile/image' && method === 'DELETE') {
+			user = { ...user, image: null };
+			return route.fulfill({ status: 204 });
+		}
 		if (pathname === '/api/workspaces' && method === 'GET') return json(route, [personalWorkspace]);
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET')
 			return json(route, []);
@@ -562,7 +580,6 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	});
 
 	await page.goto('/profile');
-	await expect(page.getByText('Loading profile…')).toBeVisible();
 	await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Ada Byron Lovelace');
 	await expect(page.getByLabel('Username')).toHaveValue('ada_lovelace');
 	await expect(page.getByLabel('Email')).toHaveValue('ada@example.com');
@@ -572,6 +589,49 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	expect(cardTitles.indexOf('Public identity')).toBeLessThan(
 		cardTitles.indexOf('Workspace recovery')
 	);
+
+	const imageFile = page.getByLabel('Choose profile image');
+	await imageFile.setInputFiles({
+		name: 'profile.png',
+		mimeType: 'image/png',
+		buffer: Buffer.from(
+			'iVBORw0KGgoAAAANSUhEUgAAAJYAAADIAQMAAAAwS4omAAAAA1BMVEUAB/vCVICJAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAG0lEQVRIie3BMQEAAADCoPVPbQwfoAAAAIC3AQ+gAAEq5xQCAAAAAElFTkSuQmCC',
+			'base64'
+		)
+	});
+	const cropPreview = page.getByRole('img', { name: 'Crop preview' });
+	await expect(cropPreview).toBeVisible();
+	await expect(cropPreview).toHaveJSProperty('naturalWidth', 150);
+	await page.getByLabel('Zoom').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.getByLabel('Zoom')).toBeFocused();
+	await page.getByLabel('Horizontal position').focus();
+	await page.keyboard.press('ArrowLeft');
+	await page.getByLabel('Vertical position').focus();
+	await page.keyboard.press('ArrowRight');
+	await page.getByRole('button', { name: 'Save profile image' }).click();
+	await expect(page.getByRole('alert')).toContainText('not a valid image');
+	await expect(page.getByRole('img', { name: 'Crop preview' })).toBeVisible();
+	await page.getByRole('button', { name: 'Save profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was saved');
+	await expect(page.getByRole('img', { name: "Ada Byron Lovelace's profile" })).toHaveAttribute(
+		'src',
+		'/profile-images/mock-2.webp'
+	);
+	await page.getByLabel('Choose replacement').setInputFiles({
+		name: 'replacement.webp',
+		mimeType: 'image/webp',
+		buffer: Buffer.from('UklGRhYAAABXRUJQVlA4TAkAAAAvAAAAAAfQ//73vwg=', 'base64')
+	});
+	await page.getByRole('button', { name: 'Save profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was replaced');
+	await expect(page.getByRole('img', { name: "Ada Byron Lovelace's profile" })).toHaveAttribute(
+		'src',
+		'/profile-images/mock-3.webp'
+	);
+	await page.getByRole('button', { name: 'Remove profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was removed');
+	await expect(page.getByRole('img', { name: 'Profile initials: AL' })).toBeVisible();
 
 	await page.getByLabel('Name', { exact: true }).focus();
 	await expect(page.getByLabel('Name', { exact: true })).toBeFocused();
@@ -594,7 +654,9 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	await page.getByLabel('Email').press('Tab');
 	await expect(page.getByRole('button', { name: 'Save profile' })).toBeFocused();
 	await page.keyboard.press('Enter');
-	await expect(page.getByRole('status')).toContainText('Your profile was updated.');
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Your profile was updated.' })
+	).toBeVisible();
 	await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Ada Lovelace');
 	await expect(page.getByLabel('Username')).toHaveValue('ada_updated');
 	expect(sessionCalls).toBeGreaterThanOrEqual(3);

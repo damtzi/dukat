@@ -15,18 +15,14 @@
     Input,
     Spinner,
   } from '@dukat/ui'
-  import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import { onDestroy, onMount } from 'svelte'
   import { workspacesDataDependency } from '$lib/api'
+  import ProfileImageEditor from '$lib/components/profile/ProfileImageEditor.svelte'
   import {
     api,
     type Workspace,
   } from '$lib/controllers/workspace-controller.svelte'
-  import {
-    getBrowserSession,
-    profileInitials,
-    type SessionUser,
-  } from '$lib/session'
+  import { getBrowserSession, type SessionUser } from '$lib/session'
 
   let message = $state('')
   let pending = $state(false)
@@ -45,7 +41,6 @@
   let availabilityTimer: ReturnType<typeof setTimeout> | undefined
   let availabilityRequest = 0
   const usernamePattern = '[a-z][a-z0-9_]{2,29}'
-  const initials = $derived(profileInitials(name))
 
   onMount(loadProfile)
   onDestroy(() => clearTimeout(availabilityTimer))
@@ -167,6 +162,13 @@
     }
   }
 
+  async function imageChanged(image: string | null) {
+    if (!user) return
+    user = { ...user, image }
+    const refreshed = await getBrowserSession()
+    if (refreshed.status === 'authenticated') user = refreshed.session.user
+  }
+
   async function loadRecoverable() {
     message = ''
     try {
@@ -262,33 +264,12 @@
           >
         </Alert.Root>
       {:else if user}
-        <div class="grid gap-6 md:grid-cols-[8rem_minmax(0,1fr)]">
-          <div class="flex flex-col items-center gap-2">
-            {#if user.image}
-              <img
-                src={user.image}
-                alt={`${user.name}'s profile`}
-                class="size-24 rounded-full border object-cover"
-              />
-            {:else}
-              <div
-                class="flex size-24 items-center justify-center rounded-full border bg-muted text-2xl font-semibold"
-                role="img"
-                aria-label={initials
-                  ? `Profile initials: ${initials}`
-                  : 'Generic profile image'}
-              >
-                {#if initials}
-                  {initials}
-                {:else}
-                  <UserIcon class="size-10" aria-hidden="true" />
-                {/if}
-              </div>
-            {/if}
-            <span class="text-center text-xs text-muted-foreground"
-              >Current profile image</span
-            >
-          </div>
+        <div class="grid gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
+          <ProfileImageEditor
+            image={user.image}
+            {name}
+            onchanged={imageChanged}
+          />
 
           <form onsubmit={updateProfile}>
             {#if profileError}
