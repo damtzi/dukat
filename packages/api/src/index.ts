@@ -3,6 +3,7 @@ export {
 	createProfileImageService,
 	ProfileImageError,
 	type ProfileImageCrop,
+	type ProfileImageCleanupService,
 	type ProfileImageService,
 	type ProfileImageStorage
 } from './profile-images';

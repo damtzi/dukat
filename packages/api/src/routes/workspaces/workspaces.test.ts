@@ -305,19 +305,24 @@ test('restore returns JSON when the repository operation has no return value', a
 
 test('account deletion requires server confirmation and deletes only after password verification', async () => {
 	let verified = 0,
-		deletedUserId: string | undefined;
-	const client = testClient(
-		createAPI(
-			createServices({
-				verifyPassword: () => verified++,
-				workspace: {
-					async deleteAccount(userId) {
-						deletedUserId = userId;
-					}
-				}
-			})
-		)
-	);
+		deletedUserId: string | undefined,
+		cleanupDrains = 0;
+	const services = createServices({
+		verifyPassword: () => verified++,
+		workspace: {
+			async deleteAccount(userId) {
+				deletedUserId = userId;
+			}
+		}
+	});
+	services.profileImageCleanup = {
+		async enqueue() {},
+		async drain() {
+			cleanupDrains += 1;
+			throw new Error('storage unavailable');
+		}
+	};
+	const client = testClient(createAPI(services));
 	const headers = { authorization: 'Session test' };
 	const route = client.api.account.delete;
 	assert.equal(
@@ -338,6 +343,7 @@ test('account deletion requires server confirmation and deletes only after passw
 	);
 	assert.equal(verified, 1);
 	assert.equal(deletedUserId, 'user-1');
+	assert.equal(cleanupDrains, 1);
 });
 
 test('WorkspaceError codes map to 404, 409 and 400, and member action parameters are parsed', async () => {

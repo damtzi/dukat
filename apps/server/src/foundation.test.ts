@@ -10,7 +10,7 @@ import { createAuth } from '@dukat/auth/create-auth';
 import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/email';
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
 import { backupDatabase, restoreDatabase } from '@dukat/db/recovery';
-import { session, user } from '@dukat/db/schema/auth';
+import { profileImageCleanupJob, session, user } from '@dukat/db/schema/auth';
 import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
@@ -18,11 +18,13 @@ import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
+import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import sharp from 'sharp';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
+import { createProfileImageCleanup } from './profile-image-cleanup';
 import { createLocalProfileImageStorage } from './profile-image-storage';
 
 const origin = 'http://localhost:9999';
@@ -76,7 +78,9 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		assert.deepEqual(userTriggers.rows.map((trigger) => trigger.name).sort(), [
 			'user_create_personal_workspace',
 			'user_household_sole_owner_guard',
-			'user_only_member_household_cleanup'
+			'user_only_member_household_cleanup',
+			'user_profile_image_delete_cleanup',
+			'user_profile_image_update_cleanup'
 		]);
 		await source.db.insert(user).values({
 			id: 'migration-trigger-user',
@@ -118,14 +122,21 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			}
 		});
 		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
+		const profileImageStorage = createLocalProfileImageStorage(profileImagesDirectory);
+		const profileImageCleanup = createProfileImageCleanup({
+			repository: createProfileImageCleanupRepository(source.db),
+			storage: profileImageStorage
+		});
 		const profileImages = createProfileImageService({
 			auth,
-			storage: createLocalProfileImageStorage(profileImagesDirectory)
+			storage: profileImageStorage,
+			cleanup: profileImageCleanup
 		});
 		const app = createServerApp({
 			api: createAPI({
 				auth,
 				favorites: createFavoriteRepository(source.db),
+				profileImageCleanup,
 				profileImages,
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(sourceFinancial.db),
@@ -711,12 +722,20 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		});
 		assert.equal(await signedOutSession.text(), 'null');
 
+		await profileImageCleanup.enqueue(
+			firstSession.user.id,
+			'/profile-images/users/recovery/pending.webp'
+		);
 		await backupDatabase(sourceUrl, undefined, backupPath, key);
 		await restoreDatabase(restoredUrl, undefined, backupPath, key);
 		const restored = createDatabase({ url: restoredUrl });
 		const restoredFinancial = createFinancialDatabase({ url: restoredUrl });
 		try {
 			assert.equal((await restored.db.select().from(workspace)).length, 2);
+			assert.deepEqual(
+				(await restored.db.select().from(profileImageCleanupJob)).map((job) => job.publicUrl),
+				['/profile-images/users/recovery/pending.webp']
+			);
 			const restoredAccounts = await createLedgerRepository(restoredFinancial.db).listAccounts({
 				userId: firstSession.user.id,
 				workspaceId: firstWorkspaceId

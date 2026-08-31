@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	createAPI,
@@ -12,10 +13,17 @@ import {
 	type ProfileImageStorage
 } from '@dukat/api';
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { createDatabase } from '@dukat/db/connection';
+import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
+import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
+import { profileImageCleanupJob, user } from '@dukat/db/schema/auth';
+import { eq } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import { Hono } from 'hono';
 import sharp from 'sharp';
 
 import { createServerApp } from './create-server-app';
+import { createProfileImageCleanup } from './profile-image-cleanup';
 import {
 	createLocalProfileImageStorage,
 	createS3ProfileImageStorage
@@ -24,18 +32,43 @@ import {
 const origin = 'http://localhost:9999';
 const portalOrigin = 'https://dukat-portal.example';
 const sessionHeaders = { cookie: 'session=test', origin };
+const migrationsFolder = fileURLToPath(
+	new URL('../../../packages/db/src/migrations', import.meta.url)
+);
 
 function createServices(
 	storage: ProfileImageStorage,
 	updateImage?: (image: string | null) => Promise<void>
 ): APIServices {
 	let image: string | null = null;
+	const jobs: Array<{ id: string; userId: string; publicUrl: string }> = [];
+	const cleanup = createProfileImageCleanup({
+		storage,
+		repository: {
+			async enqueue(userId, publicUrl) {
+				if (!jobs.some((job) => job.userId === userId && job.publicUrl === publicUrl)) {
+					jobs.push({ id: `job-${jobs.length + 1}`, userId, publicUrl });
+				}
+			},
+			async listPending() {
+				return [...jobs];
+			},
+			async complete(id) {
+				jobs.splice(
+					jobs.findIndex((job) => job.id === id),
+					1
+				);
+			},
+			async markFailed() {}
+		}
+	});
 	const auth: AuthenticationService = {
 		async handler() {
 			return new Response(null, { status: 404 });
 		},
 		async setProfileImage(_userId, nextImage) {
 			if (updateImage) await updateImage(nextImage);
+			if (image && image !== nextImage) await cleanup.enqueue(_userId, image);
 			image = nextImage;
 		},
 		async usernameAvailability(username) {
@@ -62,7 +95,8 @@ function createServices(
 	return {
 		auth,
 		trustedOrigins: [`${portalOrigin}/`],
-		profileImages: createProfileImageService({ auth, storage }),
+		profileImageCleanup: cleanup,
+		profileImages: createProfileImageService({ auth, storage, cleanup }),
 		async readiness() {},
 		favorites: {} as APIServices['favorites'],
 		ledger: {} as APIServices['ledger'],
@@ -324,10 +358,18 @@ test('profile image HTTP flow rejects unauthorized, cross-origin, malformed, and
 	}
 });
 
-test('an identity update failure removes the new profile-image object', async () => {
+test('an identity update failure records the orphan and a later drain removes it', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-profile-images-'));
 	try {
-		const storage = createLocalProfileImageStorage(directory);
+		const localStorage = createLocalProfileImageStorage(directory);
+		let storageAvailable = false;
+		const storage: ProfileImageStorage = {
+			store: localStorage.store,
+			async remove(userId, publicUrl) {
+				if (!storageAvailable) throw new Error('storage unavailable');
+				await localStorage.remove(userId, publicUrl);
+			}
+		};
 		const configured = createServices(storage, async () => {
 			throw new Error('database unavailable');
 		});
@@ -339,7 +381,15 @@ test('an identity update failure removes the new profile-image object', async ()
 			'image.webp'
 		);
 		assert.equal(response.status, 500);
-		const files = await readdir(directory, { recursive: true });
+		let files = await readdir(directory, { recursive: true });
+		assert.equal(
+			files.some((path) => path.endsWith('.webp')),
+			true
+		);
+
+		storageAvailable = true;
+		await configured.profileImageCleanup!.drain();
+		files = await readdir(directory, { recursive: true });
 		assert.equal(
 			files.some((path) => path.endsWith('.webp')),
 			false
@@ -349,13 +399,19 @@ test('an identity update failure removes the new profile-image object', async ()
 	}
 });
 
-test('cleanup failure does not fail a completed profile-image change', async () => {
+test('replacement and removal complete before failed cleanup retries on a later drain', async () => {
+	let version = 0;
+	let storageAvailable = false;
+	const objects = new Set<string>();
 	const storage: ProfileImageStorage = {
 		async store() {
-			return '/profile-images/users/scope/version.webp';
+			const publicUrl = `/profile-images/users/scope/version-${++version}.webp`;
+			objects.add(publicUrl);
+			return publicUrl;
 		},
-		async remove() {
-			throw new Error('storage unavailable');
+		async remove(_userId, publicUrl) {
+			if (!storageAvailable) throw new Error('storage unavailable');
+			objects.delete(publicUrl);
 		}
 	};
 	const configured = createServices(storage);
@@ -363,6 +419,11 @@ test('cleanup failure does not fail a completed profile-image change', async () 
 		.webp()
 		.toBuffer();
 	assert.equal((await upload(createAPI(configured), source, 'image.webp')).status, 200);
+	assert.equal((await upload(createAPI(configured), source, 'replacement.webp')).status, 200);
+	assert.deepEqual(
+		[...objects],
+		['/profile-images/users/scope/version-1.webp', '/profile-images/users/scope/version-2.webp']
+	);
 	assert.equal(
 		(
 			await createAPI(configured).request(`${origin}/api/profile/image`, {
@@ -372,6 +433,167 @@ test('cleanup failure does not fail a completed profile-image change', async () 
 		).status,
 		204
 	);
+	assert.equal(objects.size, 2);
+
+	storageAvailable = true;
+	await configured.profileImageCleanup!.drain();
+	assert.equal(objects.size, 0);
+	await configured.profileImageCleanup!.drain();
+	assert.equal(objects.size, 0, 'completed jobs are not processed again');
+});
+
+test('replacement, removal, and failed updates persist cleanup through a new drain', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-profile-image-cleanup-'));
+	const connection = createDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
+	let version = 0;
+	let storageAvailable = false;
+	let updateFails = false;
+	const objects = new Set<string>();
+	const storage: ProfileImageStorage = {
+		async store() {
+			const publicUrl = `/profile-images/users/scope/version-${++version}.webp`;
+			objects.add(publicUrl);
+			return publicUrl;
+		},
+		async remove(_userId, publicUrl) {
+			if (!storageAvailable) throw new Error('storage unavailable');
+			objects.delete(publicUrl);
+		}
+	};
+	try {
+		await migrate(connection.db, { migrationsFolder });
+		await connection.db.insert(user).values({
+			id: 'user-1',
+			name: 'Image User',
+			username: 'image_user',
+			email: 'image@example.com'
+		});
+		const cleanup = createProfileImageCleanup({
+			repository: createProfileImageCleanupRepository(connection.db),
+			storage
+		});
+		const auth: AuthenticationService = {
+			async handler() {
+				return new Response(null, { status: 404 });
+			},
+			async setProfileImage(userId, image) {
+				if (updateFails) throw new Error('identity update failed');
+				await connection.db.update(user).set({ image }).where(eq(user.id, userId));
+			},
+			async usernameAvailability(username) {
+				return { available: true, username, message: 'Username is available.' };
+			},
+			api: {
+				async getSession() {
+					const [identity] = await connection.db.select().from(user).where(eq(user.id, 'user-1'));
+					return identity ? { user: identity } : null;
+				},
+				async verifyPassword() {}
+			}
+		};
+		const configured = createServices(storage);
+		configured.auth = auth;
+		configured.profileImageCleanup = cleanup;
+		configured.profileImages = createProfileImageService({ auth, storage, cleanup });
+		const app = createAPI(configured);
+		const source = await sharp({
+			create: { width: 2, height: 2, channels: 3, background: 'red' }
+		})
+			.webp()
+			.toBuffer();
+
+		assert.equal((await upload(app, source, 'first.webp')).status, 200);
+		assert.equal((await upload(app, source, 'replacement.webp')).status, 200);
+		assert.equal(
+			(
+				await app.request(`${origin}/api/profile/image`, {
+					method: 'DELETE',
+					headers: sessionHeaders
+				})
+			).status,
+			204
+		);
+		updateFails = true;
+		assert.equal((await upload(app, source, 'orphan.webp')).status, 500);
+		assert.equal(objects.size, 3);
+		const pending = await connection.db.select().from(profileImageCleanupJob);
+		assert.equal(pending.length, 3);
+		assert.ok(pending.every((job) => job.attempts > 0));
+
+		storageAvailable = true;
+		await createProfileImageCleanup({
+			repository: createProfileImageCleanupRepository(connection.db),
+			storage
+		}).drain();
+		assert.equal(objects.size, 0);
+		assert.deepEqual(await connection.db.select().from(profileImageCleanupJob), []);
+	} finally {
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test('account deletion completes while object cleanup survives and succeeds after restart', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-account-image-cleanup-'));
+	const connection = createDatabase({ url: `file:${join(directory, 'db.sqlite')}` });
+	const publicUrl = '/profile-images/users/account/image.webp';
+	let storageAvailable = false;
+	const objects = new Set([publicUrl]);
+	const storage: ProfileImageStorage = {
+		async store() {
+			return publicUrl;
+		},
+		async remove(_userId, imageUrl) {
+			if (!storageAvailable) throw new Error('storage unavailable');
+			objects.delete(imageUrl);
+		}
+	};
+	try {
+		await migrate(connection.db, { migrationsFolder });
+		await connection.db.insert(user).values({
+			id: 'account-user',
+			name: 'Account User',
+			username: 'account_user',
+			email: 'account@example.com',
+			image: publicUrl
+		});
+		const repository = createProfileImageCleanupRepository(connection.db);
+		const cleanup = createProfileImageCleanup({ repository, storage });
+		const configured = createServices(storage);
+		configured.profileImageCleanup = cleanup;
+		configured.workspaces = createWorkspaceRepository(connection.db);
+		configured.auth.api.getSession = async () => ({
+			user: {
+				id: 'account-user',
+				name: 'Account User',
+				username: 'account_user',
+				email: 'account@example.com',
+				emailVerified: true,
+				image: publicUrl
+			}
+		});
+
+		const response = await createAPI(configured).request(`${origin}/api/account/delete`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: 'Session account-user' },
+			body: JSON.stringify({ password: 'confirmed-password', confirmation: 'DELETE' })
+		});
+		assert.equal(response.status, 200, await response.clone().text());
+		assert.equal(objects.has(publicUrl), true);
+		const [job] = await connection.db.select().from(profileImageCleanupJob);
+		assert.equal(job.attempts, 1);
+
+		storageAvailable = true;
+		await createProfileImageCleanup({
+			repository: createProfileImageCleanupRepository(connection.db),
+			storage
+		}).drain();
+		assert.equal(objects.has(publicUrl), false);
+		assert.deepEqual(await connection.db.select().from(profileImageCleanupJob), []);
+	} finally {
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
 });
 
 test('profile image operations are rate-limited per authenticated user', async () => {
