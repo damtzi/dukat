@@ -11,6 +11,14 @@ const workspaceSummarySchema = z.object({
 	version: z.number().int(),
 	role: z.enum(['owner', 'member']).nullable()
 });
+const householdMemberSchema = z.object({
+	userId: z.string(),
+	name: z.string(),
+	username: z.string(),
+	image: z.string().nullable(),
+	role: z.enum(['owner', 'member']),
+	joinedAt: z.iso.datetime()
+});
 const messageSchema = z.object({ message: z.string() });
 const tags = ['Workspaces'];
 
@@ -89,7 +97,11 @@ export const members = createRoute({
 	...common,
 	method: 'get',
 	path: '/workspaces/{workspaceId}/members',
-	request: { params }
+	request: { params },
+	responses: {
+		...common.responses,
+		200: jsonContent(z.array(householdMemberSchema), 'Household members')
+	}
 });
 export const invitations = createRoute({
 	...common,

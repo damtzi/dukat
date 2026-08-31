@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
   import { onMount } from 'svelte'
+  import ProfileImage from '$lib/components/profile/ProfileImage.svelte'
 
   type Workspace = {
     id: string
@@ -12,7 +13,8 @@
   type Member = {
     userId: string
     name: string
-    email: string
+    username: string
+    image: string | null
     role: 'owner' | 'member'
   }
   type Invitation = { id: string; email: string; expiresAt: string }
@@ -141,13 +143,25 @@
           No members found.
         </p>{/if}
       {#each members as member (member.userId)}<div
-          class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
+          class="flex flex-wrap items-center justify-between gap-3 border-b py-2"
         >
-          <span>{member.name} ({member.email}) — {member.role}</span>
+          <div class="flex min-w-0 flex-1 items-center gap-3">
+            <ProfileImage image={member.image} name={member.name} />
+            <div class="min-w-0">
+              <p class="break-words font-medium">{member.name}</p>
+              <p class="break-all text-sm text-muted-foreground">
+                @{member.username}
+              </p>
+              <p class="text-xs capitalize text-muted-foreground">
+                {member.role}
+              </p>
+            </div>
+          </div>
           {#if workspace.role === 'owner'}<span class="flex gap-2"
               ><Button
                 size="sm"
                 variant="outline"
+                aria-label={`${member.role === 'owner' ? 'Demote' : 'Promote'} ${member.name}`}
                 disabled={pending}
                 onclick={() =>
                   act(
@@ -156,6 +170,7 @@
               ><Button
                 size="sm"
                 variant="outline"
+                aria-label={`Remove ${member.name}`}
                 disabled={pending}
                 onclick={() =>
                   act(
