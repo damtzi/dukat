@@ -19,7 +19,16 @@ function createServices(favorites: FavoriteService): APIServices {
 			api: {
 				async getSession({ headers: requestHeaders }) {
 					return requestHeaders.get('authorization') === 'Session test'
-						? { user: { id: 'user-1', email: 'user@example.com', emailVerified: true } }
+						? {
+								user: {
+									id: 'user-1',
+									name: 'User One',
+									username: 'user_one',
+									email: 'user@example.com',
+									emailVerified: true,
+									image: null
+								}
+							}
 						: null;
 				},
 				async verifyPassword() {}

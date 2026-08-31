@@ -508,6 +508,138 @@ test('explains username availability and signup conflicts with keyboard and acce
 	expect(results.violations).toEqual([]);
 });
 
+test('loads, validates, and saves profile identity accessibly on desktop and mobile', async ({
+	page
+}) => {
+	let sessionCalls = 0;
+	let availabilityRequests = 0;
+	let user = {
+		id: 'user-e2e',
+		name: 'Ada Byron Lovelace',
+		username: 'ada_lovelace',
+		email: 'ada@example.com',
+		emailVerified: true,
+		image: null
+	};
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const { pathname, searchParams } = new URL(request.url());
+		const method = request.method();
+
+		if (pathname === '/api/auth/get-session' && method === 'GET') {
+			sessionCalls += 1;
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			return json(route, { session: { id: 'session-e2e' }, user });
+		}
+		if (pathname === '/api/auth/username-availability' && method === 'GET') {
+			availabilityRequests += 1;
+			return json(route, {
+				available: true,
+				username: searchParams.get('username'),
+				message: 'Username is available.'
+			});
+		}
+		if (pathname === '/api/auth/update-user' && method === 'POST') {
+			const body = request.postDataJSON() as { name: string; username: string };
+			expect(Object.keys(body).sort()).toEqual(['name', 'username']);
+			if (body.username === 'server_taken') {
+				return json(
+					route,
+					{ code: 'USERNAME_UNAVAILABLE', message: 'That username is already taken.' },
+					409
+				);
+			}
+			user = { ...user, ...body };
+			return json(route, { status: true });
+		}
+		if (pathname === '/api/workspaces' && method === 'GET') return json(route, [personalWorkspace]);
+		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET')
+			return json(route, []);
+		if (pathname === '/api/favorites' && method === 'GET') return json(route, []);
+
+		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
+	});
+
+	await page.goto('/profile');
+	await expect(page.getByText('Loading profile…')).toBeVisible();
+	await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Ada Byron Lovelace');
+	await expect(page.getByLabel('Username')).toHaveValue('ada_lovelace');
+	await expect(page.getByLabel('Email')).toHaveValue('ada@example.com');
+	await expect(page.getByLabel('Email')).toHaveAttribute('readonly', '');
+	await expect(page.getByRole('img', { name: 'Profile initials: AL' })).toBeVisible();
+	const cardTitles = await page.locator('[data-slot="card-title"]').allTextContents();
+	expect(cardTitles.indexOf('Public identity')).toBeLessThan(
+		cardTitles.indexOf('Workspace recovery')
+	);
+
+	await page.getByLabel('Name', { exact: true }).focus();
+	await expect(page.getByLabel('Name', { exact: true })).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(page.getByLabel('Username')).toBeFocused();
+	await page.getByLabel('Username').fill('admin');
+	await expect(page.getByText('That username is reserved.')).toBeVisible();
+	expect(availabilityRequests).toBe(0);
+	await page.getByLabel('Username').fill('server_taken');
+	await expect(page.getByText('Username is available.')).toBeVisible();
+	await page.getByLabel('Name', { exact: true }).fill('Ada Lovelace');
+	await page.getByRole('button', { name: 'Save profile' }).click();
+	await expect(page.getByRole('alert')).toContainText('That username is already taken.');
+	await expect(page.getByLabel('Username')).toHaveAttribute('aria-invalid', 'true');
+
+	await page.getByLabel('Username').fill('ada_updated');
+	await expect(page.getByText('Username is available.')).toBeVisible();
+	await page.getByLabel('Username').press('Tab');
+	await expect(page.getByLabel('Email')).toBeFocused();
+	await page.getByLabel('Email').press('Tab');
+	await expect(page.getByRole('button', { name: 'Save profile' })).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('status')).toContainText('Your profile was updated.');
+	await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Ada Lovelace');
+	await expect(page.getByLabel('Username')).toHaveValue('ada_updated');
+	expect(sessionCalls).toBeGreaterThanOrEqual(3);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true
+	);
+
+	const results = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+		.analyze();
+	expect(results.violations).toEqual([]);
+});
+
+test('shows generic and stored profile-image fallbacks', async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name !== 'desktop-chromium');
+	let image: string | null = null;
+	let name = 'Prince';
+	await page.route('**/api/auth/get-session', (route) =>
+		json(route, {
+			session: { id: 'session-e2e' },
+			user: {
+				id: 'user-e2e',
+				name,
+				username: 'fallback_user',
+				email: 'fallback@example.com',
+				emailVerified: true,
+				image
+			}
+		})
+	);
+	await page.route('**/api/workspaces', (route) => json(route, [personalWorkspace]));
+	await page.route(`**/api/workspaces/${workspaceId}/accounts`, (route) => json(route, []));
+	await page.route('**/api/favorites', (route) => json(route, []));
+
+	await page.goto('/profile');
+	await expect(page.getByRole('img', { name: 'Profile initials: P' })).toBeVisible();
+	name = '';
+	await page.reload();
+	await expect(page.getByRole('img', { name: 'Generic profile image' })).toBeVisible();
+	name = 'Profile Image User';
+	image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E';
+	await page.reload();
+	await expect(page.getByRole('img', { name: "Profile Image User's profile" })).toBeVisible();
+});
+
 test('protects workspace routes and routes authenticated users from root', async ({ page }) => {
 	let authenticated = false;
 	await page.route('**/api/auth/get-session', (route) =>

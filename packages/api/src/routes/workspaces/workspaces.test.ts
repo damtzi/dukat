@@ -72,8 +72,11 @@ function createServices(
 						? {
 								user: {
 									id: 'user-1',
+									name: 'User One',
+									username: 'user_one',
 									email: 'user@example.com',
-									emailVerified: options.verified ?? true
+									emailVerified: options.verified ?? true,
+									image: null
 								}
 							}
 						: null;

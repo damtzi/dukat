@@ -23,9 +23,16 @@ export interface AuthenticationService {
 		message: string;
 	}>;
 	api: {
-		getSession(options: {
-			headers: Headers;
-		}): Promise<{ user: { id: string; email: string; emailVerified: boolean } } | null>;
+		getSession(options: { headers: Headers }): Promise<{
+			user: {
+				id: string;
+				name: string;
+				username: string;
+				email: string;
+				emailVerified: boolean;
+				image?: string | null;
+			};
+		} | null>;
 		verifyPassword(options: { body: { password: string }; headers: Headers }): Promise<unknown>;
 	};
 }
