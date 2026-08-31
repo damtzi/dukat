@@ -51,11 +51,16 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 	assert.equal(delegatedRequest?.method, 'POST');
 });
 
-test('username availability delegates to the auth service', async () => {
+test('username availability delegates to the Better Auth handler', async () => {
+	let delegatedRequest: Request | undefined;
 	const services = {
 		auth: {
-			async usernameAvailability(username: string) {
-				return { available: false, username, message: 'That username is already taken.' };
+			async handler(request: Request) {
+				delegatedRequest = request;
+				return Response.json(
+					{ available: false, username: 'ada', message: 'That username is already taken.' },
+					{ headers: { 'cache-control': 'no-store' } }
+				);
 			}
 		}
 	} as unknown as APIServices;
@@ -70,6 +75,10 @@ test('username availability delegates to the auth service', async () => {
 		username: 'ada',
 		message: 'That username is already taken.'
 	});
+	assert.equal(
+		delegatedRequest?.url,
+		'http://dukat.test/api/auth/username-availability?username=ada'
+	);
 });
 
 test('auth sign-out normalizes the internal Better Auth request body', async () => {

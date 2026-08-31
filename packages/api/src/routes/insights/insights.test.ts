@@ -13,7 +13,16 @@ const services = (): APIServices => ({
 		api: {
 			getSession: async ({ headers }) =>
 				headers.get('authorization') === 'Session test'
-					? { user: { id: 'user', email: 'u@test', emailVerified: true } }
+					? {
+							user: {
+								id: 'user',
+								name: 'User',
+								username: 'user',
+								email: 'u@test',
+								emailVerified: true,
+								image: null
+							}
+						}
 					: null,
 			async verifyPassword() {}
 		}

@@ -289,18 +289,19 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).length,
 			1
 		);
-		await source.db.delete(user).where(eq(user.id, raceUser.id));
 		const firstCookie = await signIn('first@example.com', 'initial-password-1');
 		const firstSessionResponse = await app.request(`${origin}/api/auth/get-session`, {
 			headers: { cookie: firstCookie }
 		});
 		assert.equal(firstSessionResponse.status, 200);
 		const firstSession = (await firstSessionResponse.json()) as {
-			user: { id: string; name: string; username: string };
+			user: { id: string; name: string; username: string; email: string; image: string | null };
 			session: { id: string };
 		};
 		assert.equal(firstSession.user.name, 'First  User!');
 		assert.equal(firstSession.user.username, 'first_user');
+		assert.equal(firstSession.user.email, 'first@example.com');
+		assert.equal(firstSession.user.image, null);
 		assert.equal(
 			(
 				await postJson(app, '/api/auth/sign-in/username', {
@@ -310,6 +311,75 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).status,
 			404
 		);
+		const unauthorizedUpdate = await postJson(app, '/api/auth/update-user', {
+			name: 'Unauthorized User',
+			username: 'unauthorized_user'
+		});
+		assert.equal(unauthorizedUpdate.status, 401);
+		const crossOriginUpdate = await app.request(`${origin}/api/auth/update-user`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				cookie: firstCookie,
+				origin: 'https://attacker.example'
+			},
+			body: JSON.stringify({ name: 'Cross Origin', username: 'cross_origin' })
+		});
+		assert.equal(crossOriginUpdate.status, 403);
+		for (const [body, message] of [
+			[{ name: ' ', username: 'valid_update' }, 'Name must be 1–100 characters long.'],
+			[{ name: 'Valid Update', username: 'admin' }, 'That username is reserved.']
+		] as const) {
+			const invalidUpdate = await app.request(`${origin}/api/auth/update-user`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
+				body: JSON.stringify(body)
+			});
+			assert.equal(invalidUpdate.status, 400);
+			assert.match((await invalidUpdate.json()).message, new RegExp(message));
+		}
+		const conflictUpdate = await app.request(`${origin}/api/auth/update-user`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
+			body: JSON.stringify({ name: 'First User', username: 'RACE_WINNER' })
+		});
+		assert.equal(conflictUpdate.status, 409);
+		assert.equal((await conflictUpdate.json()).message, 'That username is already taken.');
+		await source.db.delete(user).where(eq(user.id, raceUser.id));
+		const profileUpdate = await app.request(`${origin}/api/auth/update-user`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
+			body: JSON.stringify({ name: '  Updated  User  ', username: ' Updated_User ' })
+		});
+		assert.equal(profileUpdate.status, 200, await profileUpdate.clone().text());
+		const refreshedIdentity = (await (
+			await app.request(`${origin}/api/auth/get-session`, {
+				headers: { cookie: firstCookie }
+			})
+		).json()) as { user: { name: string; username: string; email: string; image: string | null } };
+		assert.deepEqual(refreshedIdentity.user, {
+			...refreshedIdentity.user,
+			name: 'Updated  User',
+			username: 'updated_user',
+			email: 'first@example.com',
+			image: null
+		});
+		const currentUsername = await app.request(
+			`${origin}/api/auth/username-availability?username=updated_user`,
+			{ headers: { cookie: firstCookie } }
+		);
+		assert.equal(((await currentUsername.json()) as { available: boolean }).available, true);
+		const oldUsername = await app.request(
+			`${origin}/api/auth/username-availability?username=first_user`
+		);
+		assert.equal(((await oldUsername.json()) as { available: boolean }).available, true);
+		await signup('Username Reuser', 'first_user', 'reuser@example.com', 'initial-password-reuser');
+		const [reuser] = await source.db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, 'reuser@example.com'));
+		assert.ok(reuser);
+		await source.db.delete(user).where(eq(user.id, reuser.id));
 
 		const firstWorkspacesResponse = await app.request(`${origin}/api/workspaces`, {
 			headers: { cookie: firstCookie }
@@ -526,6 +596,37 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		assert.match(productionCookie, /HttpOnly/i);
 		assert.match(productionCookie, /SameSite=Lax/i);
 		assert.match(productionSignIn.headers.get('strict-transport-security') ?? '', /max-age=/);
+		const productionSessionCookie = cookieFrom(productionSignIn);
+		const updateRateResponses: number[] = [];
+		for (let attempt = 0; attempt < 12; attempt += 1) {
+			updateRateResponses.push(
+				(
+					await productionApp.request(`${productionOrigin}/api/auth/update-user`, {
+						method: 'POST',
+						headers: {
+							'content-type': 'application/json',
+							cookie: productionSessionCookie,
+							origin: productionOrigin
+						},
+						body: '{}'
+					})
+				).status
+			);
+		}
+		assert.ok(updateRateResponses.includes(429));
+		assert.ok(updateRateResponses.includes(400));
+		const availabilityRateResponses: number[] = [];
+		for (let attempt = 0; attempt < 31; attempt += 1) {
+			availabilityRateResponses.push(
+				(
+					await productionApp.request(
+						`${productionOrigin}/api/auth/username-availability?username=rate_limit_candidate`
+					)
+				).status
+			);
+		}
+		assert.ok(availabilityRateResponses.includes(200));
+		assert.ok(availabilityRateResponses.includes(429));
 
 		await source.db
 			.update(session)
