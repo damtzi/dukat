@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
+import { createDatabase } from '@dukat/db/connection';
 import { testClient } from 'hono/testing';
-import { WorkspaceError } from '@dukat/db/repositories/workspaces';
+import { migrate } from 'drizzle-orm/libsql/migrator';
+import { createWorkspaceRepository, WorkspaceError } from '@dukat/db/repositories/workspaces';
+import { user, workspaceMembership } from '@dukat/db/schema/index';
 
 import { createAPI } from '../../app';
 import type { APIServices, WorkspaceService, WorkspaceSummary } from '../../services';
@@ -100,6 +107,100 @@ test('workspace routes require a session', async () => {
 
 	assert.equal(response.status, 401);
 	assert.deepEqual(await response.json(), { message: 'Unauthorized' });
+});
+
+test('member HTTP responses expose public identity and preserve household isolation', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-members-api-'));
+	const connection = createDatabase({ url: `file:${join(directory, 'members.db')}` });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../../../../db/src/migrations', import.meta.url))
+		});
+		await connection.db.insert(user).values([
+			{
+				id: 'owner',
+				name: 'Ada Lovelace',
+				username: 'ada_lovelace',
+				email: 'ada@example.com',
+				image: '/profile-images/ada.webp'
+			},
+			{
+				id: 'member',
+				name: 'Prince',
+				username: 'prince',
+				email: 'prince@example.com',
+				image: null
+			},
+			{
+				id: 'outsider',
+				name: 'Outside User',
+				username: 'outside_user',
+				email: 'outside@example.com',
+				image: null
+			}
+		]);
+		const repository = createWorkspaceRepository(connection.db);
+		const household = await repository.createHousehold('owner', {
+			name: 'Home',
+			reportingCurrency: 'EUR'
+		});
+		await connection.db.insert(workspaceMembership).values({
+			workspaceId: household.id,
+			userId: 'member',
+			role: 'member'
+		});
+		await repository.createHousehold('outsider', {
+			name: 'Other home',
+			reportingCurrency: 'EUR'
+		});
+
+		const services = createServices();
+		services.workspaces = repository;
+		services.auth.api.getSession = async ({ headers }) => {
+			const userId = headers.get('authorization')?.replace('Session ', '');
+			if (!userId) return null;
+			return {
+				user: {
+					id: userId,
+					name: userId,
+					username: userId,
+					email: `${userId}@example.com`,
+					emailVerified: true,
+					image: null
+				}
+			};
+		};
+		const app = createAPI(services);
+		const path = `/api/workspaces/${household.id}/members`;
+
+		for (const userId of ['owner', 'member']) {
+			const response = await app.request(path, {
+				headers: { authorization: `Session ${userId}` }
+			});
+			assert.equal(response.status, 200);
+			const members = (await response.json()) as Array<Record<string, unknown>>;
+			assert.equal(members.length, 2);
+			assert.ok(members.every((member) => !('email' in member)));
+			assert.deepEqual(
+				members
+					.map(({ name, username, image }) => ({ name, username, image }))
+					.sort((a, b) => String(a.name).localeCompare(String(b.name))),
+				[
+					{ name: 'Ada Lovelace', username: 'ada_lovelace', image: '/profile-images/ada.webp' },
+					{ name: 'Prince', username: 'prince', image: null }
+				]
+			);
+		}
+
+		const isolated = await app.request(path, {
+			headers: { authorization: 'Session outsider' }
+		});
+		assert.equal(isolated.status, 404);
+		assert.equal(((await isolated.json()) as { message: string }).message, 'Workspace not found');
+	} finally {
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
 });
 
 test('typed routes create households and require verified email for invitation acceptance', async () => {

@@ -35,8 +35,13 @@ export const create: AppRouteHandler<typeof Routes.create> = async (c) =>
 	c.json(await c.var.services.workspaces.createHousehold(c.var.userId, c.req.valid('json')), 200);
 export const settings: AppRouteHandler<typeof Routes.settings> = async (c) =>
 	c.json(await c.var.services.workspaces.updateHousehold(context(c), c.req.valid('json')), 200);
-export const members: AppRouteHandler<typeof Routes.members> = async (c) =>
-	c.json(await c.var.services.workspaces.listMembers(context(c)), 200);
+export const members: AppRouteHandler<typeof Routes.members> = async (c) => {
+	const members = await c.var.services.workspaces.listMembers(context(c));
+	return c.json(
+		members.map((member) => ({ ...member, joinedAt: member.joinedAt.toISOString() })),
+		200
+	);
+};
 export const invitations: AppRouteHandler<typeof Routes.invitations> = async (c) =>
 	c.json(await c.var.services.workspaces.listInvitations(context(c)), 200);
 export const invite: AppRouteHandler<typeof Routes.invite> = async (c) => {

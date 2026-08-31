@@ -231,7 +231,8 @@ export function createWorkspaceRepository(database: Database) {
 					.select({
 						userId: user.id,
 						name: user.name,
-						email: user.email,
+						username: user.username,
+						image: user.image,
 						role: workspaceMembership.role,
 						joinedAt: workspaceMembership.createdAt
 					})

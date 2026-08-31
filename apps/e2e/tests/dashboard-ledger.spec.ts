@@ -881,7 +881,15 @@ test('creates and selects a household workspace', async ({ page }) => {
 		if (path.endsWith('/accounts')) return json(route, []);
 		if (path === `/api/workspaces/${householdId}/members`)
 			return json(route, [
-				{ userId: 'user-e2e', name: 'Ada', email: 'ada@example.com', role: 'owner' }
+				{
+					userId: 'user-e2e',
+					name: 'Ada',
+					username: 'ada',
+					email: 'ada@example.com',
+					image: null,
+					role: 'owner',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				}
 			]);
 		if (path === `/api/workspaces/${householdId}/invitations`) return json(route, []);
 		const insights = emptyInsightsResponse(path, method);
@@ -900,6 +908,102 @@ test('creates and selects a household workspace', async ({ page }) => {
 	await expect(
 		page.getByLabel('Shared', { exact: true }).getByText('Lovelace household', { exact: true })
 	).toBeVisible();
+});
+
+test('renders household member public identities accessibly on desktop and mobile', async ({
+	page
+}) => {
+	const householdId = 'household-identities-e2e';
+	const household = {
+		id: householdId,
+		name: 'Identity household',
+		type: 'household' as const,
+		reportingCurrency: 'EUR',
+		version: 1,
+		role: 'owner' as const
+	};
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		const method = request.method();
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'owner-e2e' } });
+		if (path === '/api/favorites' && method === 'GET') return json(route, []);
+		if (path === '/api/workspaces' && method === 'GET')
+			return json(route, [personalWorkspace, household]);
+		if (path.endsWith('/accounts') || path.endsWith('/categories')) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/members`)
+			return json(route, [
+				{
+					userId: 'image-member',
+					name: 'Ada Lovelace',
+					username: 'ada_lovelace',
+					email: 'private-ada@example.com',
+					image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E',
+					role: 'owner',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				},
+				{
+					userId: 'initials-member',
+					name: 'Grace Brewster Murray Hopper',
+					username: 'grace_hopper',
+					email: 'private-grace@example.com',
+					image: null,
+					role: 'member',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				},
+				{
+					userId: 'one-word-member',
+					name: 'Prince',
+					username: 'prince',
+					email: 'private-prince@example.com',
+					image: null,
+					role: 'member',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				},
+				{
+					userId: 'generic-member',
+					name: '',
+					username: 'a_very_long_username_usable_30',
+					email: 'private-generic@example.com',
+					image: null,
+					role: 'member',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				}
+			]);
+		if (path === `/api/workspaces/${householdId}/invitations`) return json(route, []);
+		return json(route, { message: `Unexpected mocked request: ${method} ${path}` }, 500);
+	});
+
+	await page.goto(`/workspaces/${householdId}/manage`);
+	const profileImage = page.getByRole('img', { name: "Ada Lovelace's profile" });
+	await expect(profileImage).toBeVisible();
+	await expect(profileImage).toHaveJSProperty('naturalWidth', 300);
+	await expect(page.getByRole('img', { name: 'Profile initials: GH' })).toBeVisible();
+	await expect(page.getByRole('img', { name: 'Profile initials: P' })).toBeVisible();
+	await expect(page.getByRole('img', { name: 'Generic profile image' })).toBeVisible();
+	await expect(page.getByText('@ada_lovelace', { exact: true })).toBeVisible();
+	await expect(page.getByText('@grace_hopper', { exact: true })).toBeVisible();
+	await expect(page.getByText('@a_very_long_username_usable_30', { exact: true })).toBeVisible();
+	await expect(page.getByText('private-ada@example.com')).toHaveCount(0);
+	await expect(page.getByText('private-grace@example.com')).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Promote Grace Brewster Murray Hopper' }).focus();
+	await expect(
+		page.getByRole('button', { name: 'Promote Grace Brewster Murray Hopper' })
+	).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(
+		page.getByRole('button', { name: 'Remove Grace Brewster Murray Hopper' })
+	).toBeFocused();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true
+	);
+
+	const results = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+		.analyze();
+	expect(results.violations).toEqual([]);
 });
 
 test('returns home after leaving or deleting shared workspaces', async ({ page }) => {
@@ -946,8 +1050,11 @@ test('returns home after leaving or deleting shared workspaces', async ({ page }
 				{
 					userId: 'user-e2e',
 					name: 'Ada',
+					username: 'ada',
 					email: 'ada@example.com',
-					role: path.includes(ownedHouseholdId) ? 'owner' : 'member'
+					image: null,
+					role: path.includes(ownedHouseholdId) ? 'owner' : 'member',
+					joinedAt: '2026-08-31T00:00:00.000Z'
 				}
 			]);
 		}

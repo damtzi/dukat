@@ -99,7 +99,15 @@ async function mockRates(page: Page, options: { householdMember?: boolean } = {}
 			return json(route, []);
 		if (pathname === `/api/workspaces/${workspaceId}/members` && method === 'GET')
 			return json(route, [
-				{ userId: 'proof-user', name: 'Proof User', email: 'proof@example.test', role: 'member' }
+				{
+					userId: 'proof-user',
+					name: 'Proof User',
+					username: 'proof_user',
+					email: 'proof@example.test',
+					image: null,
+					role: 'member',
+					joinedAt: '2026-08-31T00:00:00.000Z'
+				}
 			]);
 		if (pathname === `/api/workspaces/${workspaceId}/summary` && method === 'GET')
 			return json(route, {

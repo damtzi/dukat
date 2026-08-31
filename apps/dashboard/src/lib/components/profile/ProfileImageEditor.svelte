@@ -1,8 +1,7 @@
 <script lang="ts">
   import { Alert, Button, Label, Spinner } from '@dukat/ui'
-  import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import { onDestroy } from 'svelte'
-  import { profileInitials } from '$lib/session'
+  import ProfileImage from './ProfileImage.svelte'
 
   let {
     image,
@@ -25,7 +24,6 @@
   let fileInput: HTMLInputElement
   let previewWidth = $state(0)
   let previewHeight = $state(0)
-  const initials = $derived(profileInitials(name))
   const previewGeometry = $derived.by(() => {
     const shortestSide = Math.min(previewWidth, previewHeight)
     if (!shortestSide) return { width: 100, height: 100, left: 0, top: 0 }
@@ -146,27 +144,7 @@
 
 <div class="flex flex-col gap-4">
   <div class="flex flex-col items-center gap-2">
-    {#if image}
-      <img
-        src={image}
-        alt={`${name}'s profile`}
-        class="size-24 rounded-full border object-cover"
-      />
-    {:else}
-      <div
-        class="flex size-24 items-center justify-center rounded-full border bg-muted text-2xl font-semibold"
-        role="img"
-        aria-label={initials
-          ? `Profile initials: ${initials}`
-          : 'Generic profile image'}
-      >
-        {#if initials}
-          {initials}
-        {:else}
-          <UserIcon class="size-10" aria-hidden="true" />
-        {/if}
-      </div>
-    {/if}
+    <ProfileImage {image} {name} size="large" />
     <span class="text-center text-xs text-muted-foreground"
       >Current profile image</span
     >

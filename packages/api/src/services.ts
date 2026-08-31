@@ -61,6 +61,15 @@ export interface WorkspaceSummary {
 	role?: 'owner' | 'member' | null;
 }
 
+export interface HouseholdMember {
+	userId: string;
+	name: string;
+	username: string;
+	image: string | null;
+	role: 'owner' | 'member';
+	joinedAt: Date;
+}
+
 export interface WorkspaceService {
 	listAuthorized(userId: string): Promise<WorkspaceSummary[]>;
 	findAuthorized(context: {
@@ -75,7 +84,7 @@ export interface WorkspaceService {
 		context: WorkspaceContext,
 		input: { name?: string; reportingCurrency?: string; version: number }
 	): Promise<unknown>;
-	listMembers(context: WorkspaceContext): Promise<unknown>;
+	listMembers(context: WorkspaceContext): Promise<HouseholdMember[]>;
 	listInvitations(context: WorkspaceContext): Promise<unknown>;
 	invite(
 		context: WorkspaceContext,
