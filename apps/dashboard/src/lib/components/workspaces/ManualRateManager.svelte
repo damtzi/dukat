@@ -79,7 +79,7 @@
   })
 </script>
 
-<Card.Root class="mb-6">
+<Card.Root>
   <Card.Header
     ><Card.Title>Manual exchange rates</Card.Title><Card.Description
       >A manual rate replaces NBP data from its effective date until a newer

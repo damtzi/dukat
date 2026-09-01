@@ -113,7 +113,7 @@
               onclick={closeMobile}
             >
               <span
-                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
+                class="flex size-8 shrink-0 items-center justify-center bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
                 >D</span
               >
               <span class="flex min-w-0 flex-col leading-tight">

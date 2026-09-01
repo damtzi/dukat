@@ -267,7 +267,7 @@
     >
       {#each tentative.points as point (`mobile:${point.planId}:${point.originalDate}`)}
         {@const account = accountFor(point.accountId)}
-        <article class="flex flex-col gap-2 border p-3" role="listitem">
+        <article class="inset-panel flex flex-col gap-2" role="listitem">
           <div class="flex items-start justify-between gap-3">
             <div>
               <strong>{labelFor(point)}</strong>

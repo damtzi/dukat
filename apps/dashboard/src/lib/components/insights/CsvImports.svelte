@@ -212,7 +212,7 @@
   }
 </script>
 
-<Card.Root class="mb-6"
+<Card.Root
   ><Card.Header
     ><Card.Title>CSV import</Card.Title><Card.Description
       >Columns: <code>{DUKAT_CSV_HEADER}</code>. Date is YYYY-MM-DD; kind is
@@ -420,7 +420,7 @@
       {#if imports.length === 0}<p class="text-sm text-muted-foreground">
           No imports yet.
         </p>{/if}{#each imports as item (item.id)}<div
-          class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
+          class="list-row flex flex-wrap items-center justify-between gap-2"
         >
           <span
             ><b>{item.filename}</b> · {new Date(
@@ -444,7 +444,7 @@
           </div>
         </div>{/each}
     </div>
-    {#if detail}<div class="rounded border p-3">
+    {#if detail}<div class="inset-panel">
         <div class="flex justify-between">
           <h3 class="font-semibold">{detail.filename} details</h3>
           <Button

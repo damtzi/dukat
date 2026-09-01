@@ -59,7 +59,7 @@
       </p>{/if}
     {#each plans as plan (plan.id)}<article
         class:border-dashed={plan.status === 'tentative'}
-        class="rounded-md border p-3 opacity-100"
+        class="inset-panel opacity-100"
         class:opacity-60={plan.cancelled}
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
