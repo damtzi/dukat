@@ -2,6 +2,7 @@
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Empty } from '@dukat/ui'
   import OverviewOutlookChart from '$lib/components/forecast/OverviewOutlookChart.svelte'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import OverviewCashFlow from '$lib/components/insights/OverviewCashFlow.svelte'
   import OverviewAttention from '$lib/components/overview/OverviewAttention.svelte'
@@ -142,23 +143,21 @@
 <svelte:head><title>Overview · Dukat</title></svelte:head>
 
 <section class="flex flex-col gap-6" aria-labelledby="overview-title">
-  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h1 id="overview-title" class="text-3xl font-semibold tracking-tight">
-        Overview
-      </h1>
-      <p class="mt-1 text-muted-foreground">
-        What you have now and what may be ahead.
-      </p>
-    </div>
-    {#if activeAccounts.length > 0}
-      <Button onclick={ledger.newTransaction}>Add transaction</Button>
-    {/if}
-  </div>
+  <PageHeader
+    id="overview-title"
+    title="Overview"
+    description="What you have now and what may be ahead."
+  >
+    {#snippet actions()}
+      {#if activeAccounts.length > 0}
+        <Button onclick={ledger.newTransaction}>Add transaction</Button>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   {#key `${workspace.workspaceId}-${workspace.refreshVersion}`}
     {#if activeAccounts.length === 0}
-      <Empty.Root class="rounded-xl border bg-card">
+      <Empty.Root>
         <Empty.Header>
           <Empty.Title>No accounts</Empty.Title>
           <Empty.Description>
@@ -182,7 +181,7 @@
         </Card.Header>
         <Card.Content class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {#each activeAccounts as account (account.id)}
-            <div class="border p-3">
+            <div class="inset-panel">
               <strong>{account.name}</strong>
               <p class="text-sm text-muted-foreground">
                 {formatMoney(account.balanceMinor, account.currency)}

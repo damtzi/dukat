@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import ManualRateManager from '$lib/components/workspaces/ManualRateManager.svelte'
 
@@ -7,15 +8,12 @@
 
 <svelte:head><title>Exchange rates · Dukat</title></svelte:head>
 
-<section aria-labelledby="rates-title">
-  <div class="mb-6">
-    <h1 id="rates-title" class="text-3xl font-semibold tracking-tight">
-      Exchange rates
-    </h1>
-    <p class="mt-1 text-muted-foreground">
-      Control how foreign balances convert into the reporting currency.
-    </p>
-  </div>
+<section class="flex flex-col gap-6" aria-labelledby="rates-title">
+  <PageHeader
+    id="rates-title"
+    title="Exchange rates"
+    description="Control how foreign balances convert into the reporting currency."
+  />
   <ManualRateManager
     workspaceId={workspace.workspaceId}
     onchanged={() => workspace.refresh()}

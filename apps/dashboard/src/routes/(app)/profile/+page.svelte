@@ -17,6 +17,7 @@
   } from '@dukat/ui'
   import { onDestroy, onMount } from 'svelte'
   import { workspacesDataDependency } from '$lib/api'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import ProfileImageEditor from '$lib/components/profile/ProfileImageEditor.svelte'
   import {
     api,
@@ -235,15 +236,13 @@
 
 <svelte:head><title>Profile · Dukat</title></svelte:head>
 
-<div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
-  <header>
-    <h1 class="text-3xl font-semibold tracking-tight">Profile</h1>
-    <p class="mt-1 text-muted-foreground">
-      Manage your public identity, recovery, and account.
-    </p>
-  </header>
+<div class="flex w-full flex-col gap-6">
+  <PageHeader
+    title="Profile"
+    description="Manage your public identity, recovery, and account."
+  />
 
-  <Card.Root>
+  <Card.Root class="w-full max-w-4xl">
     <Card.Header>
       <Card.Title>Public identity</Card.Title>
       <Card.Description>
@@ -351,13 +350,13 @@
   </Card.Root>
 
   {#if message}
-    <Alert.Root variant="destructive" role="alert">
+    <Alert.Root class="w-full max-w-4xl" variant="destructive" role="alert">
       <Alert.Title>Profile action failed</Alert.Title>
       <Alert.Description>{message}</Alert.Description>
     </Alert.Root>
   {/if}
 
-  <Card.Root>
+  <Card.Root class="w-full max-w-4xl">
     <Card.Header>
       <Card.Title>Workspace recovery</Card.Title>
       <Card.Description>
@@ -383,7 +382,7 @@
     </Card.Content>
   </Card.Root>
 
-  <Card.Root>
+  <Card.Root class="w-full max-w-4xl">
     <Card.Header>
       <Card.Title>Delete your account</Card.Title>
       <Card.Description>

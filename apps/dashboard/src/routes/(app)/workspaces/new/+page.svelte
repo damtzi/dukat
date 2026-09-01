@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
   import { workspacesDataDependency } from '$lib/api'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import {
     api,
     type Workspace,
@@ -44,12 +45,10 @@
 <svelte:head><title>New shared workspace · Dukat</title></svelte:head>
 
 <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
-  <header>
-    <h1 class="text-3xl font-semibold tracking-tight">New shared workspace</h1>
-    <p class="mt-1 text-muted-foreground">
-      Create a financial space that you can share with household members.
-    </p>
-  </header>
+  <PageHeader
+    title="New shared workspace"
+    description="Create a financial space that you can share with household members."
+  />
 
   <Card.Root>
     <Card.Header>

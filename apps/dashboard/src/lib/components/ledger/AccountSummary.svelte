@@ -18,7 +18,7 @@
   } = $props()
 </script>
 
-<Card.Root class="mb-6">
+<Card.Root>
   <Card.Header
     ><div class="flex flex-wrap items-start justify-between gap-3">
       <div>

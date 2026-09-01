@@ -2,6 +2,7 @@
   import { resolve } from '$app/paths'
   import type { CashFlow } from '@dukat/core/csv-import'
   import { Button, Card, Empty, Table } from '@dukat/ui'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import CashFlowCategories from '$lib/components/insights/CashFlowCategories.svelte'
   import CashFlowPeriodControls from '$lib/components/insights/CashFlowPeriodControls.svelte'
@@ -64,15 +65,11 @@
 <svelte:head><title>Cash flow · Dukat</title></svelte:head>
 
 <section class="flex flex-col gap-6" aria-labelledby="cash-flow-title">
-  <div>
-    <h1 id="cash-flow-title" class="text-3xl font-semibold tracking-tight">
-      Cash flow
-    </h1>
-    <p class="mt-1 text-muted-foreground">
-      Completed income and spending. Transfers and balance corrections are
-      excluded; transaction fees are spending.
-    </p>
-  </div>
+  <PageHeader
+    id="cash-flow-title"
+    title="Cash flow"
+    description="Completed income and spending. Transfers and balance corrections are excluded; transaction fees are spending."
+  />
 
   <CashFlowPeriodControls bind:preset bind:range {today} />
 
@@ -241,7 +238,7 @@
       </Card.Header>
       <Card.Content class="grid gap-3 sm:grid-cols-2">
         {#each current.currencies as currency (currency.currency)}
-          <div class="border p-3 text-sm">
+          <div class="inset-panel text-sm">
             <strong>{currency.currency}</strong>
             <p>Income {formatMoney(currency.incomeMinor, currency.currency)}</p>
             <p>

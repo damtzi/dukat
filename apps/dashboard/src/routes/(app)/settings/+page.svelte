@@ -1,18 +1,17 @@
 <script lang="ts">
   import { Card } from '@dukat/ui'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
 </script>
 
 <svelte:head><title>Settings · Dukat</title></svelte:head>
 
-<div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
-  <header>
-    <h1 class="text-3xl font-semibold tracking-tight">Settings</h1>
-    <p class="mt-1 text-muted-foreground">
-      Global preferences for your Dukat experience.
-    </p>
-  </header>
+<div class="flex w-full flex-col gap-6">
+  <PageHeader
+    title="Settings"
+    description="Global preferences for your Dukat experience."
+  />
 
-  <Card.Root>
+  <Card.Root class="w-full max-w-4xl">
     <Card.Header>
       <Card.Title>Preferences</Card.Title>
       <Card.Description>

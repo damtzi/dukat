@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Empty } from '@dukat/ui'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import WorkspaceForecastChart from '$lib/components/forecast/WorkspaceForecastChart.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import { lowestProjectedBalance } from '$lib/forecast'
@@ -36,15 +37,11 @@
 <svelte:head><title>Forecast · Dukat</title></svelte:head>
 
 <section class="flex flex-col gap-6" aria-labelledby="forecast-title">
-  <div>
-    <h1 id="forecast-title" class="text-3xl font-semibold tracking-tight">
-      Forecast
-    </h1>
-    <p class="mt-1 text-muted-foreground">
-      Projections use current balances and unmatched plans over the next 12
-      months. They are estimates, not guaranteed future amounts.
-    </p>
-  </div>
+  <PageHeader
+    id="forecast-title"
+    title="Forecast"
+    description="Projections use current balances and unmatched plans over the next 12 months. They are estimates, not guaranteed future amounts."
+  />
 
   {#if data.forecastError}
     <Alert.Root>
@@ -85,7 +82,7 @@
               {@const account = workspace.accounts.find(
                 ({ id }) => id === forecast.id,
               )}
-              <div class="flex flex-col gap-3 border p-3">
+              <div class="inset-panel flex flex-col gap-3">
                 <div>
                   <strong>{account?.name ?? 'Unavailable account'}</strong>
                   <p class="text-sm text-muted-foreground">
