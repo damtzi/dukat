@@ -51,7 +51,7 @@
   })
 </script>
 
-<Card.Root class="mb-6"
+<Card.Root
   ><Card.Header
     ><Card.Title>Summary</Card.Title><Card.Description
       >Income and spending by currency and category. Dates are inclusive.</Card.Description

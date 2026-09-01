@@ -150,7 +150,7 @@
       >
         <h3 class="font-semibold">Matched occurrences</h3>
         {#each forecast.matchedOccurrences as matched (`${matched.occurrence.planId}:${matched.occurrence.originalDate}`)}<article
-            class="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
+            class="inset-panel flex flex-wrap items-center justify-between gap-3"
           >
             <div>
               <strong

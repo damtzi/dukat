@@ -15,7 +15,7 @@
 </script>
 
 {#if accounts.length === 0}
-  <Empty.Root class="rounded-xl border bg-card">
+  <Empty.Root>
     <Empty.Header>
       <Empty.Title>No accounts</Empty.Title>
       <Empty.Description>

@@ -136,7 +136,7 @@
         <Empty.Content class="w-full">
           <div class="grid gap-2 text-left sm:grid-cols-2">
             {#each current.currencies as currency (currency.currency)}
-              <div class="border p-3 text-sm">
+              <div class="inset-panel text-sm">
                 <strong>{currency.currency}</strong>
                 <p>
                   Income {formatMoney(currency.incomeMinor, currency.currency)}

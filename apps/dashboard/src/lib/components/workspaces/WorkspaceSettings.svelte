@@ -121,7 +121,7 @@
   onMount(load)
 </script>
 
-<Card.Root class="mb-6">
+<Card.Root>
   <Card.Header
     ><Card.Title>Household settings</Card.Title><Card.Description
       >Manage this household and its members.</Card.Description
@@ -143,7 +143,7 @@
           No members found.
         </p>{/if}
       {#each members as member (member.userId)}<div
-          class="flex flex-wrap items-center justify-between gap-3 border-b py-2"
+          class="list-row flex flex-wrap items-center justify-between gap-3"
         >
           <div class="flex min-w-0 flex-1 items-center gap-3">
             <ProfileImage image={member.image} name={member.name} />
@@ -224,7 +224,7 @@
         {#if invitations.length === 0}<p class="text-sm text-muted-foreground">
             No pending invitations.
           </p>{/if}{#each invitations as invitation (invitation.id)}<div
-            class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
+            class="list-row flex flex-wrap items-center justify-between gap-2"
           >
             <span
               >{invitation.email} — expires {new Date(
@@ -252,7 +252,7 @@
           </div>{/each}
       </section>
       <form
-        class="flex flex-col gap-2 rounded-md border border-destructive p-3"
+        class="inset-panel flex flex-col gap-2 border-destructive"
         onsubmit={(event) => {
           event.preventDefault()
           const data = new FormData(event.currentTarget as HTMLFormElement)

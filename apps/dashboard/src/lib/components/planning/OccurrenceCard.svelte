@@ -55,10 +55,7 @@
   }
 </script>
 
-<article
-  class:border-dashed={item.status === 'tentative'}
-  class="rounded-md border p-3"
->
+<article class:border-dashed={item.status === 'tentative'} class="inset-panel">
   <div class="flex flex-wrap justify-between gap-2">
     <div>
       <span class="mr-2 rounded-full bg-muted px-2 py-1 text-xs font-medium"

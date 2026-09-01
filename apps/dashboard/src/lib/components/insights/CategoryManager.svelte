@@ -115,7 +115,7 @@
   }
 </script>
 
-<Card.Root class="mb-6"
+<Card.Root
   ><Card.Header
     ><Card.Title>Categories</Card.Title><Card.Description
       >Organize transactions. Archive categories that are already in use.</Card.Description
@@ -146,7 +146,7 @@
               None
             </p>{/if}
           {#each group.items as category (category.id)}<div
-              class="flex flex-wrap items-center justify-between gap-2 border-b py-2"
+              class="list-row flex flex-wrap items-center justify-between gap-2"
             >
               <span>{category.name}</span>
               <div class="flex gap-1">
