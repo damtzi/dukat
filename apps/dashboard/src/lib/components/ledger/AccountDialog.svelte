@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
-  import { Alert, Button, Dialog, Input, Label, Select } from '@dukat/ui'
+  import { Alert, Button, Dialog, Field, Input, Select } from '@dukat/ui'
 
   const accountTypes: readonly {
     value: Account['type']
@@ -51,74 +51,76 @@
           : 'Balances use the currency’s standard decimal precision.'}</Dialog.Description
       ></Dialog.Header
     >
-    <form class="flex flex-col gap-4" {onsubmit}>
-      {#if error}<Alert.Root variant="destructive"
-          ><Alert.Title>Could not save account</Alert.Title><Alert.Description
-            >{error}</Alert.Description
-          ></Alert.Root
-        >{/if}
-      <div class="flex flex-col gap-2">
-        <Label for="account-name">Name</Label><Input
-          id="account-name"
-          required
-          maxlength={120}
-          bind:value={form.name}
-        />
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="account-type">Type</Label><Select.Root
-          type="single"
-          bind:value={form.type}
-        >
-          <Select.Trigger id="account-type" class="w-full">
-            {accountTypeLabel}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each accountTypes as accountType (accountType.value)}
-                <Select.Item
-                  value={accountType.value}
-                  label={accountType.label}
-                >
-                  {accountType.label}
-                </Select.Item>
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="currency">Currency</Label><Select.Root
-          type="single"
-          bind:value={form.currency}
-          disabled={!!editingAccount?.archivedAt}
-        >
-          <Select.Trigger id="currency" class="w-full"
-            ><span>{form.currency}</span></Select.Trigger
-          ><Select.Content
-            ><Select.Group
-              >{#each currencies as currency (currency.code)}<Select.Item
-                  value={currency.code}
-                  label={`${currency.code} — ${currency.name}`}
-                  >{currency.code} — {currency.name}</Select.Item
-                >{/each}</Select.Group
-            ></Select.Content
+    <form {onsubmit}>
+      <Field.Group>
+        {#if error}<Alert.Root variant="destructive"
+            ><Alert.Title>Could not save account</Alert.Title><Alert.Description
+              >{error}</Alert.Description
+            ></Alert.Root
+          >{/if}
+        <Field.Field>
+          <Field.Label for="account-name">Name</Field.Label><Input
+            id="account-name"
+            required
+            maxlength={120}
+            bind:value={form.name}
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="account-type">Type</Field.Label><Select.Root
+            type="single"
+            bind:value={form.type}
           >
-        </Select.Root>
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="opening">Opening balance</Label><Input
-          id="opening"
-          required
-          inputmode="decimal"
-          disabled={!!editingAccount?.archivedAt}
-          bind:value={form.amount}
-        />
-      </div>
-      <Dialog.Footer
-        ><Button type="submit" disabled={pending}>Save account</Button
-        ></Dialog.Footer
-      >
+            <Select.Trigger id="account-type" class="w-full">
+              {accountTypeLabel}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each accountTypes as accountType (accountType.value)}
+                  <Select.Item
+                    value={accountType.value}
+                    label={accountType.label}
+                  >
+                    {accountType.label}
+                  </Select.Item>
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        <Field.Field data-disabled={!!editingAccount?.archivedAt}>
+          <Field.Label for="currency">Currency</Field.Label><Select.Root
+            type="single"
+            bind:value={form.currency}
+            disabled={!!editingAccount?.archivedAt}
+          >
+            <Select.Trigger id="currency" class="w-full"
+              ><span>{form.currency}</span></Select.Trigger
+            ><Select.Content
+              ><Select.Group
+                >{#each currencies as currency (currency.code)}<Select.Item
+                    value={currency.code}
+                    label={`${currency.code} — ${currency.name}`}
+                    >{currency.code} — {currency.name}</Select.Item
+                  >{/each}</Select.Group
+              ></Select.Content
+            >
+          </Select.Root>
+        </Field.Field>
+        <Field.Field data-disabled={!!editingAccount?.archivedAt}>
+          <Field.Label for="opening">Opening balance</Field.Label><Input
+            id="opening"
+            required
+            inputmode="decimal"
+            disabled={!!editingAccount?.archivedAt}
+            bind:value={form.amount}
+          />
+        </Field.Field>
+        <Dialog.Footer
+          ><Button type="submit" disabled={pending}>Save account</Button
+          ></Dialog.Footer
+        >
+      </Field.Group>
     </form></Dialog.Content
   >
 </Dialog.Root>

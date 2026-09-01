@@ -4,8 +4,8 @@
     Alert,
     Button,
     Dialog,
+    Field,
     Input,
-    Label,
     Select,
     Textarea,
   } from '@dukat/ui'
@@ -153,134 +153,141 @@
         separate expense on the source account.</Dialog.Description
       ></Dialog.Header
     >
-    <form class="flex flex-col gap-4" {onsubmit}>
-      {#if error}<Alert.Root variant="destructive"
-          ><Alert.Title>Could not save transfer</Alert.Title><Alert.Description
-            >{error}</Alert.Description
-          ></Alert.Root
-        >{/if}
-      <div class="flex flex-col gap-2">
-        <Label for="transfer-source">Source account</Label><Select.Root
-          type="single"
-          bind:value={form.fromAccountId}
-          disabled={!!editingTransfer}
-          onValueChange={(sourceId) =>
-            (form.toAccountId = transferDestinations(sourceId)[0]?.id ?? '')}
-        >
-          <Select.Trigger id="transfer-source" class="w-full">
-            {sourceAccount
-              ? accountLabel(sourceAccount)
-              : 'Select source account'}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each activeSourceAccounts as item (item.id)}
-                <Select.Item value={item.id} label={accountLabel(item)}>
-                  {accountLabel(item)}
-                </Select.Item>
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-      {#if accounts.find((item) => item.id === form.fromAccountId)?.currency !== accounts.find((item) => item.id === form.toAccountId)?.currency}<div
-          class="flex flex-col gap-2"
-        >
-          <Label for="transfer-received">Exact amount received</Label><Input
-            id="transfer-received"
+    <form {onsubmit}>
+      <Field.Group>
+        {#if error}<Alert.Root variant="destructive"
+            ><Alert.Title>Could not save transfer</Alert.Title
+            ><Alert.Description>{error}</Alert.Description></Alert.Root
+          >{/if}
+        <Field.Field>
+          <Field.Label for="transfer-source">Source account</Field.Label
+          ><Select.Root
+            type="single"
+            bind:value={form.fromAccountId}
+            disabled={!!editingTransfer}
+            onValueChange={(sourceId) =>
+              (form.toAccountId = transferDestinations(sourceId)[0]?.id ?? '')}
+          >
+            <Select.Trigger id="transfer-source" class="w-full">
+              {sourceAccount
+                ? accountLabel(sourceAccount)
+                : 'Select source account'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each activeSourceAccounts as item (item.id)}
+                  <Select.Item value={item.id} label={accountLabel(item)}>
+                    {accountLabel(item)}
+                  </Select.Item>
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        {#if accounts.find((item) => item.id === form.fromAccountId)?.currency !== accounts.find((item) => item.id === form.toAccountId)?.currency}<Field.Field
+          >
+            <Field.Label for="transfer-received"
+              >Exact amount received</Field.Label
+            ><Input
+              id="transfer-received"
+              inputmode="decimal"
+              required
+              bind:value={form.receivedAmount}
+              oninput={() => (suggestionApplied = false)}
+            />
+            <Field.Description>
+              {quoteText ||
+                'Enter the confirmed destination amount. A suggestion never replaces your confirmation.'}
+            </Field.Description>
+            {#if suggestedAmount}<Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onclick={() => {
+                  form.receivedAmount = suggestedAmount
+                  suggestionApplied = true
+                }}>Use suggestion</Button
+              >{/if}
+          </Field.Field>{/if}
+        <Field.Field>
+          <Field.Label for="transfer-destination"
+            >Destination account</Field.Label
+          >
+          <Select.Root type="single" bind:value={form.toAccountId} required>
+            <Select.Trigger id="transfer-destination" class="w-full">
+              {destinationAccount
+                ? accountLabel(destinationAccount)
+                : 'Select destination account'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each destinationAccounts as item (item.id)}
+                  <Select.Item value={item.id} label={accountLabel(item)}>
+                    {accountLabel(item)}
+                  </Select.Item>
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+          {#if destinationAccounts.length === 0}<Field.Error>
+              No active destination is available.
+            </Field.Error>{/if}
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="transfer-amount">Transfer amount</Field.Label><Input
+            id="transfer-amount"
             inputmode="decimal"
             required
-            bind:value={form.receivedAmount}
-            oninput={() => (suggestionApplied = false)}
+            bind:value={form.amount}
           />
-          <p class="text-xs text-muted-foreground">
-            {quoteText ||
-              'Enter the confirmed destination amount. A suggestion never replaces your confirmation.'}
-          </p>
-          {#if suggestedAmount}<Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onclick={() => {
-                form.receivedAmount = suggestedAmount
-                suggestionApplied = true
-              }}>Use suggestion</Button
-            >{/if}
-        </div>{/if}
-      <div class="flex flex-col gap-2">
-        <Label for="transfer-destination">Destination account</Label
-        ><Select.Root type="single" bind:value={form.toAccountId} required>
-          <Select.Trigger id="transfer-destination" class="w-full">
-            {destinationAccount
-              ? accountLabel(destinationAccount)
-              : 'Select destination account'}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each destinationAccounts as item (item.id)}
-                <Select.Item value={item.id} label={accountLabel(item)}>
-                  {accountLabel(item)}
-                </Select.Item>
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-        {#if destinationAccounts.length === 0}<p
-            class="text-sm text-destructive"
-          >
-            No active destination is available.
-          </p>{/if}
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="transfer-amount">Transfer amount</Label><Input
-          id="transfer-amount"
-          inputmode="decimal"
-          required
-          bind:value={form.amount}
-        />
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="transfer-date">Date</Label><Input
-          id="transfer-date"
-          type="date"
-          max={todayInWarsaw()}
-          required
-          bind:value={form.date}
-        />
-      </div>
-      <div class="flex flex-col gap-2">
-        <Label for="transfer-note">Note</Label><Textarea
-          id="transfer-note"
-          maxlength={500}
-          bind:value={form.description}
-        />
-      </div>
-      {#if !editingTransfer}<div class="rounded-md border p-3">
-          <p class="mb-3 text-sm">
-            Optional fee — this creates a separate ordinary spending transaction
-            and is not folded into the transfer amount.
-          </p>
-          <div class="flex flex-col gap-2">
-            <Label for="transfer-fee">Fee amount</Label><Input
-              id="transfer-fee"
-              inputmode="decimal"
-              bind:value={form.fee}
-            />
-          </div>
-          <div class="mt-3 flex flex-col gap-2">
-            <Label for="fee-description">Fee description</Label><Input
-              id="fee-description"
-              maxlength={500}
-              placeholder="Transfer fee"
-              bind:value={form.feeDescription}
-            />
-          </div>
-        </div>{/if}
-      <Dialog.Footer
-        ><Button type="submit" disabled={pending || !form.toAccountId}
-          >Save transfer</Button
-        ></Dialog.Footer
-      >
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="transfer-date">Date</Field.Label><Input
+            id="transfer-date"
+            type="date"
+            max={todayInWarsaw()}
+            required
+            bind:value={form.date}
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="transfer-note">Note</Field.Label><Textarea
+            id="transfer-note"
+            maxlength={500}
+            bind:value={form.description}
+          />
+        </Field.Field>
+        {#if !editingTransfer}<Field.Set class="inset-panel">
+            <Field.Legend>Optional fee</Field.Legend>
+            <Field.Description>
+              Optional fee — this creates a separate ordinary spending
+              transaction and is not folded into the transfer amount.
+            </Field.Description>
+            <Field.Group>
+              <Field.Field>
+                <Field.Label for="transfer-fee">Fee amount</Field.Label><Input
+                  id="transfer-fee"
+                  inputmode="decimal"
+                  bind:value={form.fee}
+                />
+              </Field.Field>
+              <Field.Field>
+                <Field.Label for="fee-description">Fee description</Field.Label
+                ><Input
+                  id="fee-description"
+                  maxlength={500}
+                  placeholder="Transfer fee"
+                  bind:value={form.feeDescription}
+                />
+              </Field.Field>
+            </Field.Group>
+          </Field.Set>{/if}
+        <Dialog.Footer
+          ><Button type="submit" disabled={pending || !form.toAccountId}
+            >Save transfer</Button
+          ></Dialog.Footer
+        >
+      </Field.Group>
     </form>
   </Dialog.Content>
 </Dialog.Root>
