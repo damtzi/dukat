@@ -1,8 +1,8 @@
 <script lang="ts">
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Empty } from '@dukat/ui'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
-  import WorkspaceForecastChart from '$lib/components/forecast/WorkspaceForecastChart.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
+  import WorkspaceForecastChart from '$lib/components/forecast/workspace-forecast-chart.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import { lowestProjectedBalance } from '$lib/forecast'
   import { formatMoney } from '$lib/money'

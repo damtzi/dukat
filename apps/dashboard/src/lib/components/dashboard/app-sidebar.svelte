@@ -11,9 +11,9 @@
   import StarIcon from 'phosphor-svelte/lib/Star'
   import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import { api } from '$lib/api'
-  import FavoriteAction from '$lib/components/dashboard/FavoriteAction.svelte'
-  import HouseholdNavigation from '$lib/components/dashboard/HouseholdNavigation.svelte'
-  import WorkspaceNavigation from '$lib/components/dashboard/WorkspaceNavigation.svelte'
+  import FavoriteAction from '$lib/components/dashboard/favorite-action.svelte'
+  import HouseholdNavigation from '$lib/components/dashboard/household-navigation.svelte'
+  import WorkspaceNavigation from '$lib/components/dashboard/workspace-navigation.svelte'
   import type {
     Workspace,
     WorkspaceRouteData,

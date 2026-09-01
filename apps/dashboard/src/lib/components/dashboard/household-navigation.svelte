@@ -6,7 +6,7 @@
   import MinusIcon from 'phosphor-svelte/lib/Minus'
   import PlusIcon from 'phosphor-svelte/lib/Plus'
   import SharedIcon from 'phosphor-svelte/lib/UsersThree'
-  import WorkspaceNavigation from '$lib/components/dashboard/WorkspaceNavigation.svelte'
+  import WorkspaceNavigation from '$lib/components/dashboard/workspace-navigation.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
   import type { Favorite } from '$lib/favorites'
 

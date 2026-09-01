@@ -1,7 +1,7 @@
 <script lang="ts">
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import ManualRateManager from '$lib/components/workspaces/ManualRateManager.svelte'
+  import ManualRateManager from '$lib/components/workspaces/manual-rate-manager.svelte'
 
   const { workspace } = getWorkspaceDashboardContext()
 </script>

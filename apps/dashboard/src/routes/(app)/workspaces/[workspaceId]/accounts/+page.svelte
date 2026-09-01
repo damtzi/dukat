@@ -2,8 +2,8 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { Button } from '@dukat/ui'
-  import AccountGrid from '$lib/components/dashboard/AccountGrid.svelte'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import AccountGrid from '$lib/components/dashboard/account-grid.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
 
   const { ledger, workspace } = getWorkspaceDashboardContext()

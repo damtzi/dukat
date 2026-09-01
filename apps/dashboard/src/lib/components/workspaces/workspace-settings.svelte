@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Alert, Button, Card, Input, Label } from '@dukat/ui'
   import { onMount } from 'svelte'
-  import ProfileImage from '$lib/components/profile/ProfileImage.svelte'
+  import ProfileImage from '$lib/components/profile/profile-image.svelte'
 
   type Workspace = {
     id: string

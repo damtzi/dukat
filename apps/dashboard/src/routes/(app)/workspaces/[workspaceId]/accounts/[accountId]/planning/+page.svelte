@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths'
   import { workspaceDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import PlanningSection from '$lib/components/planning/PlanningSection.svelte'
+  import PlanningSection from '$lib/components/planning/planning-section.svelte'
   import { api } from '$lib/controllers/workspace-controller.svelte'
   import type { PageData } from './$types'
 

@@ -2,7 +2,7 @@
   import type { Account } from '@dukat/core/ledger'
   import { Separator, Sidebar } from '@dukat/ui'
   import type { Snippet } from 'svelte'
-  import AppSidebar from '$lib/components/dashboard/AppSidebar.svelte'
+  import AppSidebar from '$lib/components/dashboard/app-sidebar.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
   import type { Favorite } from '$lib/favorites'
 

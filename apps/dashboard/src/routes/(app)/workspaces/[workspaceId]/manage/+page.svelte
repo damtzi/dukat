@@ -3,9 +3,9 @@
   import { resolve } from '$app/paths'
   import { Empty } from '@dukat/ui'
   import { workspacesDataDependency } from '$lib/api'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
+  import WorkspaceSettings from '$lib/components/workspaces/workspace-settings.svelte'
 
   const { workspace } = getWorkspaceDashboardContext()
   let activeWorkspace = $derived(workspace.activeWorkspace)

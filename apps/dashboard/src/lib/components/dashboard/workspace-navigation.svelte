@@ -13,7 +13,7 @@
   import LayoutDashboardIcon from 'phosphor-svelte/lib/SquaresFour'
   import TagIcon from 'phosphor-svelte/lib/Tag'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
-  import FavoriteAction from '$lib/components/dashboard/FavoriteAction.svelte'
+  import FavoriteAction from '$lib/components/dashboard/favorite-action.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
   import type { Favorite } from '$lib/favorites'
   import { formatMoney } from '$lib/money'

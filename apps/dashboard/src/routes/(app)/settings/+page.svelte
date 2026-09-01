@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Card } from '@dukat/ui'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
 </script>
 
 <svelte:head><title>Settings · Dukat</title></svelte:head>
