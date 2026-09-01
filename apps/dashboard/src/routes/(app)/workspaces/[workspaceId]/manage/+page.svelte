@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths'
   import { Empty } from '@dukat/ui'
   import { workspacesDataDependency } from '$lib/api'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import WorkspaceSettings from '$lib/components/workspaces/WorkspaceSettings.svelte'
 
@@ -20,14 +21,11 @@
 <svelte:head><title>Manage workspace · Dukat</title></svelte:head>
 
 <section class="flex flex-col gap-6" aria-labelledby="manage-title">
-  <div>
-    <h1 id="manage-title" class="text-3xl font-semibold tracking-tight">
-      Manage workspace
-    </h1>
-    <p class="mt-1 text-muted-foreground">
-      Manage collaboration and workspace details.
-    </p>
-  </div>
+  <PageHeader
+    id="manage-title"
+    title="Manage workspace"
+    description="Manage collaboration and workspace details."
+  />
 
   {#if activeWorkspace?.type === 'household'}
     {#key activeWorkspace.id}
@@ -38,7 +36,7 @@
       />
     {/key}
   {:else}
-    <Empty.Root class="rounded-xl border bg-card">
+    <Empty.Root>
       <Empty.Header>
         <Empty.Title>Private workspace</Empty.Title>
         <Empty.Description>

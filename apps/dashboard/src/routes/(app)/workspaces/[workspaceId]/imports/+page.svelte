@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import CsvImports from '$lib/components/insights/CsvImports.svelte'
   import { api } from '$lib/controllers/workspace-controller.svelte'
@@ -8,15 +9,12 @@
 
 <svelte:head><title>CSV imports · Dukat</title></svelte:head>
 
-<section aria-labelledby="imports-title">
-  <div class="mb-6">
-    <h1 id="imports-title" class="text-3xl font-semibold tracking-tight">
-      CSV imports
-    </h1>
-    <p class="mt-1 text-muted-foreground">
-      Review bank data before adding it to an account.
-    </p>
-  </div>
+<section class="flex flex-col gap-6" aria-labelledby="imports-title">
+  <PageHeader
+    id="imports-title"
+    title="CSV imports"
+    description="Review bank data before adding it to an account."
+  />
   {#key workspace.workspaceId}
     <CsvImports
       accounts={ledger.accounts}

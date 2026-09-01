@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Empty } from '@dukat/ui'
   import { workspacesDataDependency } from '$lib/api'
+  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
   import type { PageProps } from './$types'
 
@@ -53,19 +54,15 @@
 
 <svelte:head><title>Home · Dukat</title></svelte:head>
 
-<div class="flex w-full flex-col gap-8">
-  <header class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <p class="text-sm font-medium text-primary">Dukat</p>
-      <h1 class="text-3xl font-semibold tracking-tight">Home</h1>
-      <p class="mt-1 text-muted-foreground">
-        Open your private or shared financial workspace.
-      </p>
-    </div>
-    <div class="flex flex-wrap gap-2">
+<div class="flex w-full flex-col gap-6">
+  <PageHeader
+    title="Home"
+    description="Open your private or shared financial workspace."
+  >
+    {#snippet actions()}
       <Button href={resolve('/workspaces/new')}>New shared workspace</Button>
-    </div>
-  </header>
+    {/snippet}
+  </PageHeader>
 
   {#if data.workspacesError}
     <Alert.Root variant="destructive" role="alert">
@@ -78,7 +75,7 @@
       >
     </Alert.Root>
   {:else if workspaces.length === 0}
-    <Empty.Root class="rounded-xl border bg-card">
+    <Empty.Root>
       <Empty.Header>
         <Empty.Title>No workspaces</Empty.Title>
         <Empty.Description>
