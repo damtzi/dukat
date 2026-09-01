@@ -70,6 +70,14 @@ async function clickSidebarLink(page: Page, name: string | RegExp) {
 	if (mobileSidebarOpen) await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
 }
 
+async function clickAccountMenuItem(page: Page, name: string) {
+	await openSidebar(page);
+	const mobileSidebarOpen = await page.getByRole('dialog', { name: 'Sidebar' }).isVisible();
+	await page.getByRole('button', { name: 'Account menu' }).click();
+	await page.getByRole('menuitem', { name, exact: true }).click();
+	if (mobileSidebarOpen) await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
+}
+
 function emptyInsightsResponse(path: string, method: string): unknown | undefined {
 	if (method !== 'GET' || !path.startsWith('/api/workspaces/')) return undefined;
 	if (path.endsWith('/categories') || path.endsWith('/imports')) return [];
@@ -584,7 +592,9 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	await expect(page.getByLabel('Username')).toHaveValue('ada_lovelace');
 	await expect(page.getByLabel('Email')).toHaveValue('ada@example.com');
 	await expect(page.getByLabel('Email')).toHaveAttribute('readonly', '');
-	await expect(page.getByRole('img', { name: 'Profile initials: AL' })).toBeVisible();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: 'Profile initials: AL' })
+	).toBeVisible();
 	const cardTitles = await page.locator('[data-slot="card-title"]').allTextContents();
 	expect(cardTitles.indexOf('Public identity')).toBeLessThan(
 		cardTitles.indexOf('Workspace recovery')
@@ -614,10 +624,9 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	await expect(page.getByRole('img', { name: 'Crop preview' })).toBeVisible();
 	await page.getByRole('button', { name: 'Save profile image' }).click();
 	await expect(page.getByRole('status')).toContainText('profile image was saved');
-	await expect(page.getByRole('img', { name: "Ada Byron Lovelace's profile" })).toHaveAttribute(
-		'src',
-		'/profile-images/mock-2.webp'
-	);
+	await expect(
+		page.getByRole('main').getByRole('img', { name: "Ada Byron Lovelace's profile" })
+	).toHaveAttribute('src', '/profile-images/mock-2.webp');
 	await page.getByLabel('Choose replacement').setInputFiles({
 		name: 'replacement.webp',
 		mimeType: 'image/webp',
@@ -625,13 +634,14 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 	});
 	await page.getByRole('button', { name: 'Save profile image' }).click();
 	await expect(page.getByRole('status')).toContainText('profile image was replaced');
-	await expect(page.getByRole('img', { name: "Ada Byron Lovelace's profile" })).toHaveAttribute(
-		'src',
-		'/profile-images/mock-3.webp'
-	);
+	await expect(
+		page.getByRole('main').getByRole('img', { name: "Ada Byron Lovelace's profile" })
+	).toHaveAttribute('src', '/profile-images/mock-3.webp');
 	await page.getByRole('button', { name: 'Remove profile image' }).click();
 	await expect(page.getByRole('status')).toContainText('profile image was removed');
-	await expect(page.getByRole('img', { name: 'Profile initials: AL' })).toBeVisible();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: 'Profile initials: AL' })
+	).toBeVisible();
 
 	await page.getByLabel('Name', { exact: true }).focus();
 	await expect(page.getByLabel('Name', { exact: true })).toBeFocused();
@@ -692,14 +702,20 @@ test('shows generic and stored profile-image fallbacks', async ({ page }, testIn
 	await page.route('**/api/favorites', (route) => json(route, []));
 
 	await page.goto('/profile');
-	await expect(page.getByRole('img', { name: 'Profile initials: P' })).toBeVisible();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: 'Profile initials: P' })
+	).toBeVisible();
 	name = '';
 	await page.reload();
-	await expect(page.getByRole('img', { name: 'Generic profile image' })).toBeVisible();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: 'Generic profile image' })
+	).toBeVisible();
 	name = 'Profile Image User';
 	image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E';
 	await page.reload();
-	await expect(page.getByRole('img', { name: "Profile Image User's profile" })).toBeVisible();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: "Profile Image User's profile" })
+	).toBeVisible();
 });
 
 test('protects workspace routes and routes authenticated users from root', async ({ page }) => {
@@ -761,10 +777,10 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
 		.analyze();
 	expect(results.violations).toEqual([]);
-	await clickSidebarLink(page, 'Settings');
+	await clickAccountMenuItem(page, 'Settings');
 	await expect(page).toHaveURL('/settings');
 	await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
-	await clickSidebarLink(page, 'Profile');
+	await clickAccountMenuItem(page, 'Profile');
 	await expect(page).toHaveURL('/profile');
 	await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
 	await clickSidebarLink(page, 'Home');
@@ -786,7 +802,19 @@ test('logs out from the global navigation', async ({ page }) => {
 		if (pathname === '/api/auth/get-session' && method === 'GET') {
 			return json(
 				route,
-				authenticated ? { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } } : null
+				authenticated
+					? {
+							session: { id: 'session-e2e' },
+							user: {
+								id: 'user-e2e',
+								name: 'Ada Lovelace',
+								username: 'ada_lovelace',
+								email: 'ada@example.com',
+								emailVerified: true,
+								image: null
+							}
+						}
+					: null
 			);
 		}
 		if (pathname === '/api/auth/sign-out' && method === 'POST') {
@@ -804,7 +832,8 @@ test('logs out from the global navigation', async ({ page }) => {
 
 	await page.goto('/home');
 	await openSidebar(page);
-	await page.getByRole('button', { name: 'Log out', exact: true }).click();
+	await page.getByRole('button', { name: 'Account menu' }).click();
+	await page.getByRole('menuitem', { name: 'Log out', exact: true }).click();
 	await expect(page).toHaveURL('/sign-in');
 	expect(signOutRequested).toBe(true);
 });

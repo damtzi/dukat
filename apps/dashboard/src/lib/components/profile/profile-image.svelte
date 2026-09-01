@@ -9,14 +9,20 @@
   }: {
     image: string | null | undefined
     name: string
-    size?: 'small' | 'large'
+    size?: 'compact' | 'small' | 'large'
   } = $props()
 
   const initials = $derived(profileInitials(name))
   const frameClass = $derived(
-    size === 'large' ? 'size-24 text-2xl' : 'size-10 text-sm',
+    size === 'large'
+      ? 'size-24 text-2xl'
+      : size === 'compact'
+        ? 'size-8 text-xs'
+        : 'size-10 text-sm',
   )
-  const iconClass = $derived(size === 'large' ? 'size-10' : 'size-5')
+  const iconClass = $derived(
+    size === 'large' ? 'size-10' : size === 'compact' ? 'size-4' : 'size-5',
+  )
 </script>
 
 {#if image}

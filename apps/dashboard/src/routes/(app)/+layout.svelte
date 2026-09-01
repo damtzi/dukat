@@ -4,18 +4,21 @@
   import { resolve } from '$app/paths'
   import { Alert, Button } from '@dukat/ui'
   import AppShell from '$lib/components/dashboard/app-shell.svelte'
-  import { getBrowserSession } from '$lib/session'
+  import { getBrowserSession, type SessionUser } from '$lib/session'
   import type { LayoutProps } from './$types'
 
   let { data, children }: LayoutProps = $props()
   let guardState = $state<'loading' | 'authenticated' | 'error'>('loading')
+  let user = $state<SessionUser | null>(null)
   let message = $state('')
 
   async function guard() {
     guardState = 'loading'
     const result = await getBrowserSession()
-    if (result.status === 'authenticated') guardState = 'authenticated'
-    else if (result.status === 'unauthenticated')
+    if (result.status === 'authenticated') {
+      user = result.session.user
+      guardState = 'authenticated'
+    } else if (result.status === 'unauthenticated')
       await goto(resolve('/sign-in'), { replaceState: true })
     else {
       message = result.message
@@ -36,8 +39,9 @@
       <Button class="mt-3" variant="outline" onclick={guard}>Try again</Button>
     </Alert.Root>
   </main>
-{:else}
+{:else if user}
   <AppShell
+    {user}
     workspaces={data.workspaces}
     personalAccounts={data.personalAccounts}
     favorites={data.favorites}

@@ -3,7 +3,8 @@
   import { base, resolve } from '$app/paths'
   import { page } from '$app/state'
   import type { Account } from '@dukat/core/ledger'
-  import { Sidebar, Spinner, toast } from '@dukat/ui'
+  import { DropdownMenu, Sidebar, Spinner, toast } from '@dukat/ui'
+  import CaretUpDownIcon from 'phosphor-svelte/lib/CaretUpDown'
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
   import HomeIcon from 'phosphor-svelte/lib/House'
   import PlusIcon from 'phosphor-svelte/lib/Plus'
@@ -13,19 +14,23 @@
   import { api } from '$lib/api'
   import FavoriteAction from '$lib/components/dashboard/favorite-action.svelte'
   import HouseholdNavigation from '$lib/components/dashboard/household-navigation.svelte'
+  import ProfileImage from '$lib/components/profile/profile-image.svelte'
   import WorkspaceNavigation from '$lib/components/dashboard/workspace-navigation.svelte'
   import type {
     Workspace,
     WorkspaceRouteData,
   } from '$lib/controllers/workspace-controller.svelte'
   import { favoritesDataDependency, type Favorite } from '$lib/favorites'
+  import type { SessionUser } from '$lib/session'
 
   let {
+    user,
     workspaces,
     personalAccounts,
     favorites,
     favoritesError,
   }: {
+    user: SessionUser
     workspaces: Workspace[]
     personalAccounts: Account[]
     favorites: Favorite[]
@@ -35,6 +40,7 @@
   const sidebar = Sidebar.useSidebar()
   let pendingFavoritePath = $state('')
   let favoriteMessage = $state('')
+  let accountMenuOpen = $state(false)
   let logoutPending = $state(false)
   let personalAccountsOpen = $state(true)
   let personalWorkspace = $derived(
@@ -51,9 +57,18 @@
   )
   let routeId = $derived(page.route.id)
   let visibleFavoriteError = $derived(favoriteMessage || favoritesError)
+  let displayName = $derived(
+    user.name || user.username || user.email || 'Account',
+  )
+  let displayEmail = $derived(user.email || '')
 
   function closeMobile() {
     if (sidebar.isMobile) sidebar.setOpenMobile(false)
+  }
+
+  function closeAccountMenu() {
+    accountMenuOpen = false
+    closeMobile()
   }
 
   function favoriteFor(path: string) {
@@ -253,56 +268,92 @@
   <Sidebar.Footer>
     <Sidebar.Menu>
       <Sidebar.MenuItem>
-        <Sidebar.MenuButton
-          isActive={routeId === '/(app)/settings'}
-          tooltipContent="Settings"
-        >
-          {#snippet child({ props })}
-            <a
-              {...props}
-              href={resolve('/settings')}
-              aria-current={routeId === '/(app)/settings' ? 'page' : undefined}
-              onclick={closeMobile}
-            >
-              <SettingsIcon aria-hidden="true" />
-              <span>Settings</span>
-            </a>
-          {/snippet}
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton
-          isActive={routeId === '/(app)/profile'}
-          tooltipContent="Profile"
-        >
-          {#snippet child({ props })}
-            <a
-              {...props}
-              href={resolve('/profile')}
-              aria-current={routeId === '/(app)/profile' ? 'page' : undefined}
-              onclick={closeMobile}
-            >
-              <UserIcon aria-hidden="true" />
-              <span>Profile</span>
-            </a>
-          {/snippet}
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton
-          tooltipContent={logoutPending ? 'Signing out…' : 'Log out'}
-          aria-label={logoutPending ? 'Signing out…' : 'Log out'}
-          onclick={logout}
-        >
-          {#snippet child({ props })}
-            <button {...props} type="button" disabled={logoutPending}>
-              {#if logoutPending}<Spinner
-                  aria-hidden="true"
-                />{:else}<SignOutIcon aria-hidden="true" />{/if}
-              <span>{logoutPending ? 'Signing out…' : 'Log out'}</span>
-            </button>
-          {/snippet}
-        </Sidebar.MenuButton>
+        <DropdownMenu.Root bind:open={accountMenuOpen}>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Sidebar.MenuButton
+                {...props}
+                size="lg"
+                aria-label="Account menu"
+              >
+                <ProfileImage
+                  image={user.image}
+                  name={displayName}
+                  size="compact"
+                />
+                <span
+                  class="flex min-w-0 flex-1 flex-col text-left leading-tight"
+                >
+                  <span class="truncate font-semibold">{displayName}</span>
+                  <span class="truncate text-xs text-sidebar-foreground/70">
+                    {displayEmail}
+                  </span>
+                </span>
+                <CaretUpDownIcon class="ml-auto" aria-hidden="true" />
+              </Sidebar.MenuButton>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content
+            class="min-w-56"
+            side="top"
+            align="end"
+            sideOffset={4}
+          >
+            <DropdownMenu.Label class="p-0 font-normal">
+              <span class="flex items-center gap-2 px-2 py-2 text-left">
+                <ProfileImage
+                  image={user.image}
+                  name={displayName}
+                  size="compact"
+                />
+                <span class="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span class="truncate font-semibold">{displayName}</span>
+                  <span class="truncate text-xs text-muted-foreground">
+                    {displayEmail}
+                  </span>
+                </span>
+              </span>
+            </DropdownMenu.Label>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Group>
+              <DropdownMenu.Item>
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={resolve('/profile')}
+                    onclick={closeAccountMenu}
+                  >
+                    <UserIcon aria-hidden="true" />
+                    <span>Profile</span>
+                  </a>
+                {/snippet}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item>
+                {#snippet child({ props })}
+                  <a
+                    {...props}
+                    href={resolve('/settings')}
+                    onclick={closeAccountMenu}
+                  >
+                    <SettingsIcon aria-hidden="true" />
+                    <span>Settings</span>
+                  </a>
+                {/snippet}
+              </DropdownMenu.Item>
+            </DropdownMenu.Group>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Group>
+              <DropdownMenu.Item disabled={logoutPending} onSelect={logout}>
+                {#if logoutPending}
+                  <Spinner aria-hidden="true" />
+                {:else}
+                  <SignOutIcon aria-hidden="true" />
+                {/if}
+                <span>{logoutPending ? 'Signing out…' : 'Log out'}</span>
+              </DropdownMenu.Item>
+            </DropdownMenu.Group>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </Sidebar.MenuItem>
     </Sidebar.Menu>
   </Sidebar.Footer>
