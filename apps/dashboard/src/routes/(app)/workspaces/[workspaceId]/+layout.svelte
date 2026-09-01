@@ -1,5 +1,5 @@
 <script lang="ts">
-  import WorkspaceShell from '$lib/components/dashboard/WorkspaceShell.svelte'
+  import WorkspaceShell from '$lib/components/dashboard/workspace-shell.svelte'
   import type { LayoutProps } from './$types'
 
   let { data, children }: LayoutProps = $props()

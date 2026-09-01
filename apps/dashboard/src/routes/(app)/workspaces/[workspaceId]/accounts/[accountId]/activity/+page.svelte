@@ -3,8 +3,8 @@
   import { Alert, Button } from '@dukat/ui'
   import { workspaceDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import TransactionsSection from '$lib/components/ledger/TransactionsSection.svelte'
-  import TransfersSection from '$lib/components/ledger/TransfersSection.svelte'
+  import TransactionsSection from '$lib/components/ledger/transactions-section.svelte'
+  import TransfersSection from '$lib/components/ledger/transfers-section.svelte'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()

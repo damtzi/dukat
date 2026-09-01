@@ -3,7 +3,7 @@
   import { Alert, Button } from '@dukat/ui'
   import { workspaceDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import ReconciliationSection from '$lib/components/ledger/ReconciliationSection.svelte'
+  import ReconciliationSection from '$lib/components/ledger/reconciliation-section.svelte'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { Alert } from '@dukat/ui'
-  import SectionHeader from '$lib/components/dashboard/SectionHeader.svelte'
-  import PlanForm from './PlanForm.svelte'
-  import PlanList from './PlanList.svelte'
-  import ForecastSection from './ForecastSection.svelte'
+  import SectionHeader from '$lib/components/dashboard/section-header.svelte'
+  import PlanForm from './plan-form.svelte'
+  import PlanList from './plan-list.svelte'
+  import ForecastSection from './forecast-section.svelte'
   import type {
     Forecast,
     Occurrence,

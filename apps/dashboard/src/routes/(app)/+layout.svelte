@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { Alert, Button } from '@dukat/ui'
-  import AppShell from '$lib/components/dashboard/AppShell.svelte'
+  import AppShell from '$lib/components/dashboard/app-shell.svelte'
   import { getBrowserSession } from '$lib/session'
   import type { LayoutProps } from './$types'
 

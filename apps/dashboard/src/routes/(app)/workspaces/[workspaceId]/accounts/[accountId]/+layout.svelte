@@ -4,9 +4,9 @@
   import { page } from '$app/state'
   import { Button, Empty } from '@dukat/ui'
   import { workspaceDataDependency } from '$lib/api'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import AccountSummary from '$lib/components/ledger/AccountSummary.svelte'
+  import AccountSummary from '$lib/components/ledger/account-summary.svelte'
 
   let { children } = $props()
   const { ledger, workspace } = getWorkspaceDashboardContext()

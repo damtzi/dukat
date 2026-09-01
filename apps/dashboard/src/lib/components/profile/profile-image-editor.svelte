@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Alert, Button, Label, Spinner } from '@dukat/ui'
   import { onDestroy } from 'svelte'
-  import ProfileImage from './ProfileImage.svelte'
+  import ProfileImage from './profile-image.svelte'
 
   let {
     image,

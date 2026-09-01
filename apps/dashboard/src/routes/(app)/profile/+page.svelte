@@ -17,8 +17,8 @@
   } from '@dukat/ui'
   import { onDestroy, onMount } from 'svelte'
   import { workspacesDataDependency } from '$lib/api'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
-  import ProfileImageEditor from '$lib/components/profile/ProfileImageEditor.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
+  import ProfileImageEditor from '$lib/components/profile/profile-image-editor.svelte'
   import {
     api,
     type Workspace,

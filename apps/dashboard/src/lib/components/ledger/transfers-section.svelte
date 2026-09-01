@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Account, Transfer } from '@dukat/core/ledger'
   import { Button, Card } from '@dukat/ui'
-  import SectionHeader from '$lib/components/dashboard/SectionHeader.svelte'
+  import SectionHeader from '$lib/components/dashboard/section-header.svelte'
   import { formatMoney } from '$lib/money'
   let {
     account,

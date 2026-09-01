@@ -2,11 +2,11 @@
   import { resolve } from '$app/paths'
   import type { CashFlow } from '@dukat/core/csv-import'
   import { Button, Card, Empty, Table } from '@dukat/ui'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
-  import CashFlowCategories from '$lib/components/insights/CashFlowCategories.svelte'
-  import CashFlowPeriodControls from '$lib/components/insights/CashFlowPeriodControls.svelte'
-  import MonthlyCashFlowChart from '$lib/components/insights/MonthlyCashFlowChart.svelte'
+  import CashFlowCategories from '$lib/components/insights/cash-flow-categories.svelte'
+  import CashFlowPeriodControls from '$lib/components/insights/cash-flow-period-controls.svelte'
+  import MonthlyCashFlowChart from '$lib/components/insights/monthly-cash-flow-chart.svelte'
   import { api } from '$lib/controllers/workspace-controller.svelte'
   import {
     cashFlowRange,

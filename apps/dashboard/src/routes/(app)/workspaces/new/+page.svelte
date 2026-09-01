@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
   import { workspacesDataDependency } from '$lib/api'
-  import PageHeader from '$lib/components/dashboard/PageHeader.svelte'
+  import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import {
     api,
     type Workspace,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Card, Checkbox, Label } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
-  import OccurrenceCard from './OccurrenceCard.svelte'
+  import OccurrenceCard from './occurrence-card.svelte'
   import type { Forecast, Occurrence, Plan, Suggestion } from './planning-types'
 
   let {
