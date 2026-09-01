@@ -4,6 +4,7 @@ export * as Alert from './components/ui/alert/index.js';
 export * as Card from './components/ui/card/index.js';
 export * as Collapsible from './components/ui/collapsible/index.js';
 export * as Dialog from './components/ui/dialog/index.js';
+export * as DropdownMenu from './components/ui/dropdown-menu/index.js';
 export * as Empty from './components/ui/empty/index.js';
 export * as Field from './components/ui/field/index.js';
 export * as Select from './components/ui/select/index.js';
