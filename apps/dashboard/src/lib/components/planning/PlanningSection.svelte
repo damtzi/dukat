@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Alert } from '@dukat/ui'
+  import SectionHeader from '$lib/components/dashboard/SectionHeader.svelte'
   import PlanForm from './PlanForm.svelte'
   import PlanList from './PlanList.svelte'
   import ForecastSection from './ForecastSection.svelte'
@@ -189,13 +190,12 @@
   }
 </script>
 
-<section class="mt-6 flex flex-col gap-6" aria-labelledby="planning-title">
-  <div>
-    <h2 id="planning-title" class="text-2xl font-semibold">Planning</h2>
-    <p class="text-sm text-muted-foreground">
-      Plan upcoming money for {account.name} in {account.currency}.
-    </p>
-  </div>
+<section class="flex flex-col gap-6" aria-labelledby="planning-title">
+  <SectionHeader
+    id="planning-title"
+    title="Planning"
+    description={`Plan upcoming money for ${account.name} in ${account.currency}.`}
+  />
   {#if displayedError}<Alert.Root variant="destructive"
       ><Alert.Title>Planning action failed</Alert.Title><Alert.Description
         >{displayedError}</Alert.Description
