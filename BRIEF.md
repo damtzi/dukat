@@ -1,21 +1,59 @@
-My idea for this app - I want a simple way to track my finances. Some functionality I need:
+# Dukat product brief
 
-- track my money across multiple bank accounts
-- track my expenses and income (for the mvp we can do it manually via forms and csv imports)
-- input what I expect to earn in future months so I can see how much money I expect to have in the future
-- track recurring expenses
-- some cards incur fees if you don't make x payments with them or spend x amount. I want to be able to input these cards and then based on the expenses the app should tell me if I'm in the clear of any fees
-- I want to be able to share tables with others. For example I would like to share my bank account balances with my partner so she can see how much money we have and she should be able to also add her expenses and income - this is a notion of public and private tables
-- we are about to get a mortgage, I would like to track my mortgage payments and see how much I have left to pay and how the interest rate affects my monthly payments and overall sum we need to repay. I also want to see if it's better to pay more for a given month and how much that saves me in the long run
-- for tracking my income I would also like to see how that stacks against inflation, so I can see if I'm making a profit or loss
-- the app should support multiple currencies
-- by the way I am Polish and I'm based in Poland, but the app should be in english first but with i18n support ready
-- we will work on the design in a later stage, for now we need to focus on the functionality. We can use tailwindcss, svelte-shadcn for the design
+## Purpose
 
-Now for future functionality (not in the mvp):
+Dukat gives a user one place to understand:
 
-- I want to track my stocks and investments
-- I would also like to calculate my future income for the year depending if I'm working on a b2b contract, how I pay taxes, if I have an employment contract(UoP in polish). I would also like to calculate the potential money I would make by using different savings accounts - say I want to compare what different banks have to offer, some offer higher interest on shorter terms other lower interest on longer terms.
-- this could be extended to be a finanse OS for enterpreneuers and JDG
+- where their money went;
+- how much money they can access now; and
+- how their cash is expected to change over the next 12 months.
 
-I want to focus on a webapp first. I propose we use Svelte and SvelteKit, Typescript with Effect, Tailwind CSS, and shadcn for the design, Hono for the API if needed. For auth I want Better-Auth. For the database/backend I propose we use Turso DB with Drizzle ORM. Reason why is I want something that is easy to use, can be used locally, has good performance.
+It replaces expense tracking in Buddy and manual account-balance tracking in Notion. It works for one person and supports collaboration through Household workspaces.
+
+## Core release
+
+The first useful release supports:
+
+- Personal and Household workspaces;
+- current, savings, cash, and credit-card accounts;
+- fast manual income and expense entry;
+- one category per transaction;
+- monthly category budgets;
+- transfers, refunds, and Household expense splits;
+- dated balance snapshots and explicit corrections;
+- Personal, Household, and combined accessible net worth;
+- daily historical net-worth values;
+- one-time and recurring expected or tentative transactions;
+- a 12-month cash forecast;
+- multiple currencies using NBP rates;
+- search, trash, activity history, profiles, and invitations; and
+- an English interface with Polish formatting and PLN as the default reporting currency.
+
+The release succeeds when two users can stop using Buddy and the Notion balance table for one complete month.
+
+## Sharing
+
+An account belongs to one Personal or Household workspace. All members can see and edit data in a Household workspace.
+
+A user can pay a Household expense from a Personal account. Household members see the amount, merchant, category, date, payer, and allocation, but not the Personal account identity, balance, or unrelated transactions. The payment affects Household spending and member settlement without changing Household cash.
+
+My overview privately shows Personal net worth, Household net worth, and combined accessible net worth. Combined accessible net worth does not claim legal ownership of Household assets.
+
+## Later delivery
+
+1. Mortgage liability, repayment schedule, and overpayment simulations.
+2. Manual stock, ETF, and crypto holdings with automatic market prices.
+3. Card usage conditions and fee-risk tracking.
+4. CSV imports.
+5. Optional bank connections when a suitable provider is available.
+6. PWA installation and offline expense entry.
+
+Property valuation, receipt storage, notifications, split transaction categories, predicted investment growth, and automatic XTB access are deferred.
+
+## Platform
+
+Dukat is a responsive web application hosted on Cloudflare under one custom origin. A Cloudflare Worker serves the SvelteKit application and Hono API. Turso stores application data with an EU primary location. Cloudflare R2 stores profile images and encrypted backups.
+
+Registration is open, although the product is initially operated for two users rather than designed for mass adoption. Better Auth provides email and password authentication. Resend sends verification, reset, and invitation emails.
+
+The application provides complete user exports, privacy-safe technical logs, point-in-time database recovery, and daily encrypted backups retained for 30 days.
