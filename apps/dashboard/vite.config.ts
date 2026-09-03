@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
     proxy: {
-      '/api': 'http://localhost:9999',
+      '/api': process.env.DUKAT_API_ORIGIN ?? 'http://localhost:9999',
     },
   },
   build: {

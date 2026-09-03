@@ -4,6 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"test": "playwright test",
+		"test:full-stack": "tsx tests/full-stack-runner.ts",
 		"test:production": "playwright test --config playwright.production.config.ts",
 		"test:list": "playwright test --list"
 	},
