@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './tests',
-	testIgnore: 'production-smoke.spec.ts',
+	testIgnore: ['full-stack.spec.ts', 'production-smoke.spec.ts'],
 	fullyParallel: true,
 	forbidOnly: Boolean(process.env.CI),
 	retries: process.env.CI ? 2 : 0,

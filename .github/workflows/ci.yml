@@ -127,3 +127,6 @@ jobs:
 
       - name: Run built dashboard security smoke test
         run: pnpm --filter @dukat/e2e test:production
+
+      - name: Run real full-stack browser test
+        run: pnpm test:e2e:full-stack
