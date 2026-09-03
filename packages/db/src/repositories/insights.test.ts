@@ -45,14 +45,31 @@ async function fixture() {
 	);
 	const financial = createFinancialDatabase({ url });
 	await financial.db.insert(financialAccount).values([
-		{ id: 'eur', workspaceId, name: 'EUR', type: 'cash', currency: 'EUR', openingBalanceMinor: 0n },
-		{ id: 'usd', workspaceId, name: 'USD', type: 'cash', currency: 'USD', openingBalanceMinor: 0n },
+		{
+			id: 'eur',
+			workspaceId,
+			name: 'EUR',
+			type: 'cash',
+			currency: 'EUR',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: 0n
+		},
+		{
+			id: 'usd',
+			workspaceId,
+			name: 'USD',
+			type: 'cash',
+			currency: 'USD',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: 0n
+		},
 		{
 			id: 'foreign',
 			workspaceId: outsiderWorkspaceId,
 			name: 'Foreign',
 			type: 'cash',
 			currency: 'EUR',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: 0n
 		}
 	]);

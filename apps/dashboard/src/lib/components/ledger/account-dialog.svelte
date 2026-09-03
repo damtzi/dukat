@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import { Alert, Button, Dialog, Field, Input, Select } from '@dukat/ui'
+  import { todayInWarsaw } from '$lib/date'
 
   const accountTypes: readonly {
     value: Account['type']
@@ -25,6 +26,7 @@
       name: string
       type: Account['type']
       currency: string
+      openingDate: string
       amount: string
     }
     editingAccount: Account | null
@@ -87,6 +89,16 @@
               </Select.Group>
             </Select.Content>
           </Select.Root>
+        </Field.Field>
+        <Field.Field data-disabled={!!editingAccount?.archivedAt}>
+          <Field.Label for="opening-date">Opening date</Field.Label><Input
+            id="opening-date"
+            type="date"
+            max={todayInWarsaw()}
+            required
+            disabled={!!editingAccount?.archivedAt}
+            bind:value={form.openingDate}
+          />
         </Field.Field>
         <Field.Field data-disabled={!!editingAccount?.archivedAt}>
           <Field.Label for="currency">Currency</Field.Label><Select.Root

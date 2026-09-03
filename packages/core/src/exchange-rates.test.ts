@@ -61,6 +61,7 @@ test('legacy currencies are grandfathered only for account updates', () => {
 		name: 'Legacy account',
 		type: 'cash' as const,
 		currency: 'BGN',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '0'
 	};
 	assert.equal(createAccountSchema.safeParse(account).success, false);

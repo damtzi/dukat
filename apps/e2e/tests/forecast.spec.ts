@@ -8,6 +8,7 @@ const account = {
 	name: 'Everyday account',
 	type: 'current',
 	currency: 'PLN',
+	openingDate: '2026-01-01',
 	openingBalanceMinor: '50000',
 	balanceMinor: '50000',
 	negativeBalance: false,

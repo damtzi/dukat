@@ -545,6 +545,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 					name: 'Boundary account',
 					type: 'cash',
 					currency: 'USD',
+					openingDate: '2026-07-30',
 					openingBalanceMinor: '9223372036854775807',
 					idempotencyKey: 'foundation-boundary-account'
 				})
@@ -560,7 +561,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				body: JSON.stringify({
 					kind: 'expense',
 					amountMinor: '9223372036854775807',
-					date: '2026-07-30',
+					date: '2026-07-31',
 					idempotencyKey: 'foundation-boundary-transaction'
 				})
 			}

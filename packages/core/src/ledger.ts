@@ -70,6 +70,7 @@ export const createAccountSchema = mutationSchema.extend({
 	name: z.string().trim().min(1).max(120),
 	type: accountTypeSchema,
 	currency: currencySchema,
+	openingDate: calendarDateSchema,
 	openingBalanceMinor: minorUnitsSchema
 });
 export const updateAccountSchema = mutationSchema.extend({
@@ -77,6 +78,7 @@ export const updateAccountSchema = mutationSchema.extend({
 	name: z.string().trim().min(1).max(120),
 	type: accountTypeSchema,
 	currency: legacyCurrencySchema,
+	openingDate: calendarDateSchema,
 	openingBalanceMinor: minorUnitsSchema
 });
 export const versionedMutationSchema = mutationSchema.extend({
@@ -131,6 +133,7 @@ export const accountSchema = z.object({
 	name: z.string(),
 	type: accountTypeSchema,
 	currency: z.string(),
+	openingDate: isoCalendarDateSchema,
 	openingBalanceMinor: minorUnitsSchema,
 	version: z.number().int(),
 	activityStartedAt: nullableTimestampSchema,

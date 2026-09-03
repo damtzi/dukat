@@ -51,6 +51,7 @@ test('account archive preflight guards and atomically applies plan impact with a
 			name: 'Closing',
 			type: 'cash',
 			currency: 'PLN',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: 0n,
 			activityStartedAt: new Date('2026-01-01T00:00:00Z')
 		});
@@ -202,6 +203,7 @@ test('cross-workspace transfers project private counterpart data and require acc
 				name: 'Secret personal account',
 				type: 'cash',
 				currency: 'EUR',
+				openingDate: '2026-01-01',
 				openingBalanceMinor: 1000n
 			},
 			{
@@ -210,6 +212,7 @@ test('cross-workspace transfers project private counterpart data and require acc
 				name: 'Shared',
 				type: 'cash',
 				currency: 'USD',
+				openingDate: '2026-01-01',
 				openingBalanceMinor: 0n
 			}
 		]);
@@ -336,6 +339,7 @@ test(
 				name: 'Before',
 				type: 'cash',
 				currency: 'PLN',
+				openingDate: '2026-01-01',
 				openingBalanceMinor: 0n
 			});
 			const ledger = createLedgerRepository(financial.db);
@@ -383,6 +387,7 @@ test(
 						name: 'After wait',
 						type: 'cash',
 						currency: 'PLN',
+						openingDate: '2026-01-01',
 						openingBalanceMinor: '0'
 					}),
 				(error) =>
@@ -429,6 +434,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			name: 'Legacy',
 			type: 'cash',
 			currency: 'BGN',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: 0n
 		});
 		const legacy = await ledger.updateAccount(context, 'legacy-account', {
@@ -437,6 +443,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			name: 'Renamed legacy',
 			type: 'cash',
 			currency: 'BGN',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '0'
 		});
 		assert.equal(legacy.name, 'Renamed legacy');
@@ -445,6 +452,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			name: 'Cash',
 			type: 'cash',
 			currency: 'EUR',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '100'
 		});
 		const duplicate = await ledger.createAccount(context, {
@@ -452,6 +460,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			name: 'Cash',
 			type: 'cash',
 			currency: 'EUR',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '100'
 		});
 		assert.equal(duplicate.id, account.id);
@@ -462,6 +471,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					name: 'Different',
 					type: 'cash',
 					currency: 'EUR',
+					openingDate: '2026-01-01',
 					openingBalanceMinor: '100'
 				}),
 			/different request/i
@@ -482,6 +492,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					name: 'Cash',
 					type: 'cash',
 					currency: 'EUR',
+					openingDate: '2026-01-01',
 					openingBalanceMinor: '100'
 				}),
 			(error) => error instanceof LedgerError && error.code === 'conflict'
@@ -494,6 +505,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					name: 'Cash',
 					type: 'cash',
 					currency: 'USD',
+					openingDate: '2026-01-01',
 					openingBalanceMinor: '100'
 				}),
 			/currency is immutable/i
@@ -505,6 +517,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 				name: 'Cash A',
 				type: 'cash',
 				currency: 'EUR',
+				openingDate: '2026-01-01',
 				openingBalanceMinor: '100'
 			}),
 			ledger.updateAccount(context, account.id, {
@@ -513,6 +526,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 				name: 'Cash B',
 				type: 'cash',
 				currency: 'EUR',
+				openingDate: '2026-01-01',
 				openingBalanceMinor: '100'
 			})
 		]);
@@ -594,6 +608,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					name: 'Cash',
 					type: 'cash',
 					currency: 'USD',
+					openingDate: '2026-01-01',
 					openingBalanceMinor: '100'
 				}),
 			/currency is immutable/i
@@ -606,6 +621,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 					name: 'Invalid',
 					type: 'cash',
 					currency: 'EUR',
+					openingDate: '2026-01-01',
 					openingBalanceMinor: '01'
 				}),
 			/canonical decimal integer/i
@@ -618,6 +634,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 						name: 'Invalid',
 						type: 'cash',
 						currency: 'EUR',
+						openingDate: '2026-01-01',
 						openingBalanceMinor
 					}),
 				/signed 64-bit integer range/i
@@ -629,9 +646,26 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 			name: 'Aggregate',
 			type: 'cash',
 			currency: 'EUR',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '-9223372036854775808'
 		});
 		await financial.db.insert(ledgerTransaction).values([
+			{
+				id: 'aggregate-before-opening',
+				workspaceId: context.workspaceId,
+				accountId: aggregate.id,
+				kind: 'income',
+				amountMinor: 999n,
+				date: '2025-12-31'
+			},
+			{
+				id: 'aggregate-on-opening',
+				workspaceId: context.workspaceId,
+				accountId: aggregate.id,
+				kind: 'income',
+				amountMinor: 888n,
+				date: '2026-01-01'
+			},
 			{
 				id: 'aggregate-income-1',
 				workspaceId: context.workspaceId,
@@ -660,7 +694,7 @@ test('personal manual ledger balances, versions, idempotency, trash and audit li
 		assert.equal(
 			(await ledger.listAccounts(context)).find(({ id }) => id === aggregate.id)?.balanceMinor,
 			'-1',
-			'intermediate bigint aggregation may exceed int64 when the final balance does not'
+			'activity through the opening date is ignored and intermediate totals may exceed int64'
 		);
 		await financial.db.insert(ledgerTransaction).values({
 			id: 'aggregate-overflow',
@@ -719,6 +753,7 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 				name,
 				type: 'cash',
 				currency,
+				openingDate: '2026-01-01',
 				openingBalanceMinor: name === 'From' ? '1000' : '100'
 			});
 		const from = await create('From'),
@@ -882,6 +917,19 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 			date: '2026-07-30',
 			amountMinor: '50'
 		});
+		await assert.rejects(
+			() =>
+				ledger.updateAccount(context, from.id, {
+					idempotencyKey: 'opening-past-correction',
+					version: from.version,
+					name: from.name,
+					type: from.type,
+					currency: from.currency,
+					openingDate: '2026-07-30',
+					openingBalanceMinor: from.openingBalanceMinor
+				}),
+			/active snapshot or correction/i
+		);
 		assert.deepEqual(
 			(await ledger.listBalanceCorrections(context, from.id)).map(({ id }) => id),
 			[correction.id]
@@ -925,6 +973,7 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 			name: 'Boundary',
 			type: 'cash',
 			currency: 'EUR',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '-9223372036854775808'
 		});
 		const boundaryCheck = await ledger.createBalanceCheck(context, {

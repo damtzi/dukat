@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import { Button, Card } from '@dukat/ui'
+  import { formatDate } from '$lib/i18n'
   import { formatMoney } from '$lib/money'
 
   let {
@@ -26,6 +27,12 @@
           class="capitalize"
           >{account.type} · {account.currency}</Card.Description
         >
+        <Card.Description>
+          Opened with {formatMoney(
+            account.openingBalanceMinor,
+            account.currency,
+          )} on {formatDate(new Date(`${account.openingDate}T12:00:00Z`))}
+        </Card.Description>
       </div>
       <div class="text-right">
         <p class="text-2xl font-bold">

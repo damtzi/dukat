@@ -114,6 +114,7 @@ test('ledger routes require authentication and validate financial boundaries', a
 		name: 'Cash',
 		type: 'cash',
 		currency: 'PLN',
+		openingDate: '2026-07-30',
 		openingBalanceMinor: '100',
 		idempotencyKey: 'account-create-1'
 	};
@@ -128,6 +129,12 @@ test('ledger routes require authentication and validate financial boundaries', a
 		).status,
 		401
 	);
+	const missingOpeningDate = await app.request(path, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ ...validAccount, openingDate: undefined })
+	});
+	assert.equal(missingOpeningDate.status, 400);
 	const invalidCurrency = await app.request(path, {
 		method: 'POST',
 		headers,
@@ -175,6 +182,7 @@ test('ledger routes expose optimistic conflicts without overwriting', async () =
 				name: 'Cash',
 				type: 'cash',
 				currency: 'PLN',
+				openingDate: '2026-07-30',
 				openingBalanceMinor: '100',
 				version: 1,
 				idempotencyKey: 'account-update-1'
@@ -242,6 +250,7 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 				name: 'Exact cash',
 				type: 'cash',
 				currency: 'PLN',
+				openingDate: '2026-07-30',
 				openingBalanceMinor: '9223372036854775807',
 				idempotencyKey: 'integration-account'
 			})
@@ -258,7 +267,7 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 				body: JSON.stringify({
 					kind: 'expense',
 					amountMinor: '9223372036854775807',
-					date: '2026-07-30',
+					date: '2026-07-31',
 					idempotencyKey: 'integration-transaction'
 				})
 			}
@@ -276,6 +285,7 @@ test('ledger HTTP routes use the migrated database and exact-money repository', 
 				name: 'Boundary cash',
 				type: 'cash',
 				currency: 'PLN',
+				openingDate: '2026-07-29',
 				openingBalanceMinor: '-9223372036854775808',
 				idempotencyKey: 'integration-boundary-account'
 			})

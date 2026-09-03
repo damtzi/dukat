@@ -43,6 +43,7 @@ export const financialAccount = sqliteTable(
 		name: text('name').notNull(),
 		type: text('type', { enum: ['current', 'savings', 'cash'] }).notNull(),
 		currency: text('currency').notNull(),
+		openingDate: text('opening_date').notNull(),
 		openingBalanceMinor: int64('opening_balance_minor').notNull(),
 		version: safeInteger('version').default(1).notNull(),
 		activityStartedAt: secondsTimestamp('activity_started_at'),
@@ -61,6 +62,10 @@ export const financialAccount = sqliteTable(
 		check(
 			'financial_account_opening_int64_check',
 			sql`${table.openingBalanceMinor} BETWEEN -9223372036854775808 AND 9223372036854775807`
+		),
+		check(
+			'financial_account_opening_date_check',
+			sql`${table.openingDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
 		),
 		check('financial_account_version_check', sql`${table.version} > 0`)
 	]

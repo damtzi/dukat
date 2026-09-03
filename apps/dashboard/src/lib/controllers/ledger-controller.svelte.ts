@@ -106,6 +106,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     name: '',
     type: 'current' as Account['type'],
     currency: 'USD',
+    openingDate: todayInWarsaw(),
     amount: '0',
   })
   let transactionForm = $state({
@@ -160,7 +161,13 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     editingAccount = null
     accountError = ''
     accountIntentKey = key()
-    accountForm = { name: '', type: 'current', currency: 'USD', amount: '0' }
+    accountForm = {
+      name: '',
+      type: 'current',
+      currency: 'USD',
+      openingDate: todayInWarsaw(),
+      amount: '0',
+    }
     accountOpen = true
   }
   function editAccount(account: Account) {
@@ -171,6 +178,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       name: account.name,
       type: account.type,
       currency: account.currency,
+      openingDate: account.openingDate,
       amount: minorToDecimal(account.openingBalanceMinor, account.currency),
     }
     accountOpen = true
@@ -185,6 +193,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         name: accountForm.name.trim(),
         type: accountForm.type,
         currency: accountForm.currency.toUpperCase(),
+        openingDate: accountForm.openingDate,
         openingBalanceMinor: parseAmount(
           accountForm.amount,
           accountForm.currency,
@@ -625,6 +634,12 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   async function createCorrection(item: BalanceCheck) {
     const difference = item.differenceMinor
     if (!difference || difference === '0' || pending) return
+    if (
+      !confirm(
+        `Create a separate correction for the balance snapshot on ${item.date}?`,
+      )
+    )
+      return
     const workspaceId = callbacks.getWorkspaceId()
 
     // Preserve both amount and idempotency key after a lost response. The
@@ -638,7 +653,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
             accountId: item.accountId,
             date: item.date,
             amountMinor: difference,
-            description: `Balance correction for check on ${item.date}`,
+            description: `Balance correction for snapshot on ${item.date}`,
             idempotencyKey: key(),
           }),
         },

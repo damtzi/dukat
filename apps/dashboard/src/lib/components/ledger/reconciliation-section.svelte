@@ -36,18 +36,18 @@
   <section class="flex flex-col gap-3" aria-labelledby="reconciliation-title">
     <SectionHeader
       id="reconciliation-title"
-      title="Balance reconciliation"
-      description="Checks compare balances but do not alter them."
+      title="Balance snapshots"
+      description="Snapshots compare balances but do not alter them."
     >
       {#snippet actions()}
         {#if !account.archivedAt}<Button onclick={onnew}
-            >Add balance check</Button
+            >Add balance snapshot</Button
           >{/if}
       {/snippet}
     </SectionHeader>
     {#if checks.length === 0}<Card.Root
         ><Card.Content class="py-6 text-center text-muted-foreground"
-          >No balance checks yet.</Card.Content
+          >No balance snapshots yet.</Card.Content
         ></Card.Root
       >{:else}<div class="flex flex-col gap-3">
         {#each checks as item (item.id)}<Card.Root

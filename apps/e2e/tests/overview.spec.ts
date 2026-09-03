@@ -22,6 +22,7 @@ function account(
 		name,
 		type: 'current',
 		currency,
+		openingDate: '2026-01-01',
 		openingBalanceMinor: balanceMinor,
 		balanceMinor,
 		negativeBalance: BigInt(balanceMinor) < 0n,

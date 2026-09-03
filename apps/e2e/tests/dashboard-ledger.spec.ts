@@ -6,6 +6,7 @@ type Account = {
 	name: string;
 	type: 'current' | 'savings' | 'cash';
 	currency: string;
+	openingDate: string;
 	openingBalanceMinor: string;
 	version: number;
 	archivedAt: string | null;
@@ -197,6 +198,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				name: body.name as string,
 				type: body.type as Account['type'],
 				currency: body.currency as string,
+				openingDate: body.openingDate as string,
 				openingBalanceMinor: body.openingBalanceMinor as string,
 				version: 1,
 				archivedAt: null
@@ -206,6 +208,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				name: 'Everyday account',
 				type: 'current',
 				currency: 'USD',
+				openingDate: expect.any(String),
 				openingBalanceMinor: '10000',
 				idempotencyKey: key
 			});
@@ -216,6 +219,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				name: 'Household account',
 				type: 'savings',
 				currency: 'USD',
+				openingDate: account!.openingDate,
 				openingBalanceMinor: '10000',
 				version: 1,
 				idempotencyKey: key
@@ -738,6 +742,7 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 		name: 'Everyday account',
 		type: 'current',
 		currency: 'USD',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '120000',
 		balanceMinor: '120000',
 		negativeBalance: false,
@@ -1133,6 +1138,7 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 		name,
 		type: 'current',
 		currency: 'USD',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '0',
 		balanceMinor: '0',
 		negativeBalance: false,
@@ -1205,6 +1211,7 @@ test('keeps account URLs authoritative through stale loads and deletion', async 
 		name,
 		type: 'current',
 		currency: 'USD',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '0',
 		balanceMinor: '0',
 		negativeBalance: false,
@@ -1332,6 +1339,7 @@ test('renders a private incoming cross-workspace transfer without management con
 		name: 'Shared current account',
 		type: 'current',
 		currency: 'USD',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '0',
 		balanceMinor: '2500',
 		negativeBalance: false,
@@ -1521,6 +1529,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		name: 'Everyday account',
 		type: 'current',
 		currency: 'USD',
+		openingDate: '2026-01-01',
 		openingBalanceMinor: '10000',
 		balanceMinor: '10000',
 		negativeBalance: false,
@@ -1821,6 +1830,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 			name: 'Checking',
 			type: 'current',
 			currency: 'USD',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '10000',
 			version: 1,
 			archivedAt: null
@@ -1830,6 +1840,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 			name: 'Savings',
 			type: 'savings',
 			currency: 'USD',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: '10000',
 			version: 1,
 			archivedAt: null
@@ -1997,10 +2008,11 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await page.getByRole('button', { name: 'Close' }).click();
 	await page.getByRole('link', { name: 'Reconciliation' }).click();
-	await page.getByRole('button', { name: 'Add balance check' }).click();
+	await page.getByRole('button', { name: 'Add balance snapshot' }).click();
 	await page.getByLabel('Observed balance').fill('80.00');
 	await submitDialog(page);
 	await expect(page.getByText('+1,00 USD', { exact: true })).toBeVisible();
+	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Create correction' }).click();
 	await expect(page.getByRole('button', { name: 'Retry correction' })).toBeVisible();
 	await page.getByRole('button', { name: 'Retry correction' }).click();
@@ -2008,5 +2020,5 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	expect(correctionAttempts).toBe(2);
 	expect(corrections).toHaveLength(1);
 	await expect(page.getByText('80,00 USD', { exact: true }).last()).toBeVisible();
-	await expect(page.getByText('Balance correction for check', { exact: false })).toBeVisible();
+	await expect(page.getByText('Balance correction for snapshot', { exact: false })).toBeVisible();
 });

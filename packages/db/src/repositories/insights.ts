@@ -7,7 +7,7 @@ import {
 } from '@dukat/core';
 import type { Summary } from '@dukat/core';
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
@@ -594,7 +594,8 @@ export function createInsightsRepository(db: FinancialDatabase) {
 							and(
 								eq(ledgerTransaction.workspaceId, c.workspaceId),
 								eq(ledgerTransaction.accountId, account.id),
-								isNull(ledgerTransaction.trashedAt)
+								isNull(ledgerTransaction.trashedAt),
+								gt(ledgerTransaction.date, account.openingDate)
 							)
 						);
 					let projected = current.reduce(
@@ -608,13 +609,14 @@ export function createInsightsRepository(db: FinancialDatabase) {
 							and(
 								eq(ledgerBalanceCorrection.workspaceId, c.workspaceId),
 								eq(ledgerBalanceCorrection.accountId, account.id),
-								isNull(ledgerBalanceCorrection.trashedAt)
+								isNull(ledgerBalanceCorrection.trashedAt),
+								gt(ledgerBalanceCorrection.date, account.openingDate)
 							)
 						);
 					projected += corrections.reduce((sum, row) => sum + BigInt(row.amount), 0n);
 					for (const choice of selected) {
 						const row = preview.rows.find((candidate) => candidate.sourceRow === choice.sourceRow)!;
-						if (!row.errors.length)
+						if (!row.errors.length && row.date > account.openingDate)
 							projected +=
 								row.kind === 'income' ? BigInt(row.amountMinor) : -BigInt(row.amountMinor);
 					}
@@ -816,7 +818,8 @@ export function createInsightsRepository(db: FinancialDatabase) {
 							and(
 								eq(ledgerTransaction.workspaceId, c.workspaceId),
 								eq(ledgerTransaction.accountId, account.id),
-								isNull(ledgerTransaction.trashedAt)
+								isNull(ledgerTransaction.trashedAt),
+								gt(ledgerTransaction.date, account.openingDate)
 							)
 						);
 					let resulting =
@@ -832,7 +835,8 @@ export function createInsightsRepository(db: FinancialDatabase) {
 							and(
 								eq(ledgerBalanceCorrection.workspaceId, c.workspaceId),
 								eq(ledgerBalanceCorrection.accountId, account.id),
-								isNull(ledgerBalanceCorrection.trashedAt)
+								isNull(ledgerBalanceCorrection.trashedAt),
+								gt(ledgerBalanceCorrection.date, account.openingDate)
 							)
 						);
 					resulting += corrections.reduce((sum, row) => sum + BigInt(row.amount), 0n);

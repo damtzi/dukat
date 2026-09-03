@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNull, like, or } from 'drizzle-orm';
 import {
 	forecastBalances,
 	isRuleGeneratedOccurrence,
@@ -748,7 +748,11 @@ export function createPlanningRepository(
 					.select()
 					.from(ledgerTransaction)
 					.where(
-						and(eq(ledgerTransaction.accountId, accountId), isNull(ledgerTransaction.trashedAt))
+						and(
+							eq(ledgerTransaction.accountId, accountId),
+							isNull(ledgerTransaction.trashedAt),
+							gt(ledgerTransaction.date, a.openingDate)
+						)
 					);
 				const corrections = await tx
 					.select()
@@ -756,7 +760,8 @@ export function createPlanningRepository(
 					.where(
 						and(
 							eq(ledgerBalanceCorrection.accountId, accountId),
-							isNull(ledgerBalanceCorrection.trashedAt)
+							isNull(ledgerBalanceCorrection.trashedAt),
+							gt(ledgerBalanceCorrection.date, a.openingDate)
 						)
 					);
 				const balance = corrections.reduce(
