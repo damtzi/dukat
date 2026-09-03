@@ -1,3 +1,7 @@
+## Git commits
+
+Use Conventional Commits. Write commit messages in sentence case.
+
 ## Agent skills
 
 ### Issue tracker
