@@ -175,6 +175,13 @@ test('populated databases upgrade from 0003 without losing workspace or ledger d
 			description: 'Upgrade transfer',
 			detached_at: null
 		});
+		const openingDates = await connection.client.execute(
+			'SELECT opening_date FROM financial_account ORDER BY id'
+		);
+		assert.deepEqual(
+			openingDates.rows.map((row) => row.opening_date),
+			['2026-07-31', '2026-07-31']
+		);
 		const foreignKeys = await connection.client.execute('PRAGMA foreign_key_check');
 		assert.equal(foreignKeys.rows.length, 0);
 	} finally {

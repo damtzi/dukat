@@ -25,17 +25,17 @@
     ><Dialog.Header
       ><Dialog.Title
         >{editingCheck
-          ? 'Edit balance check'
-          : 'Add balance check'}</Dialog.Title
+          ? 'Edit balance snapshot'
+          : 'Add balance snapshot'}</Dialog.Title
       ><Dialog.Description
-        >Record an observed balance. This check does not change the account
+        >Record an observed balance. This snapshot does not change the account
         balance.</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
       <Field.Group>
         {#if error}<Alert.Root variant="destructive"
-            ><Alert.Title>Could not save balance check</Alert.Title
+            ><Alert.Title>Could not save balance snapshot</Alert.Title
             ><Alert.Description>{error}</Alert.Description></Alert.Root
           >{/if}
         <Field.Field>
@@ -57,7 +57,8 @@
           />
         </Field.Field>
         <Dialog.Footer
-          ><Button type="submit" disabled={pending}>Save balance check</Button
+          ><Button type="submit" disabled={pending}
+            >Save balance snapshot</Button
           ></Dialog.Footer
         >
       </Field.Group>

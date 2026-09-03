@@ -36,7 +36,11 @@
       oncorrectionaction={(item, action) =>
         ledger.entityAction('corrections', item, action)}
       oncheckhistory={(item) =>
-        ledger.showHistory('balance-checks', item.id, 'Balance check history')}
+        ledger.showHistory(
+          'balance-checks',
+          item.id,
+          'Balance snapshot history',
+        )}
       oncorrectionhistory={(item) =>
         ledger.showHistory('corrections', item.id, 'Correction history')}
     />

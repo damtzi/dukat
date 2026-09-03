@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, lte, lt, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, lt, or } from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 
 import type { FinancialDatabase } from '../connection';
@@ -47,6 +47,7 @@ interface CreateAccount extends Mutation {
 	name: string;
 	type: 'current' | 'savings' | 'cash';
 	currency: string;
+	openingDate: string;
 	openingBalanceMinor: string;
 }
 interface UpdateAccount extends CreateAccount {
@@ -214,6 +215,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 	async function balance(
 		workspaceId: string,
 		accountId: string,
+		openingDate: string,
 		source: FinancialDatabase | Transaction = rawDatabase,
 		throughDate?: string
 	) {
@@ -225,6 +227,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					eq(ledgerTransaction.workspaceId, workspaceId),
 					eq(ledgerTransaction.accountId, accountId),
 					isNull(ledgerTransaction.trashedAt),
+					gt(ledgerTransaction.date, openingDate),
 					throughDate ? lte(ledgerTransaction.date, throughDate) : undefined
 				)
 			);
@@ -240,6 +243,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					eq(ledgerBalanceCorrection.workspaceId, workspaceId),
 					eq(ledgerBalanceCorrection.accountId, accountId),
 					isNull(ledgerBalanceCorrection.trashedAt),
+					gt(ledgerBalanceCorrection.date, openingDate),
 					throughDate ? lte(ledgerBalanceCorrection.date, throughDate) : undefined
 				)
 			);
@@ -252,7 +256,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		return viewAccount(
 			account,
 			checkedBalance(
-				account.openingBalanceMinor + (await balance(account.workspaceId, account.id, source))
+				account.openingBalanceMinor +
+					(await balance(account.workspaceId, account.id, account.openingDate, source))
 			)
 		);
 	}
@@ -267,7 +272,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				)
 			);
 		for (const account of accounts)
-			checkedBalance(account.openingBalanceMinor + (await balance(workspaceId, account.id, tx)));
+			checkedBalance(
+				account.openingBalanceMinor +
+					(await balance(workspaceId, account.id, account.openingDate, tx))
+			);
 	}
 	async function canonicalTransferSides(
 		tx: Transaction,
@@ -672,6 +680,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						name: input.name,
 						type: input.type,
 						currency: input.currency,
+						openingDate: input.openingDate,
 						openingBalanceMinor: parseMinor(input.openingBalanceMinor)
 					};
 					await tx.insert(financialAccount).values(row);
@@ -680,6 +689,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						.from(financialAccount)
 						.where(eq(financialAccount.id, row.id));
 					await audit(tx, context, 'account', created.id, 'opening_balance.created', null, {
+						openingDate: created.openingDate,
 						openingBalanceMinor: created.openingBalanceMinor,
 						currency: created.currency
 					});
@@ -724,15 +734,46 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							);
 						if (
 							before.archivedAt &&
-							before.openingBalanceMinor !== parseMinor(input.openingBalanceMinor)
+							(before.openingDate !== input.openingDate ||
+								before.openingBalanceMinor !== parseMinor(input.openingBalanceMinor))
 						)
-							throw new LedgerError('conflict', 'Archived account opening balance is immutable');
+							throw new LedgerError('conflict', 'Archived account opening point is immutable');
+						if (before.openingDate !== input.openingDate) {
+							const [earlierSnapshot] = await tx
+								.select({ id: ledgerBalanceCheck.id })
+								.from(ledgerBalanceCheck)
+								.where(
+									and(
+										eq(ledgerBalanceCheck.accountId, accountId),
+										isNull(ledgerBalanceCheck.trashedAt),
+										lt(ledgerBalanceCheck.date, input.openingDate)
+									)
+								)
+								.limit(1);
+							const [earlierCorrection] = await tx
+								.select({ id: ledgerBalanceCorrection.id })
+								.from(ledgerBalanceCorrection)
+								.where(
+									and(
+										eq(ledgerBalanceCorrection.accountId, accountId),
+										isNull(ledgerBalanceCorrection.trashedAt),
+										lte(ledgerBalanceCorrection.date, input.openingDate)
+									)
+								)
+								.limit(1);
+							if (earlierSnapshot || earlierCorrection)
+								throw new LedgerError(
+									'conflict',
+									'Account opening date cannot move past an active snapshot or correction'
+								);
+						}
 						const updatedRows = await tx
 							.update(financialAccount)
 							.set({
 								name: input.name,
 								type: input.type,
 								currency: input.currency,
+								openingDate: input.openingDate,
 								openingBalanceMinor: parseMinor(input.openingBalanceMinor),
 								version: before.version + 1,
 								updatedAt: new Date()
@@ -750,7 +791,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.returning();
 						const [after] = updatedRows;
 						if (!after) throw new LedgerError('conflict', 'Account changed concurrently');
-						if (before.openingBalanceMinor !== after.openingBalanceMinor)
+						if (
+							before.openingDate !== after.openingDate ||
+							before.openingBalanceMinor !== after.openingBalanceMinor
+						)
 							await audit(
 								tx,
 								context,
@@ -758,10 +802,12 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								accountId,
 								'opening_balance.updated',
 								{
+									openingDate: before.openingDate,
 									openingBalanceMinor: before.openingBalanceMinor,
 									currency: before.currency
 								},
 								{
+									openingDate: after.openingDate,
 									openingBalanceMinor: after.openingBalanceMinor,
 									currency: after.currency
 								}
@@ -855,7 +901,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							return { deleted: true, negativeBalance: false };
 						}
 						const currentBalance = checkedBalance(
-							row.openingBalanceMinor + (await balance(context.workspaceId, accountId, tx))
+							row.openingBalanceMinor +
+								(await balance(context.workspaceId, accountId, row.openingDate, tx))
 						);
 						if (action === 'archive' && row.archivedAt)
 							throw new LedgerError('conflict', 'Account is already archived');
@@ -1043,7 +1090,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.where(eq(ledgerTransaction.id, row.id));
 						await audit(tx, context, 'transaction', created.id, 'created', null, created);
 						const amount = checkedBalance(
-							account.openingBalanceMinor + (await balance(context.workspaceId, accountId, tx))
+							account.openingBalanceMinor +
+								(await balance(context.workspaceId, accountId, account.openingDate, tx))
 						);
 						return {
 							transaction: publicTransaction(created),
@@ -1427,11 +1475,25 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							);
 						if (!account) throw new LedgerError('not_found', 'Account not found');
 						if (account.archivedAt)
-							throw new LedgerError('conflict', 'Archived accounts do not accept balance checks');
+							throw new LedgerError(
+								'conflict',
+								'Archived accounts do not accept balance snapshots'
+							);
+						if (input.date < account.openingDate)
+							throw new LedgerError(
+								'invalid',
+								'Balance snapshot cannot predate the account opening'
+							);
 						const observed = parseMinor(input.observedBalanceMinor);
 						const calculated = checkedBalance(
 							account.openingBalanceMinor +
-								(await balance(context.workspaceId, account.id, tx, input.date))
+								(await balance(
+									context.workspaceId,
+									account.id,
+									account.openingDate,
+									tx,
+									input.date
+								))
 						);
 						const id = crypto.randomUUID();
 						await tx.insert(ledgerBalanceCheck).values({
@@ -1489,7 +1551,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					rows.map(async (row) => {
 						const calculated = checkedBalance(
 							account.openingBalanceMinor +
-								(await balance(context.workspaceId, accountId, tx, row.date))
+								(await balance(context.workspaceId, accountId, account.openingDate, tx, row.date))
 						);
 						return {
 							...row,
@@ -1546,11 +1608,11 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 									eq(ledgerBalanceCheck.workspaceId, context.workspaceId)
 								)
 							);
-						if (!before) throw new LedgerError('not_found', 'Balance check not found');
+						if (!before) throw new LedgerError('not_found', 'Balance snapshot not found');
 						if (before.version !== input.version)
-							throw new LedgerError('conflict', 'Balance check version is stale');
+							throw new LedgerError('conflict', 'Balance snapshot version is stale');
 						if (before.trashedAt)
-							throw new LedgerError('conflict', 'Trashed balance checks cannot be edited');
+							throw new LedgerError('conflict', 'Trashed balance snapshots cannot be edited');
 						const [account] = await tx
 							.select()
 							.from(financialAccount)
@@ -1564,7 +1626,12 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (account.archivedAt)
 							throw new LedgerError(
 								'conflict',
-								'Archived accounts do not allow balance check changes'
+								'Archived accounts do not allow balance snapshot changes'
+							);
+						if (input.date < account.openingDate)
+							throw new LedgerError(
+								'invalid',
+								'Balance snapshot cannot predate the account opening'
 							);
 						const observed = parseMinor(input.observedBalanceMinor);
 						const [after] = await tx
@@ -1584,10 +1651,16 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								)
 							)
 							.returning();
-						if (!after) throw new LedgerError('conflict', 'Balance check changed concurrently');
+						if (!after) throw new LedgerError('conflict', 'Balance snapshot changed concurrently');
 						const calculated = checkedBalance(
 							account.openingBalanceMinor +
-								(await balance(context.workspaceId, account.id, tx, input.date))
+								(await balance(
+									context.workspaceId,
+									account.id,
+									account.openingDate,
+									tx,
+									input.date
+								))
 						);
 						await audit(tx, context, 'balance_check', checkId, 'updated', before, after);
 						return {
@@ -1622,6 +1695,11 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (!account) throw new LedgerError('not_found', 'Account not found');
 						if (account.archivedAt)
 							throw new LedgerError('conflict', 'Archived accounts do not accept corrections');
+						if (input.date <= account.openingDate)
+							throw new LedgerError(
+								'invalid',
+								'Balance correction must follow the account opening date'
+							);
 						const amount = parseCorrectionMinor(input.amountMinor);
 						const id = crypto.randomUUID();
 						await tx.insert(ledgerBalanceCorrection).values({
@@ -1804,7 +1882,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (!after) throw new LedgerError('conflict', 'Transaction changed concurrently');
 						await audit(tx, context, 'transaction', transactionId, 'updated', before, after);
 						const total = checkedBalance(
-							account.openingBalanceMinor + (await balance(context.workspaceId, account.id, tx))
+							account.openingBalanceMinor +
+								(await balance(context.workspaceId, account.id, account.openingDate, tx))
 						);
 						return {
 							transaction: publicTransaction(after),
@@ -1886,7 +1965,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (!after) throw new LedgerError('conflict', 'Transaction changed concurrently');
 						await audit(tx, context, 'transaction', transactionId, action, before, after);
 						const total = checkedBalance(
-							account.openingBalanceMinor + (await balance(context.workspaceId, account.id, tx))
+							account.openingBalanceMinor +
+								(await balance(context.workspaceId, account.id, account.openingDate, tx))
 						);
 						return {
 							transaction: publicTransaction(after),

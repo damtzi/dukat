@@ -39,13 +39,14 @@ test('planning persists recurrence, forecasts corrections, and matches only once
 			name: 'Cash',
 			type: 'cash',
 			currency: 'PLN',
+			openingDate: '2026-01-01',
 			openingBalanceMinor: 1000n
 		});
 		await financial.db.insert(ledgerBalanceCorrection).values({
 			id: 'correction',
 			workspaceId: personal.id,
 			accountId: 'cash',
-			date: '2026-01-01',
+			date: '2026-01-02',
 			amountMinor: '50'
 		});
 

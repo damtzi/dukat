@@ -7,6 +7,7 @@ const account = {
 	name: 'Main account',
 	type: 'current',
 	currency: 'PLN',
+	openingDate: '2025-01-01',
 	openingBalanceMinor: '0',
 	balanceMinor: '840000',
 	negativeBalance: false,

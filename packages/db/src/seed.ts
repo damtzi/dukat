@@ -149,11 +149,14 @@ export async function seedDatabase(options: SeedOptions): Promise<SeedResult> {
 			financialConnection.db,
 			() => options.now ?? new Date()
 		);
+		const today = todayInDefaultTimeZone(options.now);
+		const openingDate = dateInMonth(today, -6, 1);
 		const everyday = await ledger.createAccount(context, {
 			idempotencyKey: 'seed-account-everyday',
 			name: 'Everyday account',
 			type: 'current',
 			currency: 'PLN',
+			openingDate,
 			openingBalanceMinor: '420000'
 		});
 		const savings = await ledger.createAccount(context, {
@@ -161,6 +164,7 @@ export async function seedDatabase(options: SeedOptions): Promise<SeedResult> {
 			name: 'Savings',
 			type: 'savings',
 			currency: 'PLN',
+			openingDate,
 			openingBalanceMinor: '1250000'
 		});
 		const cash = await ledger.createAccount(context, {
@@ -168,10 +172,10 @@ export async function seedDatabase(options: SeedOptions): Promise<SeedResult> {
 			name: 'Cash',
 			type: 'cash',
 			currency: 'PLN',
+			openingDate,
 			openingBalanceMinor: '28000'
 		});
 
-		const today = todayInDefaultTimeZone(options.now);
 		const transactions: Array<{
 			accountId: string;
 			kind: 'income' | 'expense';
