@@ -17,6 +17,7 @@ type Transaction = {
 	kind: 'expense' | 'income';
 	amountMinor: string;
 	date: string;
+	merchant: string | null;
 	description: string | null;
 	version: number;
 	trashedAt: string | null;
@@ -239,6 +240,9 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			expect(new URL(request.url()).searchParams.get('includeTrashed')).toBe('true');
 			return json(route, transactions);
 		}
+		if (pathname === `/api/workspaces/${workspaceId}/transactions` && method === 'GET') {
+			return json(route, transactions);
+		}
 		if (
 			method === 'GET' &&
 			['transfers', 'balance-checks', 'corrections'].some(
@@ -257,6 +261,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 					? {
 							kind: 'expense',
 							amountMinor: '12500',
+							merchant: 'Landlord',
 							description: 'Rent',
 							categoryId: null,
 							date: body!.date,
@@ -265,6 +270,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 					: {
 							kind: 'income',
 							amountMinor: '2500',
+							merchant: null,
 							description: 'Refund',
 							categoryId: null,
 							date: body!.date,
@@ -277,6 +283,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				kind: body!.kind as Transaction['kind'],
 				amountMinor: body!.amountMinor as string,
 				date: body!.date as string,
+				merchant: body!.merchant as string | null,
 				description: body!.description as string,
 				version: 1,
 				trashedAt: null
@@ -296,6 +303,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			expect(body).toEqual({
 				kind: 'expense',
 				amountMinor: item.version === 1 ? '12000' : '12500',
+				merchant: 'Landlord',
 				description: 'Rent corrected',
 				categoryId: null,
 				date: body!.date,
@@ -305,6 +313,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			Object.assign(item, {
 				kind: body!.kind,
 				amountMinor: body!.amountMinor,
+				merchant: body!.merchant,
 				description: body!.description,
 				date: body!.date,
 				version: item.version + 1
@@ -1432,16 +1441,29 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Close' }).click();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
+	const today = await page.evaluate(() =>
+		new Intl.DateTimeFormat('en-CA', {
+			timeZone: 'Europe/Warsaw',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit'
+		}).format(new Date())
+	);
+	await expect(page.getByRole('dialog').getByLabel('Account')).toContainText('Everyday account');
+	await expect(page.getByRole('dialog').getByLabel('Date')).toHaveValue(today);
 	await page.getByLabel('Amount', { exact: true }).fill('1.001');
 	await submitDialog(page);
 	await expect(page.getByText('Enter an amount with at most 2 decimal places.')).toBeVisible();
 	await page.getByLabel('Amount', { exact: true }).fill('125.00');
+	await page.getByRole('dialog').getByLabel('Merchant').fill('Landlord');
 	await page.getByRole('dialog').getByLabel('Description').fill('Rent');
 	await submitDialog(page);
 	await expect(page.getByText('Negative balance')).toBeVisible();
 	await expect(page.getByText('-25,00 USD', { exact: true }).last()).toBeVisible();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
+	await expect(page.locator('datalist#recent-merchants option[value="Landlord"]')).toHaveCount(1);
+	await expect(page.getByText('Recent merchants are suggested.')).toBeVisible();
 	await chooseSelect(page, 'Kind', 'Income');
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Refund');
@@ -1604,6 +1626,8 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 		if (pathname === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (pathname.endsWith('/categories') && method === 'GET') return json(route, categories);
 		if (pathname.endsWith('/accounts') && method === 'GET') return json(route, [account]);
+		if (pathname === `/api/workspaces/${workspaceId}/transactions` && method === 'GET')
+			return json(route, manualCreated ? [manualTransaction] : []);
 		if (pathname.endsWith('/summary') && method === 'GET')
 			return json(route, {
 				currencies: [
@@ -1781,6 +1805,11 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await expect(
 		page.getByText('Weekly shop', { exact: true }).filter({ visible: true })
 	).toBeVisible();
+	await page.getByRole('button', { name: 'Add transaction' }).click();
+	await page.getByRole('dialog').getByLabel('Category').click();
+	await expect(page.getByRole('group').filter({ hasText: 'Recent' })).toContainText('Groceries');
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Escape');
 
 	await clickSidebarLink(page, 'CSV imports');
 	await page

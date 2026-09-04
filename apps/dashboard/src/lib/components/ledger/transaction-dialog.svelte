@@ -21,6 +21,8 @@
     onsubmit,
     categories,
     accounts,
+    recentMerchants,
+    recentCategoryIds,
   }: {
     open: boolean
     form: {
@@ -28,6 +30,7 @@
       kind: Transaction['kind']
       amount: string
       date: string
+      merchant: string
       description: string
       categoryId: string
     }
@@ -37,6 +40,8 @@
     onsubmit: (event: SubmitEvent) => void
     categories: Category[]
     accounts: Account[]
+    recentMerchants: string[]
+    recentCategoryIds: string[]
   } = $props()
   const transactionKinds = [
     { value: 'expense', label: 'Expense' },
@@ -51,6 +56,16 @@
   )
   let selectedCategory = $derived(
     availableCategories.find((category) => category.id === form.categoryId),
+  )
+  let recentCategories = $derived(
+    recentCategoryIds
+      .map((id) => availableCategories.find((category) => category.id === id))
+      .filter((category): category is Category => Boolean(category)),
+  )
+  let otherCategories = $derived(
+    availableCategories.filter(
+      (category) => !recentCategoryIds.includes(category.id),
+    ),
   )
   let activeAccounts = $derived(
     accounts.filter(({ archivedAt }) => !archivedAt),
@@ -148,7 +163,22 @@
                 <Select.Item value="" label="Uncategorized"
                   >Uncategorized</Select.Item
                 >
-                {#each availableCategories as category (category.id)}
+              </Select.Group>
+              {#if recentCategories.length}
+                <Select.Group>
+                  <Select.GroupHeading>Recent</Select.GroupHeading>
+                  {#each recentCategories as category (category.id)}
+                    <Select.Item value={category.id} label={category.name}
+                      >{category.name}</Select.Item
+                    >
+                  {/each}
+                </Select.Group>
+              {/if}
+              <Select.Group>
+                {#if recentCategories.length}
+                  <Select.GroupHeading>All categories</Select.GroupHeading>
+                {/if}
+                {#each otherCategories as category (category.id)}
                   <Select.Item
                     value={category.id}
                     label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
@@ -161,6 +191,25 @@
               </Select.Group>
             </Select.Content>
           </Select.Root>
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="merchant">Merchant</Field.Label><Input
+            id="merchant"
+            list="recent-merchants"
+            maxlength={200}
+            autocomplete="organization"
+            bind:value={form.merchant}
+          />
+          {#if recentMerchants.length}
+            <Field.Description
+              >Recent merchants are suggested.</Field.Description
+            >
+          {/if}
+          <datalist id="recent-merchants">
+            {#each recentMerchants as merchant (merchant)}
+              <option value={merchant}></option>
+            {/each}
+          </datalist>
         </Field.Field>
         <Field.Field>
           <Field.Label for="description">Description</Field.Label><Textarea

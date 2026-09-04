@@ -77,6 +77,9 @@ export const ledgerRouter = router
 			)
 		)
 	)
+	.openapi(routes.searchTransactions, (c) =>
+		success(c, () => c.var.services.ledger.searchTransactions(context(c), c.req.valid('query')))
+	)
 	.openapi(routes.createTransaction, (c) =>
 		success(c, () =>
 			c.var.services.ledger.createTransaction(

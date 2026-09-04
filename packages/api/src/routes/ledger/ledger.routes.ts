@@ -12,6 +12,7 @@ import {
 	correctionSchema,
 	historyEntrySchema,
 	minorUnitsSchema,
+	transactionSearchSchema,
 	transactionSchema,
 	transferSchema,
 	updateAccountSchema,
@@ -106,6 +107,13 @@ export const listTransactions = createRoute({
 		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
 	},
 	responses: responses(z.array(transactionSchema), 'Transactions')
+});
+export const searchTransactions = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/transactions',
+	request: { params, query: transactionSearchSchema },
+	responses: responses(z.array(transactionSchema), 'Workspace transactions')
 });
 export const createTransaction = createRoute({
 	...common(),

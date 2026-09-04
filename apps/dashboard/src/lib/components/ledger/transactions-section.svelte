@@ -42,8 +42,13 @@
             ><div class="flex justify-between">
               <div>
                 <Card.Title class="text-base"
-                  >{item.description || 'No description'}</Card.Title
+                  >{item.merchant ||
+                    item.description ||
+                    'No description'}</Card.Title
                 ><Card.Description>{item.date}</Card.Description>
+                {#if item.merchant && item.description}
+                  <Card.Description>{item.description}</Card.Description>
+                {/if}
               </div>
               <strong class:text-destructive={item.kind === 'expense'}
                 >{item.kind === 'expense' ? '−' : '+'}{formatMoney(
@@ -68,18 +73,19 @@
       <Table.Root
         ><Table.Header
           ><Table.Row
-            ><Table.Head>Date</Table.Head><Table.Head>Description</Table.Head
-            ><Table.Head>Kind</Table.Head><Table.Head class="text-right"
-              >Amount</Table.Head
-            ><Table.Head><span class="sr-only">Actions</span></Table.Head
+            ><Table.Head>Date</Table.Head><Table.Head>Merchant</Table.Head
+            ><Table.Head>Description</Table.Head><Table.Head>Kind</Table.Head
+            ><Table.Head class="text-right">Amount</Table.Head><Table.Head
+              ><span class="sr-only">Actions</span></Table.Head
             ></Table.Row
           ></Table.Header
         ><Table.Body
           >{#each transactions as item (item.id)}<Table.Row
               class={item.trashedAt ? 'opacity-60' : ''}
               ><Table.Cell>{item.date}</Table.Cell><Table.Cell
-                >{item.description || '—'}</Table.Cell
-              ><Table.Cell class="capitalize">{item.kind}</Table.Cell
+                >{item.merchant || '—'}</Table.Cell
+              ><Table.Cell>{item.description || '—'}</Table.Cell><Table.Cell
+                class="capitalize">{item.kind}</Table.Cell
               ><Table.Cell class="text-right"
                 >{item.kind === 'expense' ? '−' : '+'}{formatMoney(
                   item.amountMinor,

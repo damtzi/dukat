@@ -151,7 +151,7 @@
   >
     {#snippet actions()}
       {#if activeAccounts.length > 0}
-        <Button onclick={ledger.newTransaction}>Add transaction</Button>
+        <Button onclick={() => ledger.newTransaction()}>Add transaction</Button>
       {/if}
     {/snippet}
   </PageHeader>

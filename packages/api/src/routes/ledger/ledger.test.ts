@@ -58,6 +58,9 @@ function createServices(): APIServices {
 			async listTransactions() {
 				return [];
 			},
+			async searchTransactions(_context, filters) {
+				return [filters];
+			},
 			async createTransaction(_context, _accountId, input) {
 				return input;
 			},
@@ -214,6 +217,36 @@ test('ledger exposes archive impact and requires its token for archive', async (
 		body: JSON.stringify({ version: 1, idempotencyKey: 'archive-without-token' })
 	});
 	assert.equal(archive.status, 400);
+});
+
+test('ledger transaction search validates and forwards structured filters', async () => {
+	const app = createAPI(createServices());
+	const response = await app.request(
+		'/api/workspaces/workspace-1/transactions?query=market&accountId=account-1&categoryId=category-1&amountMinMinor=100&amountMaxMinor=200&dateFrom=2026-08-01&dateTo=2026-08-31&includeTrashed=true&limit=25',
+		{ headers }
+	);
+	assert.equal(response.status, 200);
+	assert.deepEqual(await response.json(), [
+		{
+			query: 'market',
+			accountId: 'account-1',
+			categoryId: 'category-1',
+			amountMinMinor: '100',
+			amountMaxMinor: '200',
+			dateFrom: '2026-08-01',
+			dateTo: '2026-08-31',
+			includeTrashed: 'true',
+			limit: 25
+		}
+	]);
+	const invalid = await app.request(
+		'/api/workspaces/workspace-1/transactions?amountMinMinor=200&amountMaxMinor=100',
+		{ headers }
+	);
+	assert.equal(invalid.status, 400);
+	assert.deepEqual(await invalid.json(), {
+		message: 'Minimum amount cannot exceed maximum amount'
+	});
 });
 
 test('ledger HTTP routes use the migrated database and exact-money repository', async () => {

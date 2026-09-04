@@ -5,6 +5,7 @@ import type {
 	CreateBalanceCorrection,
 	CreateTransfer,
 	CreateTransaction,
+	TransactionSearch,
 	UpdateAccount,
 	UpdateTransaction,
 	UpdateTransfer,
@@ -144,6 +145,10 @@ export interface LedgerService {
 		context: { userId: string; workspaceId: string },
 		accountId: string,
 		includeTrashed?: boolean
+	): Promise<unknown>;
+	searchTransactions(
+		context: { userId: string; workspaceId: string },
+		filters: TransactionSearch
 	): Promise<unknown>;
 	createTransaction(
 		context: { userId: string; workspaceId: string },

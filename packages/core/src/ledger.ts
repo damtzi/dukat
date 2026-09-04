@@ -93,12 +93,35 @@ export const createTransactionSchema = mutationSchema.extend({
 	kind: transactionKindSchema,
 	amountMinor: positiveMinorUnitsSchema,
 	date: calendarDateSchema,
+	merchant: z.string().trim().max(200).nullable().optional(),
 	description: z.string().trim().max(500).nullable().optional(),
 	categoryId: z.string().min(1).nullable().optional()
 });
 export const updateTransactionSchema = createTransactionSchema.extend({
 	version: z.number().int().positive()
 });
+export const transactionSearchSchema = z
+	.object({
+		query: z.string().trim().min(1).max(200).optional(),
+		accountId: z.string().min(1).optional(),
+		categoryId: z.string().min(1).optional(),
+		amountMinMinor: positiveMinorUnitsSchema.optional(),
+		amountMaxMinor: positiveMinorUnitsSchema.optional(),
+		dateFrom: isoCalendarDateSchema.optional(),
+		dateTo: isoCalendarDateSchema.optional(),
+		includeTrashed: z.enum(['true', 'false']).optional(),
+		limit: z.coerce.number().int().min(1).max(200).default(100)
+	})
+	.superRefine((value, context) => {
+		if (
+			value.amountMinMinor &&
+			value.amountMaxMinor &&
+			BigInt(value.amountMinMinor) > BigInt(value.amountMaxMinor)
+		)
+			context.addIssue({ code: 'custom', message: 'Minimum amount cannot exceed maximum amount' });
+		if (value.dateFrom && value.dateTo && value.dateFrom > value.dateTo)
+			context.addIssue({ code: 'custom', message: 'Start date cannot be after end date' });
+	});
 export const createTransferSchema = mutationSchema.extend({
 	fromAccountId: z.string().min(1),
 	toAccountId: z.string().min(1),
@@ -170,6 +193,7 @@ export const transactionSchema = z.object({
 	kind: transactionKindSchema,
 	amountMinor: positiveMinorUnitsSchema,
 	date: z.string(),
+	merchant: z.string().nullable(),
 	description: z.string().nullable(),
 	categoryId: z.string().nullable(),
 	source: z.literal('manual'),
@@ -257,6 +281,7 @@ export type ArchiveAccount = z.infer<typeof archiveAccountSchema>;
 export type AccountArchiveImpact = z.infer<typeof accountArchiveImpactSchema>;
 export type CreateTransaction = z.infer<typeof createTransactionSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
+export type TransactionSearch = Partial<z.infer<typeof transactionSearchSchema>>;
 export type CreateTransfer = z.infer<typeof createTransferSchema>;
 export type UpdateTransfer = z.infer<typeof updateTransferSchema>;
 export type CreateBalanceCheck = z.infer<typeof createBalanceCheckSchema>;

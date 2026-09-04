@@ -102,6 +102,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   let historyOpen = $state(false)
   let historyTitle = $state('')
   let history = $state.raw<HistoryEntry[]>([])
+  let recentMerchants = $state.raw<string[]>([])
+  let recentCategoryIds = $state.raw<string[]>([])
   let accountForm = $state({
     name: '',
     type: 'current' as Account['type'],
@@ -114,6 +116,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     kind: 'expense' as Transaction['kind'],
     amount: '',
     date: todayInWarsaw(),
+    merchant: '',
     description: '',
     categoryId: '',
   })
@@ -269,33 +272,92 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       pending = false
     }
   }
-  function newTransaction() {
+  async function loadTransactionSuggestions(workspaceId: string) {
+    try {
+      const transactions = (await api(
+        `/workspaces/${workspaceId}/transactions?limit=50`,
+      )) as Transaction[]
+      if (callbacks.getWorkspaceId() !== workspaceId) return
+      const merchantKeys: string[] = []
+      recentMerchants = transactions
+        .map(({ merchant }) => merchant?.trim() ?? '')
+        .filter((merchant) => {
+          const normalized = merchant.toLocaleLowerCase()
+          if (!normalized || merchantKeys.includes(normalized)) return false
+          merchantKeys.push(normalized)
+          return true
+        })
+        .slice(0, 5)
+      recentCategoryIds = transactions
+        .map(({ categoryId }) => categoryId)
+        .filter(
+          (categoryId, index, categoryIds): categoryId is string =>
+            Boolean(categoryId) && categoryIds.indexOf(categoryId) === index,
+        )
+        .slice(0, 5)
+    } catch {
+      // Suggestions make entry faster but never block it.
+    }
+  }
+  function rememberedAccount(workspaceId: string) {
+    try {
+      return localStorage.getItem(
+        `dukat:last-transaction-account:${workspaceId}`,
+      )
+    } catch {
+      return null
+    }
+  }
+  function rememberAccount(workspaceId: string, accountId: string) {
+    try {
+      localStorage.setItem(
+        `dukat:last-transaction-account:${workspaceId}`,
+        accountId,
+      )
+    } catch {
+      // Browser storage is an optional convenience.
+    }
+  }
+  function newTransaction(preferredAccountId?: string) {
+    const workspaceId = callbacks.getWorkspaceId()
     const account = selected()
+    const rememberedId = rememberedAccount(workspaceId)
+    const usableAccount = (id?: string | null) =>
+      accounts.find((candidate) => candidate.id === id && !candidate.archivedAt)
     editingTransaction = null
     transactionError = ''
     transactionIntentKey = key()
     transactionForm = {
       accountId:
+        usableAccount(preferredAccountId)?.id ||
+        usableAccount(rememberedId)?.id ||
         (account && !account.archivedAt ? account.id : '') ||
         accounts.find(({ archivedAt }) => !archivedAt)?.id ||
         '',
       kind: 'expense',
       amount: '',
       date: todayInWarsaw(),
+      merchant: '',
       description: '',
       categoryId: '',
     }
     transactionOpen = true
+    recentMerchants = []
+    recentCategoryIds = []
+    void loadTransactionSuggestions(workspaceId)
   }
   function editTransaction(item: Transaction) {
     transactionError = ''
     transactionIntentKey = key()
+    recentMerchants = []
+    recentCategoryIds = []
     editingTransaction = item
     transactionForm = {
       accountId: selected()!.id,
       kind: item.kind,
       amount: minorToDecimal(item.amountMinor, selected()!.currency),
       date: item.date,
+      merchant: item.merchant ?? '',
       description: item.description ?? '',
       categoryId: item.categoryId ?? '',
     }
@@ -305,6 +367,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     event.preventDefault()
     const account = accounts.find(({ id }) => id === transactionForm.accountId)
     if (!account || pending) return
+    const workspaceId = callbacks.getWorkspaceId()
     transactionError = ''
     pending = true
     try {
@@ -314,18 +377,20 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         kind: transactionForm.kind,
         amountMinor: parseAmount(transactionForm.amount, account.currency),
         date: transactionForm.date,
+        merchant: transactionForm.merchant.trim() || null,
         description: transactionForm.description.trim() || null,
         categoryId: transactionForm.categoryId || null,
         idempotencyKey: transactionIntentKey,
         ...(editingTransaction ? { version: editingTransaction.version } : {}),
       }
       const path = editingTransaction
-        ? `/workspaces/${callbacks.getWorkspaceId()}/transactions/${editingTransaction.id}`
-        : `/workspaces/${callbacks.getWorkspaceId()}/accounts/${account.id}/transactions`
+        ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
+        : `/workspaces/${workspaceId}/accounts/${account.id}/transactions`
       await api(path, {
         method: editingTransaction ? 'PUT' : 'POST',
         body: JSON.stringify(body),
       })
+      if (!editingTransaction) rememberAccount(workspaceId, account.id)
       transactionOpen = false
       await callbacks.reloadAccounts()
     } catch (error) {
@@ -862,6 +927,12 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     },
     set history(value) {
       history = value
+    },
+    get recentMerchants() {
+      return recentMerchants
+    },
+    get recentCategoryIds() {
+      return recentCategoryIds
     },
     get accountForm() {
       return accountForm

@@ -105,6 +105,8 @@
   pending={ledger.pending}
   categories={ledger.categories}
   accounts={ledger.accounts}
+  recentMerchants={ledger.recentMerchants}
+  recentCategoryIds={ledger.recentCategoryIds}
   onsubmit={ledger.saveTransaction}
 />
 <TransferDialog

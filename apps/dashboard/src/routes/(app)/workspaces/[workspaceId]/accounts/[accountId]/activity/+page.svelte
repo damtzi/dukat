@@ -29,7 +29,7 @@
         {account}
         transactions={data.transactions}
         pending={ledger.pending}
-        onnew={ledger.newTransaction}
+        onnew={() => ledger.newTransaction(account.id)}
         onedit={ledger.editTransaction}
         onaction={ledger.transactionAction}
         onhistory={(item) =>

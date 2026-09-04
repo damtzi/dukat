@@ -48,6 +48,7 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	const transactionDialog = page.getByRole('dialog');
 	await transactionDialog.getByLabel('Amount', { exact: true }).fill('25.00');
+	await transactionDialog.getByLabel('Merchant').fill('Corner Market');
 	await transactionDialog.getByLabel('Description').fill('Full-stack expense');
 	await transactionDialog.getByRole('button', { name: 'Save transaction' }).click();
 
@@ -72,6 +73,14 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await expect(accountSummary).toContainText(/95,00\sUSD/);
 	await page.reload();
 	await expect(accountSummary).toContainText(/95,00\sUSD/);
+
+	await page.goto(`/workspaces/${workspaceId}/transactions`);
+	await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible();
+	await page.getByLabel('Search').fill('corner');
+	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	await expect(page).toHaveURL(/transactions\?query=corner/);
+	await expect(page.getByRole('cell', { name: 'Corner Market', exact: true })).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'Full-stack expense', exact: true })).toBeVisible();
 });
 
 test('tracks a categorized card purchase and bill payment once through the real stack', async ({

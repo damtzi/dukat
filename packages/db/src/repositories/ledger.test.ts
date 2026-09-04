@@ -13,6 +13,7 @@ import {
 	financialAccount,
 	ledgerAudit,
 	ledgerBalanceCorrection,
+	ledgerCategory,
 	ledgerTransaction,
 	ledgerTransfer,
 	mutationReceipt,
@@ -24,6 +25,135 @@ import {
 import { createLedgerRepository, LedgerError } from './ledger';
 import { createPlanningRepository } from './planning';
 import { assertDatabaseIntegrity } from '../recovery';
+
+test('transaction search filters one workspace and returns recent matches first', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-transaction-search-'));
+	const url = `file:${join(directory, 'ledger.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db.insert(user).values([
+			{
+				id: 'search-owner',
+				name: 'Search Owner',
+				username: 'search_owner',
+				email: 'search@example.com'
+			},
+			{
+				id: 'other-owner',
+				name: 'Other Owner',
+				username: 'other_owner',
+				email: 'other@example.com'
+			}
+		]);
+		const spaces = await connection.db.select().from(workspace);
+		const workspaceId = spaces.find(
+			({ personalOwnerUserId }) => personalOwnerUserId === 'search-owner'
+		)!.id;
+		const otherWorkspaceId = spaces.find(
+			({ personalOwnerUserId }) => personalOwnerUserId === 'other-owner'
+		)!.id;
+		await financial.db.insert(financialAccount).values([
+			{
+				id: 'search-cash',
+				workspaceId,
+				name: 'Cash',
+				type: 'cash',
+				currency: 'PLN',
+				openingDate: '2026-01-01',
+				openingBalanceMinor: 0n
+			},
+			{
+				id: 'search-card',
+				workspaceId,
+				name: 'Card',
+				type: 'credit_card',
+				currency: 'PLN',
+				openingDate: '2026-01-01',
+				openingBalanceMinor: 0n
+			},
+			{
+				id: 'other-cash',
+				workspaceId: otherWorkspaceId,
+				name: 'Private cash',
+				type: 'cash',
+				currency: 'PLN',
+				openingDate: '2026-01-01',
+				openingBalanceMinor: 0n
+			}
+		]);
+		const [groceries] = await financial.db
+			.select()
+			.from(ledgerCategory)
+			.where(eq(ledgerCategory.workspaceId, workspaceId));
+		await financial.db.insert(ledgerTransaction).values([
+			{
+				id: 'older-match',
+				workspaceId,
+				accountId: 'search-cash',
+				categoryId: groceries.id,
+				kind: 'expense',
+				amountMinor: 1200n,
+				date: '2026-08-01',
+				merchant: 'Corner Market',
+				description: 'Weekly food'
+			},
+			{
+				id: 'newer-match',
+				workspaceId,
+				accountId: 'search-card',
+				categoryId: groceries.id,
+				kind: 'expense',
+				amountMinor: 1800n,
+				date: '2026-08-03',
+				merchant: 'Corner Market',
+				description: 'Fresh food'
+			},
+			{
+				id: 'other-private-match',
+				workspaceId: otherWorkspaceId,
+				accountId: 'other-cash',
+				kind: 'expense',
+				amountMinor: 1500n,
+				date: '2026-08-02',
+				merchant: 'Corner Market',
+				description: 'Must stay private'
+			}
+		]);
+
+		const ledger = createLedgerRepository(financial.db);
+		const context = { userId: 'search-owner', workspaceId };
+		const textMatches = await ledger.searchTransactions(context, { query: 'market' });
+		assert.deepEqual(
+			textMatches.map(({ id }) => id),
+			['newer-match', 'older-match']
+		);
+		assert.deepEqual(
+			(await ledger.searchTransactions(context, { query: 'weekly' })).map(({ id }) => id),
+			['older-match']
+		);
+		assert.deepEqual(
+			(
+				await ledger.searchTransactions(context, {
+					accountId: 'search-card',
+					categoryId: groceries.id,
+					amountMinMinor: '1700',
+					amountMaxMinor: '1900',
+					dateFrom: '2026-08-02',
+					dateTo: '2026-08-04'
+				})
+			).map(({ id }) => id),
+			['newer-match']
+		);
+	} finally {
+		financial.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
 
 test('account archive preflight guards and atomically applies plan impact with audits', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-archive-impact-'));

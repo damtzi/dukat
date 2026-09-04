@@ -1,5 +1,6 @@
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, lt, or } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, lt, or, sql } from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
+import type { TransactionSearch } from '@dukat/core/ledger';
 
 import type { FinancialDatabase } from '../connection';
 import {
@@ -57,6 +58,7 @@ interface CreateTransaction extends Mutation {
 	kind: 'income' | 'expense';
 	amountMinor: string;
 	date: string;
+	merchant?: string | null;
 	description?: string | null;
 	categoryId?: string | null;
 }
@@ -1005,6 +1007,51 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				return rows.map(publicTransaction);
 			});
 		},
+		async searchTransactions(context: Context, filters: TransactionSearch = {}) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const amountMin = filters.amountMinMinor
+					? parsePositiveMinor(filters.amountMinMinor)
+					: undefined;
+				const amountMax = filters.amountMaxMinor
+					? parsePositiveMinor(filters.amountMaxMinor)
+					: undefined;
+				const query = filters.query?.toLocaleLowerCase();
+				const rows = await tx
+					.select()
+					.from(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.workspaceId, context.workspaceId),
+							eq(ledgerTransaction.source, 'manual'),
+							filters.includeTrashed === 'true' ? undefined : isNull(ledgerTransaction.trashedAt),
+							filters.accountId ? eq(ledgerTransaction.accountId, filters.accountId) : undefined,
+							filters.categoryId === 'uncategorized'
+								? isNull(ledgerTransaction.categoryId)
+								: filters.categoryId
+									? eq(ledgerTransaction.categoryId, filters.categoryId)
+									: undefined,
+							amountMin === undefined ? undefined : gte(ledgerTransaction.amountMinor, amountMin),
+							amountMax === undefined ? undefined : lte(ledgerTransaction.amountMinor, amountMax),
+							filters.dateFrom ? gte(ledgerTransaction.date, filters.dateFrom) : undefined,
+							filters.dateTo ? lte(ledgerTransaction.date, filters.dateTo) : undefined,
+							query
+								? or(
+										sql`instr(lower(coalesce(${ledgerTransaction.merchant}, '')), ${query}) > 0`,
+										sql`instr(lower(coalesce(${ledgerTransaction.description}, '')), ${query}) > 0`
+									)
+								: undefined
+						)
+					)
+					.orderBy(
+						desc(ledgerTransaction.date),
+						desc(ledgerTransaction.createdAt),
+						desc(ledgerTransaction.id)
+					)
+					.limit(filters.limit ?? 100);
+				return rows.map(publicTransaction);
+			});
+		},
 		async listTransfers(context: Context, accountId: string, includeTrashed = false) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
@@ -1080,6 +1127,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							kind: input.kind,
 							amountMinor: parsePositiveMinor(input.amountMinor),
 							date: input.date,
+							merchant: input.merchant ?? null,
 							description: input.description ?? null,
 							categoryId: input.categoryId ?? null
 						};
@@ -1865,6 +1913,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								kind: input.kind,
 								amountMinor: parsePositiveMinor(input.amountMinor),
 								date: input.date,
+								merchant: input.merchant ?? null,
 								description: input.description ?? null,
 								categoryId: input.categoryId ?? null,
 								version: before.version + 1,

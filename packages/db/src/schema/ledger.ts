@@ -119,6 +119,7 @@ export const ledgerTransaction = sqliteTable(
 		kind: text('kind', { enum: ['income', 'expense'] }).notNull(),
 		amountMinor: int64('amount_minor').notNull(),
 		date: text('date').notNull(),
+		merchant: text('merchant'),
 		description: text('description'),
 		source: text('source', { enum: ['manual', 'transfer'] })
 			.default('manual')

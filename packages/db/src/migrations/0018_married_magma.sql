@@ -1,0 +1,1 @@
+ALTER TABLE `ledger_transaction` ADD `merchant` text;

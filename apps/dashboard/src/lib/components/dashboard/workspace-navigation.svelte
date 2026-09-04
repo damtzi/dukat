@@ -10,6 +10,7 @@
   import SettingsIcon from 'phosphor-svelte/lib/GearSix'
   import MinusIcon from 'phosphor-svelte/lib/Minus'
   import PlusIcon from 'phosphor-svelte/lib/Plus'
+  import ReceiptIcon from 'phosphor-svelte/lib/Receipt'
   import LayoutDashboardIcon from 'phosphor-svelte/lib/SquaresFour'
   import TagIcon from 'phosphor-svelte/lib/Tag'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
@@ -48,6 +49,9 @@
   )
   let accountsPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/accounts', { workspaceId }),
+  )
+  let transactionsPath = $derived(
+    resolve('/(app)/workspaces/[workspaceId]/transactions', { workspaceId }),
   )
   let cashFlowPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/cash-flow', { workspaceId }),
@@ -258,6 +262,36 @@
       </Sidebar.MenuItem>
     {/snippet}
   </Collapsible.Root>
+
+  <Sidebar.MenuItem>
+    <Sidebar.MenuButton
+      isActive={workspaceActive &&
+        routeId === '/(app)/workspaces/[workspaceId]/transactions'}
+      tooltipContent="Transactions"
+    >
+      {#snippet child({ props })}
+        <a
+          {...props}
+          href={transactionsPath}
+          aria-current={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/transactions'
+            ? 'page'
+            : undefined}
+          onclick={closeMobile}
+        >
+          <ReceiptIcon aria-hidden="true" />
+          <span>Transactions</span>
+        </a>
+      {/snippet}
+    </Sidebar.MenuButton>
+    <FavoriteAction
+      active={favoriteFor(transactionsPath) !== undefined}
+      pending={pendingFavoritePath === transactionsPath}
+      path={transactionsPath}
+      label={`${workspace.name} · Transactions`}
+      ontoggle={ontogglefavorite}
+    />
+  </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
     <Sidebar.MenuButton
