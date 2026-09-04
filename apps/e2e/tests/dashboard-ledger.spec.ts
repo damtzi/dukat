@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 type Account = {
 	id: string;
 	name: string;
-	type: 'current' | 'savings' | 'cash';
+	type: 'current' | 'savings' | 'cash' | 'credit_card';
 	currency: string;
 	openingDate: string;
 	openingBalanceMinor: string;

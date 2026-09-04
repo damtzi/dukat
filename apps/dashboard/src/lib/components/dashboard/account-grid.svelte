@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import { Button, Card, Empty } from '@dukat/ui'
-  import { formatMoney } from '$lib/money'
+  import { accountTypeLabel, formatAccountBalance } from '$lib/account'
 
   let {
     accounts,
@@ -19,7 +19,7 @@
     <Empty.Header>
       <Empty.Title>No accounts</Empty.Title>
       <Empty.Description>
-        Add a current, savings, or cash account.
+        Add a current, savings, cash, or credit-card account.
       </Empty.Description>
     </Empty.Header>
     <Empty.Content>
@@ -34,11 +34,11 @@
           <Card.Title class="flex items-center justify-between gap-3">
             <span class="truncate">{account.name}</span>
             <span class="text-base">
-              {formatMoney(account.balanceMinor, account.currency)}
+              {formatAccountBalance(account)}
             </span>
           </Card.Title>
-          <Card.Description class="capitalize">
-            {account.type} · {account.currency}{account.archivedAt
+          <Card.Description>
+            {accountTypeLabel(account.type)} · {account.currency}{account.archivedAt
               ? ' · Archived'
               : ''}
           </Card.Description>

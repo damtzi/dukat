@@ -13,7 +13,7 @@ export function todayInDefaultTimeZone(now = new Date()) {
 	return `${value('year')}-${value('month')}-${value('day')}`;
 }
 
-export const accountTypeSchema = z.enum(['current', 'savings', 'cash']);
+export const accountTypeSchema = z.enum(['current', 'savings', 'cash', 'credit_card']);
 export const transactionKindSchema = z.enum(['income', 'expense']);
 export const currencySchema = supportedCurrencySchema;
 

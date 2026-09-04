@@ -740,6 +740,93 @@ test('summary includes archived cash-flow history and fees while excluding trans
 	}
 });
 
+test('credit-card purchases increase debt and payments stay exact without duplicate spending', async () => {
+	const f = await fixture();
+	try {
+		const groceries = (await f.repo.listCategories(f.context)).find(
+			(category) => category.name === 'Groceries'
+		)!;
+		const eurCard = await f.ledger.createAccount(f.context, {
+			idempotencyKey: 'create-eur-card',
+			name: 'EUR card',
+			type: 'credit_card',
+			currency: 'EUR',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: '0'
+		});
+		const usdCard = await f.ledger.createAccount(f.context, {
+			idempotencyKey: 'create-usd-card',
+			name: 'USD card',
+			type: 'credit_card',
+			currency: 'USD',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: '0'
+		});
+
+		await f.ledger.createTransaction(f.context, eurCard.id, {
+			idempotencyKey: 'eur-card-purchase',
+			kind: 'expense',
+			amountMinor: '700',
+			date: '2026-08-02',
+			categoryId: groceries.id
+		});
+		await f.ledger.createTransaction(f.context, usdCard.id, {
+			idempotencyKey: 'usd-card-purchase',
+			kind: 'expense',
+			amountMinor: '1000',
+			date: '2026-08-02',
+			categoryId: groceries.id
+		});
+		await f.ledger.createTransfer(f.context, {
+			idempotencyKey: 'same-currency-card-payment',
+			fromAccountId: 'eur',
+			toAccountId: eurCard.id,
+			amountMinor: '500',
+			date: '2026-08-03'
+		});
+		await f.ledger.createTransfer(f.context, {
+			idempotencyKey: 'cross-currency-card-payment',
+			fromAccountId: 'eur',
+			toAccountId: usdCard.id,
+			amountMinor: '300',
+			receivedAmountMinor: '400',
+			date: '2026-08-03'
+		});
+
+		const accounts = await f.ledger.listAccounts(f.context);
+		assert.equal(accounts.find(({ id }) => id === 'eur')?.balanceMinor, '-800');
+		assert.equal(accounts.find(({ id }) => id === eurCard.id)?.balanceMinor, '-200');
+		assert.equal(accounts.find(({ id }) => id === usdCard.id)?.balanceMinor, '-600');
+		const [sameCurrencyPayment] = await f.ledger.listTransfers(f.context, eurCard.id);
+		assert.equal(sameCurrencyPayment.sentAmountMinor, '500');
+		assert.equal(sameCurrencyPayment.receivedAmountMinor, '500');
+		const [crossCurrencyPayment] = await f.ledger.listTransfers(f.context, usdCard.id);
+		assert.equal(crossCurrencyPayment.sentAmountMinor, '300');
+		assert.equal(crossCurrencyPayment.receivedAmountMinor, '400');
+		const summary = await f.repo.summary(f.context, {
+			startDate: '2026-08-01',
+			endDate: '2026-08-31'
+		});
+		assert.deepEqual(
+			summary.currencies.map(({ currency, incomeMinor, spendingMinor }) => ({
+				currency,
+				incomeMinor,
+				spendingMinor
+			})),
+			[
+				{ currency: 'EUR', incomeMinor: '0', spendingMinor: '700' },
+				{ currency: 'USD', incomeMinor: '0', spendingMinor: '1000' }
+			]
+		);
+		assert.deepEqual(
+			summary.currencies.map(({ groups }) => groups[0]?.categoryName),
+			['Groceries', 'Groceries']
+		);
+	} finally {
+		await f.close();
+	}
+});
+
 test('CSV preview diagnoses rows and confirm is atomic with provenance, categories and trash audit', async () => {
 	const f = await fixture();
 	try {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import { Button, Card } from '@dukat/ui'
+  import { accountTypeLabel, formatAccountBalance } from '$lib/account'
   import { formatDate } from '$lib/i18n'
   import { formatMoney } from '$lib/money'
 
@@ -24,21 +25,28 @@
     ><div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <Card.Title>{account.name}</Card.Title><Card.Description
-          class="capitalize"
-          >{account.type} · {account.currency}</Card.Description
+          >{accountTypeLabel(account.type)} · {account.currency}</Card.Description
         >
         <Card.Description>
-          Opened with {formatMoney(
-            account.openingBalanceMinor,
+          {account.type === 'credit_card'
+            ? BigInt(account.openingBalanceMinor) > 0n
+              ? 'Opened with card credit'
+              : 'Opened owing'
+            : 'Opened with'}
+          {formatMoney(
+            account.type === 'credit_card' &&
+              BigInt(account.openingBalanceMinor) <= 0n
+              ? (-BigInt(account.openingBalanceMinor)).toString()
+              : account.openingBalanceMinor,
             account.currency,
           )} on {formatDate(new Date(`${account.openingDate}T12:00:00Z`))}
         </Card.Description>
       </div>
       <div class="text-right">
         <p class="text-2xl font-bold">
-          {formatMoney(account.balanceMinor, account.currency)}
+          {formatAccountBalance(account)}
         </p>
-        {#if account.negativeBalance}<p
+        {#if account.negativeBalance && account.type !== 'credit_card'}<p
             class="text-sm font-medium text-destructive"
           >
             Negative balance

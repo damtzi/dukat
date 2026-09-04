@@ -4,6 +4,7 @@
   import { page } from '$app/state'
   import { Button, Empty } from '@dukat/ui'
   import { workspaceDataDependency } from '$lib/api'
+  import { accountTypeLabel } from '$lib/account'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import AccountSummary from '$lib/components/ledger/account-summary.svelte'
@@ -37,7 +38,7 @@
     <PageHeader
       id="account-title"
       title={account.name}
-      description={`${account.type.charAt(0).toUpperCase()}${account.type.slice(1)} · ${account.currency}`}
+      description={`${accountTypeLabel(account.type)} · ${account.currency}`}
     />
 
     <AccountSummary

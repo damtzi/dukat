@@ -45,7 +45,7 @@ interface ArchiveAccount extends VersionedMutation {
 }
 interface CreateAccount extends Mutation {
 	name: string;
-	type: 'current' | 'savings' | 'cash';
+	type: 'current' | 'savings' | 'cash' | 'credit_card';
 	currency: string;
 	openingDate: string;
 	openingBalanceMinor: string;

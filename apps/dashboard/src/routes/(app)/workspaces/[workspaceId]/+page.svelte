@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths'
   import { Alert, Button, Card, Empty } from '@dukat/ui'
+  import { formatAccountBalance } from '$lib/account'
   import OverviewOutlookChart from '$lib/components/forecast/overview-outlook-chart.svelte'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
@@ -161,8 +162,8 @@
         <Empty.Header>
           <Empty.Title>No accounts</Empty.Title>
           <Empty.Description>
-            Add a current, savings, or cash account to see your balance and
-            outlook.
+            Add a current, savings, cash, or credit-card account to see your
+            balance and outlook.
           </Empty.Description>
         </Empty.Header>
         <Empty.Content>
@@ -184,7 +185,7 @@
             <div class="inset-panel">
               <strong>{account.name}</strong>
               <p class="text-sm text-muted-foreground">
-                {formatMoney(account.balanceMinor, account.currency)}
+                {formatAccountBalance(account)}
               </p>
             </div>
           {/each}
@@ -336,11 +337,15 @@
                       <div class="min-w-0">
                         <strong class="block truncate">{account.name}</strong>
                         <span class="text-sm text-muted-foreground">
-                          {formatMoney(account.balanceMinor, account.currency)}
+                          {formatAccountBalance(account)}
                         </span>
                       </div>
                       <strong class="shrink-0 text-right">
-                        {formatMoney(account.convertedBalanceMinor!, currency)}
+                        {formatAccountBalance({
+                          ...account,
+                          balanceMinor: account.convertedBalanceMinor!,
+                          currency,
+                        })}
                       </strong>
                     </div>
                     <div

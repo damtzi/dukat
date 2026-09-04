@@ -144,6 +144,12 @@ test('ledger routes require authentication and validate financial boundaries', a
 	assert.deepEqual(await invalidCurrency.json(), {
 		message: 'Currency must be PLN or an NBP Table A currency'
 	});
+	const creditCard = await app.request(path, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ ...validAccount, name: 'Card', type: 'credit_card' })
+	});
+	assert.equal(creditCard.status, 200);
 	const futureTransaction = await app.request(`${path}/account-1/transactions`, {
 		method: 'POST',
 		headers,

@@ -41,7 +41,7 @@ export const financialAccount = sqliteTable(
 			.notNull()
 			.references(() => workspace.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
-		type: text('type', { enum: ['current', 'savings', 'cash'] }).notNull(),
+		type: text('type', { enum: ['current', 'savings', 'cash', 'credit_card'] }).notNull(),
 		currency: text('currency').notNull(),
 		openingDate: text('opening_date').notNull(),
 		openingBalanceMinor: int64('opening_balance_minor').notNull(),
@@ -58,7 +58,10 @@ export const financialAccount = sqliteTable(
 	(table) => [
 		index('financial_account_workspace_idx').on(table.workspaceId),
 		uniqueIndex('financial_account_workspace_id_unique').on(table.workspaceId, table.id),
-		check('financial_account_type_check', sql`${table.type} IN ('current', 'savings', 'cash')`),
+		check(
+			'financial_account_type_check',
+			sql`${table.type} IN ('current', 'savings', 'cash', 'credit_card')`
+		),
 		check(
 			'financial_account_opening_int64_check',
 			sql`${table.openingBalanceMinor} BETWEEN -9223372036854775808 AND 9223372036854775807`

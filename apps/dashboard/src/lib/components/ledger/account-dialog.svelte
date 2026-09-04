@@ -10,6 +10,7 @@
     { value: 'current', label: 'Current' },
     { value: 'savings', label: 'Savings' },
     { value: 'cash', label: 'Cash' },
+    { value: 'credit_card', label: 'Credit card' },
   ]
 
   let {
@@ -120,13 +121,21 @@
           </Select.Root>
         </Field.Field>
         <Field.Field data-disabled={!!editingAccount?.archivedAt}>
-          <Field.Label for="opening">Opening balance</Field.Label><Input
+          <Field.Label for="opening"
+            >{form.type === 'credit_card'
+              ? 'Opening card balance'
+              : 'Opening balance'}</Field.Label
+          ><Input
             id="opening"
             required
             inputmode="decimal"
             disabled={!!editingAccount?.archivedAt}
             bind:value={form.amount}
           />
+          {#if form.type === 'credit_card'}<Field.Description>
+              Enter debt as a negative balance. A positive balance is card
+              credit.
+            </Field.Description>{/if}
         </Field.Field>
         <Dialog.Footer
           ><Button type="submit" disabled={pending}>Save account</Button
