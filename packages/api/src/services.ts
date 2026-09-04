@@ -3,11 +3,13 @@ import type {
 	ArchiveAccount,
 	CreateBalanceCheck,
 	CreateBalanceCorrection,
+	CreateHouseholdExpense,
 	CreateRefund,
 	CreateTransfer,
 	CreateTransaction,
 	TransactionSearch,
 	UpdateAccount,
+	UpdateHouseholdExpense,
 	UpdateTransaction,
 	UpdateTransfer,
 	UpdateBalanceCheck,
@@ -151,6 +153,25 @@ export interface LedgerService {
 		context: { userId: string; workspaceId: string },
 		filters: TransactionSearch
 	): Promise<unknown>;
+	listHouseholdExpenses(
+		context: { userId: string; workspaceId: string },
+		includeTrashed?: boolean
+	): Promise<unknown>;
+	createHouseholdExpense(
+		context: { userId: string; workspaceId: string },
+		input: CreateHouseholdExpense
+	): Promise<unknown>;
+	updateHouseholdExpense(
+		context: { userId: string; workspaceId: string },
+		expenseId: string,
+		input: UpdateHouseholdExpense
+	): Promise<unknown>;
+	householdExpenseAction(
+		context: { userId: string; workspaceId: string },
+		expenseId: string,
+		action: 'trash' | 'restore',
+		input: VersionedMutation
+	): Promise<unknown>;
 	createTransaction(
 		context: { userId: string; workspaceId: string },
 		accountId: string,
@@ -224,7 +245,13 @@ export interface LedgerService {
 	): Promise<unknown>;
 	history(
 		context: { userId: string; workspaceId: string },
-		entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction',
+		entityType:
+			| 'account'
+			| 'transaction'
+			| 'household_expense'
+			| 'transfer'
+			| 'balance_check'
+			| 'correction',
 		entityId: string
 	): Promise<unknown>;
 }

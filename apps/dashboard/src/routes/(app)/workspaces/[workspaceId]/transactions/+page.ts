@@ -1,4 +1,4 @@
-import type { Transaction } from '@dukat/core/ledger'
+import type { HouseholdExpense, Transaction } from '@dukat/core/ledger'
 import { loadApi, workspaceDataDependency } from '$lib/api'
 import { parseAmount } from '$lib/money'
 import type { PageLoad } from './$types'
@@ -23,7 +23,13 @@ export const load: PageLoad = async ({
     includeTrashed: url.searchParams.get('includeTrashed') === 'true',
   }
   if (parentData.state !== 'ready')
-    return { filters, searchError: '', transactions: [] as Transaction[] }
+    return {
+      filters,
+      searchError: '',
+      transactions: [] as Transaction[],
+      householdExpenses: [] as HouseholdExpense[],
+      isHousehold: false,
+    }
 
   try {
     const query = new URLSearchParams({ limit: '200' })
@@ -52,16 +58,35 @@ export const load: PageLoad = async ({
           parseAmount(filters.amountMax, account.currency),
         )
     }
-    const transactions = (await loadApi(
-      fetch,
-      `/workspaces/${params.workspaceId}/transactions?${query}`,
-    )) as Transaction[]
-    return { filters, searchError: '', transactions }
+    const isHousehold =
+      parentData.workspaces.find(({ id }) => id === params.workspaceId)
+        ?.type === 'household'
+    const [transactions, householdExpenses] = await Promise.all([
+      loadApi(
+        fetch,
+        `/workspaces/${params.workspaceId}/transactions?${query}`,
+      ) as Promise<Transaction[]>,
+      isHousehold
+        ? (loadApi(
+            fetch,
+            `/workspaces/${params.workspaceId}/household-expenses${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
+          ) as Promise<HouseholdExpense[]>)
+        : Promise.resolve([]),
+    ])
+    return {
+      filters,
+      searchError: '',
+      transactions,
+      householdExpenses,
+      isHousehold,
+    }
   } catch (error) {
     return {
       filters,
       searchError: (error as Error).message,
       transactions: [] as Transaction[],
+      householdExpenses: [] as HouseholdExpense[],
+      isHousehold: false,
     }
   }
 }

@@ -101,11 +101,15 @@
   bind:open={ledger.transactionOpen}
   bind:form={ledger.transactionForm}
   editingTransaction={ledger.editingTransaction}
+  editingHouseholdExpense={ledger.editingHouseholdExpense}
+  creatingHouseholdExpense={ledger.creatingHouseholdExpense}
   refundingExpense={ledger.refundingExpense}
   error={ledger.transactionError}
   pending={ledger.pending}
   categories={ledger.categories}
-  accounts={ledger.accounts}
+  accounts={ledger.creatingHouseholdExpense
+    ? ledger.householdExpenseAccounts()
+    : ledger.accounts}
   recentMerchants={ledger.recentMerchants}
   recentCategoryIds={ledger.recentCategoryIds}
   onsubmit={ledger.saveTransaction}

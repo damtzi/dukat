@@ -104,6 +104,17 @@ export const createRefundSchema = mutationSchema.extend({
 	merchant: z.string().trim().max(200).nullable().optional(),
 	description: z.string().trim().max(500).nullable().optional()
 });
+export const createHouseholdExpenseSchema = mutationSchema.extend({
+	accountId: z.string().min(1),
+	amountMinor: positiveMinorUnitsSchema,
+	date: calendarDateSchema,
+	merchant: z.string().trim().max(200).nullable().optional(),
+	description: z.string().trim().max(500).nullable().optional(),
+	categoryId: z.string().min(1).nullable().optional()
+});
+export const updateHouseholdExpenseSchema = createHouseholdExpenseSchema
+	.omit({ accountId: true })
+	.extend({ version: z.number().int().positive() });
 export const updateTransactionSchema = createTransactionSchema.extend({
 	kind: ledgerTransactionKindSchema,
 	version: z.number().int().positive()
@@ -211,6 +222,27 @@ export const transactionSchema = z.object({
 	createdAt: z.string(),
 	updatedAt: z.string()
 });
+export const householdExpenseSchema = z.object({
+	id: z.string(),
+	workspaceId: z.string(),
+	amountMinor: positiveMinorUnitsSchema,
+	currency: z.string(),
+	date: isoCalendarDateSchema,
+	merchant: z.string().nullable(),
+	description: z.string().nullable(),
+	categoryId: z.string().nullable(),
+	payer: z.object({
+		userId: z.string(),
+		name: z.string(),
+		username: z.string(),
+		image: z.string().nullable()
+	}),
+	version: z.number().int().positive(),
+	trashedAt: nullableTimestampSchema,
+	createdAt: z.string(),
+	updatedAt: z.string(),
+	canManage: z.boolean()
+});
 export const transferSchema = z.object({
 	id: z.string(),
 	localSide: z.enum(['from', 'to']),
@@ -268,6 +300,7 @@ export const historyEntrySchema = z.object({
 	actorUserId: z.string(),
 	entityType: z.enum([
 		'transaction',
+		'household_expense',
 		'account',
 		'transfer',
 		'balance_check',
@@ -290,6 +323,8 @@ export type ArchiveAccount = z.infer<typeof archiveAccountSchema>;
 export type AccountArchiveImpact = z.infer<typeof accountArchiveImpactSchema>;
 export type CreateTransaction = z.infer<typeof createTransactionSchema>;
 export type CreateRefund = z.infer<typeof createRefundSchema>;
+export type CreateHouseholdExpense = z.infer<typeof createHouseholdExpenseSchema>;
+export type UpdateHouseholdExpense = z.infer<typeof updateHouseholdExpenseSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
 export type TransactionSearch = Partial<z.infer<typeof transactionSearchSchema>>;
 export type CreateTransfer = z.infer<typeof createTransferSchema>;
@@ -299,6 +334,7 @@ export type UpdateBalanceCheck = z.infer<typeof updateBalanceCheckSchema>;
 export type CreateBalanceCorrection = z.infer<typeof createBalanceCorrectionSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
+export type HouseholdExpense = z.infer<typeof householdExpenseSchema>;
 export type Transfer = z.infer<typeof transferSchema>;
 export type BalanceCheck = z.infer<typeof balanceCheckSchema>;
 export type Correction = z.infer<typeof correctionSchema>;

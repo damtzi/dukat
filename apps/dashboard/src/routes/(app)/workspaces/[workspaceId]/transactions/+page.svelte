@@ -55,11 +55,98 @@
     description="Search completed income and spending in this workspace."
   >
     {#snippet actions()}
-      {#if data.accounts.some(({ archivedAt }) => !archivedAt)}
-        <Button onclick={() => ledger.newTransaction()}>Add transaction</Button>
-      {/if}
+      <div class="flex flex-wrap gap-2">
+        {#if data.isHousehold}
+          <Button onclick={() => ledger.newHouseholdExpense()}
+            >Add Household expense</Button
+          >
+        {/if}
+        {#if data.accounts.some(({ archivedAt }) => !archivedAt)}
+          <Button
+            variant={data.isHousehold ? 'outline' : 'default'}
+            onclick={() => ledger.newTransaction()}>Add transaction</Button
+          >
+        {/if}
+      </div>
     {/snippet}
   </PageHeader>
+
+  {#if data.isHousehold}
+    <Card.Root>
+      <Card.Header>
+        <Card.Title>Personal-funded Household expenses</Card.Title>
+        <Card.Description
+          >Shared spending paid from a member’s private account. Private account
+          details stay hidden.</Card.Description
+        >
+      </Card.Header>
+      <Card.Content>
+        {#if data.householdExpenses.length === 0}
+          <p class="text-sm text-muted-foreground">
+            No Personal-funded Household expenses.
+          </p>
+        {:else}
+          <div class="flex flex-col gap-3">
+            {#each data.householdExpenses as item (item.id)}
+              <div
+                class={[
+                  'flex flex-col justify-between gap-3 rounded-lg border p-4 sm:flex-row sm:items-center',
+                  item.trashedAt && 'opacity-60',
+                ]}
+              >
+                <div class="min-w-0">
+                  <p class="font-medium">
+                    {item.merchant || item.description || 'No description'}
+                  </p>
+                  <p class="text-sm text-muted-foreground">
+                    {item.date} · {categoryName(item.categoryId)} · Paid by {item
+                      .payer.name}
+                  </p>
+                  {#if item.merchant && item.description}
+                    <p class="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
+                  {/if}
+                </div>
+                <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <strong class="text-destructive">
+                    −{formatMoney(item.amountMinor, item.currency)}
+                  </strong>
+                  {#if item.canManage}
+                    {#if item.trashedAt}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={ledger.pending}
+                        onclick={() =>
+                          ledger.householdExpenseAction(item, 'restore')}
+                        >Restore</Button
+                      >
+                    {:else}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onclick={() => ledger.editHouseholdExpense(item)}
+                        >Edit</Button
+                      >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={ledger.pending}
+                        onclick={() =>
+                          ledger.householdExpenseAction(item, 'trash')}
+                        >Move to trash</Button
+                      >
+                    {/if}
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </Card.Content>
+    </Card.Root>
+  {/if}
 
   <Card.Root>
     <Card.Header>

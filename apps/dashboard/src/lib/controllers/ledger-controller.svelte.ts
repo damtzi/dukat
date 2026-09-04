@@ -2,6 +2,7 @@ import type {
   Account,
   BalanceCheck,
   HistoryEntry,
+  HouseholdExpense,
   Transaction,
   Transfer,
 } from '@dukat/core/ledger'
@@ -83,6 +84,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   let checkOpen = $state(false)
   let editingAccount = $state.raw<Account | null>(null)
   let editingTransaction = $state.raw<Transaction | null>(null)
+  let editingHouseholdExpense = $state.raw<HouseholdExpense | null>(null)
+  let creatingHouseholdExpense = $state(false)
   let refundingExpense = $state.raw<Transaction | null>(null)
   let editingTransfer = $state.raw<Transfer | null>(null)
   let editingCheck = $state.raw<BalanceCheck | null>(null)
@@ -326,6 +329,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     const usableAccount = (id?: string | null) =>
       accounts.find((candidate) => candidate.id === id && !candidate.archivedAt)
     editingTransaction = null
+    editingHouseholdExpense = null
+    creatingHouseholdExpense = false
     refundingExpense = null
     transactionError = ''
     transactionIntentKey = key()
@@ -354,6 +359,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     recentMerchants = []
     recentCategoryIds = []
     refundingExpense = null
+    editingHouseholdExpense = null
+    creatingHouseholdExpense = false
     editingTransaction = item
     transactionForm = {
       accountId: selected()!.id,
@@ -370,6 +377,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     const account = accounts.find(({ id }) => id === expense.accountId)
     if (!account || expense.kind !== 'expense' || expense.trashedAt) return
     editingTransaction = null
+    editingHouseholdExpense = null
+    creatingHouseholdExpense = false
     refundingExpense = expense
     transactionError = ''
     transactionIntentKey = key()
@@ -386,10 +395,64 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     }
     transactionOpen = true
   }
+  const householdExpenseAccounts = () =>
+    callbacks
+      .getPickerAccounts()
+      .filter(
+        (account) =>
+          account.workspaceType === 'personal' && !account.archivedAt,
+      )
+  async function newHouseholdExpense() {
+    const workspaceId = callbacks.getWorkspaceId()
+    try {
+      await callbacks.loadPickerAccounts()
+    } catch (error) {
+      message = (error as Error).message
+      return
+    }
+    if (workspaceId !== callbacks.getWorkspaceId()) return
+    editingTransaction = null
+    editingHouseholdExpense = null
+    creatingHouseholdExpense = true
+    refundingExpense = null
+    transactionError = ''
+    transactionIntentKey = key()
+    transactionForm = {
+      accountId: householdExpenseAccounts()[0]?.id ?? '',
+      kind: 'expense',
+      amount: '',
+      date: todayInWarsaw(),
+      merchant: '',
+      description: '',
+      categoryId: '',
+    }
+    transactionOpen = true
+  }
+  function editHouseholdExpense(item: HouseholdExpense) {
+    if (!item.canManage) return
+    editingTransaction = null
+    editingHouseholdExpense = item
+    creatingHouseholdExpense = true
+    refundingExpense = null
+    transactionError = ''
+    transactionIntentKey = key()
+    transactionForm = {
+      accountId: '',
+      kind: 'expense',
+      amount: minorToDecimal(item.amountMinor, item.currency),
+      date: item.date,
+      merchant: item.merchant ?? '',
+      description: item.description ?? '',
+      categoryId: item.categoryId ?? '',
+    }
+    transactionOpen = true
+  }
   async function saveTransaction(event: SubmitEvent) {
     event.preventDefault()
-    const account = accounts.find(({ id }) => id === transactionForm.accountId)
-    if (!account || pending) return
+    const account = (
+      creatingHouseholdExpense ? householdExpenseAccounts() : accounts
+    ).find(({ id }) => id === transactionForm.accountId)
+    if ((!account && !editingHouseholdExpense) || pending) return
     const workspaceId = callbacks.getWorkspaceId()
     transactionError = ''
     pending = true
@@ -398,7 +461,10 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         throw new Error('Date cannot be in the future.')
       const transactionBody = {
         kind: transactionForm.kind,
-        amountMinor: parseAmount(transactionForm.amount, account.currency),
+        amountMinor: parseAmount(
+          transactionForm.amount,
+          editingHouseholdExpense?.currency ?? account!.currency,
+        ),
         date: transactionForm.date,
         merchant: transactionForm.merchant.trim() || null,
         description: transactionForm.description.trim() || null,
@@ -414,22 +480,71 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
             description: transactionBody.description,
             idempotencyKey: transactionBody.idempotencyKey,
           }
-        : transactionBody
+        : creatingHouseholdExpense
+          ? {
+              accountId: account?.id,
+              amountMinor: transactionBody.amountMinor,
+              date: transactionBody.date,
+              merchant: transactionBody.merchant,
+              description: transactionBody.description,
+              categoryId: transactionBody.categoryId,
+              idempotencyKey: transactionBody.idempotencyKey,
+              ...(editingHouseholdExpense
+                ? { version: editingHouseholdExpense.version }
+                : {}),
+            }
+          : transactionBody
       const path = refundingExpense
         ? `/workspaces/${workspaceId}/transactions/${refundingExpense.id}/refunds`
-        : editingTransaction
-          ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
-          : `/workspaces/${workspaceId}/accounts/${account.id}/transactions`
+        : editingHouseholdExpense
+          ? `/workspaces/${workspaceId}/household-expenses/${editingHouseholdExpense.id}`
+          : creatingHouseholdExpense
+            ? `/workspaces/${workspaceId}/household-expenses`
+            : editingTransaction
+              ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
+              : `/workspaces/${workspaceId}/accounts/${account!.id}/transactions`
       await api(path, {
-        method: editingTransaction ? 'PUT' : 'POST',
+        method: editingTransaction || editingHouseholdExpense ? 'PUT' : 'POST',
         body: JSON.stringify(body),
       })
-      if (!editingTransaction && !refundingExpense)
+      if (
+        !editingTransaction &&
+        !editingHouseholdExpense &&
+        !refundingExpense &&
+        account
+      )
         rememberAccount(workspaceId, account.id)
       transactionOpen = false
       await callbacks.reloadAccounts()
     } catch (error) {
       transactionError = (error as Error).message
+    } finally {
+      pending = false
+    }
+  }
+  async function householdExpenseAction(
+    item: HouseholdExpense,
+    action: 'trash' | 'restore',
+  ) {
+    if (pending || !item.canManage) return
+    pending = true
+    const name = `${item.id}:${action}`
+    if (actionIntent?.name !== name) actionIntent = { name, key: key() }
+    try {
+      await api(
+        `/workspaces/${callbacks.getWorkspaceId()}/household-expenses/${item.id}/${action}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            version: item.version,
+            idempotencyKey: actionIntent.key,
+          }),
+        },
+      )
+      actionIntent = null
+      await callbacks.reloadAccounts()
+    } catch (error) {
+      message = (error as Error).message
     } finally {
       pending = false
     }
@@ -912,6 +1027,12 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     get editingTransaction() {
       return editingTransaction
     },
+    get editingHouseholdExpense() {
+      return editingHouseholdExpense
+    },
+    get creatingHouseholdExpense() {
+      return creatingHouseholdExpense
+    },
     set editingTransaction(value) {
       editingTransaction = value
     },
@@ -1002,10 +1123,14 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     saveAccount,
     accountAction,
     newTransaction,
+    newHouseholdExpense,
     editTransaction,
+    editHouseholdExpense,
     newRefund,
     saveTransaction,
     transactionAction,
+    householdExpenseAction,
+    householdExpenseAccounts,
     transferDestinations,
     newTransfer,
     editTransfer,

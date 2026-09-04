@@ -6,7 +6,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { hashPassword } from 'better-auth/crypto';
 import { DEMO_CREDENTIALS, seedDatabase } from '../../../packages/db/src/seed';
+import { createDatabase } from '../../../packages/db/src/connection';
+import { account, user, workspace, workspaceMembership } from '../../../packages/db/src/schema';
 
 const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const children: ChildProcess[] = [];
@@ -138,7 +141,10 @@ const environment = {
 	FULL_STACK_OUTPUT_DIR: outputDirectory,
 	FULL_STACK_TEST_EMAIL: DEMO_CREDENTIALS.email,
 	FULL_STACK_TEST_PASSWORD: DEMO_CREDENTIALS.password,
-	FULL_STACK_TEST_WORKSPACE_ID: 'seed-demo-workspace'
+	FULL_STACK_TEST_WORKSPACE_ID: 'seed-demo-workspace',
+	FULL_STACK_MEMBER_EMAIL: 'member@dukat.local',
+	FULL_STACK_MEMBER_PASSWORD: 'Member-test-password-56',
+	FULL_STACK_HOUSEHOLD_ID: 'full-stack-household'
 };
 
 let receivedSignal: NodeJS.Signals | undefined;
@@ -153,6 +159,43 @@ let exitCode = 1;
 let failure: unknown;
 try {
 	await seedDatabase({ url: databaseUrl });
+	const setup = createDatabase({ url: databaseUrl });
+	try {
+		await setup.db.insert(user).values({
+			id: 'full-stack-member',
+			name: 'Household Member',
+			username: 'household_member',
+			email: environment.FULL_STACK_MEMBER_EMAIL,
+			emailVerified: true
+		});
+		await setup.db.insert(account).values({
+			id: 'full-stack-member-credential',
+			accountId: 'full-stack-member',
+			providerId: 'credential',
+			userId: 'full-stack-member',
+			password: await hashPassword(environment.FULL_STACK_MEMBER_PASSWORD)
+		});
+		await setup.db.insert(workspace).values({
+			id: environment.FULL_STACK_HOUSEHOLD_ID,
+			name: 'Full-stack Household',
+			type: 'household',
+			reportingCurrency: 'PLN'
+		});
+		await setup.db.insert(workspaceMembership).values([
+			{
+				workspaceId: environment.FULL_STACK_HOUSEHOLD_ID,
+				userId: 'seed-demo-user',
+				role: 'owner'
+			},
+			{
+				workspaceId: environment.FULL_STACK_HOUSEHOLD_ID,
+				userId: 'full-stack-member',
+				role: 'member'
+			}
+		]);
+	} finally {
+		setup.client.close();
+	}
 	if (receivedSignal) throw new Error(`Full-stack test interrupted by ${receivedSignal}.`);
 	const api = start(
 		executable('tsx'),

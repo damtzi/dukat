@@ -61,6 +61,14 @@ function createServices(): APIServices {
 			async searchTransactions(_context, filters) {
 				return [filters];
 			},
+			async listHouseholdExpenses() {
+				return [];
+			},
+			async createHouseholdExpense(_context, input) {
+				return input;
+			},
+			async updateHouseholdExpense() {},
+			async householdExpenseAction() {},
 			async createTransaction(_context, _accountId, input) {
 				return input;
 			},

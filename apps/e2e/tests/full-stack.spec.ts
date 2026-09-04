@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 function requiredEnvironment(name: string) {
 	const value = process.env[name];
@@ -19,6 +19,14 @@ async function chooseSelect(page: Page, label: string, option: string) {
 	await page.getByRole('option', { name: option, exact: true }).click();
 }
 
+async function signIn(page: Page, email: string, password: string) {
+	await page.goto('/sign-in');
+	await page.getByLabel('Email').fill(email);
+	await page.getByLabel('Password').fill(password);
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	await expect(page).toHaveURL('/home');
+}
+
 test('persists a dated account, backdated snapshot and confirmed correction', async ({ page }) => {
 	const email = requiredEnvironment('FULL_STACK_TEST_EMAIL');
 	const password = requiredEnvironment('FULL_STACK_TEST_PASSWORD');
@@ -30,9 +38,10 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByLabel('Password').fill(password);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page).toHaveURL('/home');
-	await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible();
+	const personalWorkspace = page.getByLabel('Personal', { exact: true });
+	await expect(personalWorkspace.getByRole('link', { name: 'Open workspace' })).toBeVisible();
 
-	await page.getByRole('link', { name: 'Open workspace' }).click();
+	await personalWorkspace.getByRole('link', { name: 'Open workspace' }).click();
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}`);
 	await page.goto(`/workspaces/${workspaceId}/accounts`);
 	await page.getByRole('button', { name: 'Add account' }).click();
@@ -227,6 +236,105 @@ test('tracks a categorized card purchase and bill payment once through the real 
 		`/workspaces/${workspaceId}/accounts`
 	);
 	expect(archivedAccounts.find(({ id }) => id === cardAccount.id)?.archivedAt).not.toBeNull();
+});
+
+test('shares a Personal-funded Household expense without sharing its account', async ({
+	page,
+	browser
+}: {
+	page: Page;
+	browser: Browser;
+}) => {
+	test.setTimeout(60_000);
+	const ownerEmail = requiredEnvironment('FULL_STACK_TEST_EMAIL');
+	const ownerPassword = requiredEnvironment('FULL_STACK_TEST_PASSWORD');
+	const personalWorkspaceId = requiredEnvironment('FULL_STACK_TEST_WORKSPACE_ID');
+	const memberEmail = requiredEnvironment('FULL_STACK_MEMBER_EMAIL');
+	const memberPassword = requiredEnvironment('FULL_STACK_MEMBER_PASSWORD');
+	const householdId = requiredEnvironment('FULL_STACK_HOUSEHOLD_ID');
+
+	await signIn(page, ownerEmail, ownerPassword);
+	const personalAccountsBefore = await apiJson<
+		Array<{ id: string; name: string; balanceMinor: string }>
+	>(page, `/workspaces/${personalWorkspaceId}/accounts`);
+	const sourceAccount = personalAccountsBefore.find(({ name }) => name === 'Everyday account')!;
+	const householdAccountsBefore = await apiJson<Array<Record<string, unknown>>>(
+		page,
+		`/workspaces/${householdId}/accounts`
+	);
+	await page.goto(`/workspaces/${householdId}/transactions`);
+	await page.getByRole('button', { name: 'Add Household expense' }).click();
+	const dialog = page.getByRole('dialog');
+	await dialog.getByLabel('Personal account').click();
+	await page.getByRole('option', { name: /^Everyday account ·/ }).click();
+	await dialog.getByLabel('Amount', { exact: true }).fill('42.50');
+	await dialog.getByLabel('Category', { exact: true }).click();
+	await page.getByRole('option', { name: 'Groceries', exact: true }).click();
+	await dialog.getByLabel('Merchant').fill('Private-funded Market');
+	await dialog.getByLabel('Description').fill('Shared weekly groceries');
+	await dialog.getByRole('button', { name: 'Save Household expense' }).click();
+
+	const sharedExpense = page
+		.locator('[data-slot="card"]')
+		.filter({ hasText: 'Personal-funded Household expenses' });
+	await expect(sharedExpense).toContainText('Private-funded Market');
+	await expect(sharedExpense).toContainText('Paid by Demo User');
+	await expect(sharedExpense).toContainText(/42,50\s(?:PLN|zł)/);
+	const personalAccountsAfter = await apiJson<
+		Array<{ id: string; name: string; balanceMinor: string }>
+	>(page, `/workspaces/${personalWorkspaceId}/accounts`);
+	expect(personalAccountsAfter.find(({ id }) => id === sourceAccount.id)?.balanceMinor).toBe(
+		(BigInt(sourceAccount.balanceMinor) - 4250n).toString()
+	);
+	const ownerProjection = await apiJson<Array<Record<string, unknown>>>(
+		page,
+		`/workspaces/${householdId}/household-expenses`
+	);
+	expect(ownerProjection).toHaveLength(1);
+	expect(
+		await apiJson<Array<Record<string, unknown>>>(page, `/workspaces/${householdId}/accounts`)
+	).toEqual(householdAccountsBefore);
+	const ownerJson = JSON.stringify(ownerProjection);
+	expect(ownerJson).not.toContain(personalWorkspaceId);
+	expect(ownerJson).not.toContain(sourceAccount.id);
+	expect(ownerJson).not.toContain(sourceAccount.name);
+	const summary = await apiJson<{
+		currencies: Array<{ spendingMinor: string }>;
+	}>(page, `/workspaces/${householdId}/summary?startDate=2026-01-01&endDate=2026-12-31`);
+	expect(summary.currencies).toContainEqual(expect.objectContaining({ spendingMinor: '4250' }));
+
+	const memberContext = await browser.newContext();
+	try {
+		const memberPage = await memberContext.newPage();
+		await signIn(memberPage, memberEmail, memberPassword);
+		await memberPage.goto(`/workspaces/${householdId}/transactions`);
+		const memberSharedExpense = memberPage
+			.locator('[data-slot="card"]')
+			.filter({ hasText: 'Personal-funded Household expenses' });
+		await expect(memberSharedExpense).toContainText('Private-funded Market');
+		await expect(memberSharedExpense).toContainText('Groceries');
+		await expect(memberSharedExpense).toContainText(String(ownerProjection[0]?.date));
+		await expect(memberSharedExpense).toContainText('Paid by Demo User');
+		await expect(memberPage.getByRole('button', { name: 'Edit' })).toHaveCount(0);
+		await expect(memberPage.getByText(sourceAccount.name, { exact: true })).toHaveCount(0);
+		const memberProjection = await apiJson<Array<Record<string, unknown>>>(
+			memberPage,
+			`/workspaces/${householdId}/household-expenses`
+		);
+		expect(memberProjection[0]).toEqual(
+			expect.objectContaining({
+				amountMinor: '4250',
+				merchant: 'Private-funded Market',
+				canManage: false
+			})
+		);
+		const memberJson = JSON.stringify(memberProjection);
+		expect(memberJson).not.toContain(personalWorkspaceId);
+		expect(memberJson).not.toContain(sourceAccount.id);
+		expect(memberJson).not.toContain(sourceAccount.name);
+	} finally {
+		await memberContext.close();
+	}
 });
 
 function assertAccountBalance(

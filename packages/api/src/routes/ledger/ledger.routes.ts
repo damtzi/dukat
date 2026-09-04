@@ -7,17 +7,20 @@ import {
 	createAccountSchema,
 	createBalanceCheckSchema,
 	createBalanceCorrectionSchema,
+	createHouseholdExpenseSchema,
 	createRefundSchema,
 	createTransferSchema,
 	createTransactionSchema,
 	correctionSchema,
 	historyEntrySchema,
+	householdExpenseSchema,
 	minorUnitsSchema,
 	transactionSearchSchema,
 	transactionSchema,
 	transferSchema,
 	updateAccountSchema,
 	updateBalanceCheckSchema,
+	updateHouseholdExpenseSchema,
 	updateTransactionSchema,
 	updateTransferSchema,
 	versionedMutationSchema
@@ -28,6 +31,7 @@ const id = z.string().min(1);
 const params = z.object({ workspaceId: id });
 const accountParams = params.extend({ accountId: id });
 const transactionParams = params.extend({ transactionId: id });
+const householdExpenseParams = params.extend({ expenseId: id });
 const transferParams = params.extend({ transferId: id });
 const reconciliationParams = params.extend({ entityId: id });
 const transactionMutationSchema = z.object({
@@ -116,6 +120,44 @@ export const searchTransactions = createRoute({
 	request: { params, query: transactionSearchSchema },
 	responses: responses(z.array(transactionSchema), 'Workspace transactions')
 });
+export const listHouseholdExpenses = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/household-expenses',
+	request: {
+		params,
+		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
+	},
+	responses: responses(z.array(householdExpenseSchema), 'Household expenses')
+});
+export const createHouseholdExpense = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/household-expenses',
+	request: { params, body: jsonContent(createHouseholdExpenseSchema, 'Household expense') },
+	responses: responses(householdExpenseSchema, 'Created Household expense')
+});
+export const updateHouseholdExpense = createRoute({
+	...common(),
+	method: 'put',
+	path: '/workspaces/{workspaceId}/household-expenses/{expenseId}',
+	request: {
+		params: householdExpenseParams,
+		body: jsonContent(updateHouseholdExpenseSchema, 'Household expense')
+	},
+	responses: responses(householdExpenseSchema, 'Updated Household expense')
+});
+export const householdExpenseAction = <A extends 'trash' | 'restore'>(action: A) =>
+	createRoute({
+		...common(),
+		method: 'post',
+		path: `/workspaces/{workspaceId}/household-expenses/{expenseId}/${action}` as `/workspaces/{workspaceId}/household-expenses/{expenseId}/${A}`,
+		request: {
+			params: householdExpenseParams,
+			body: jsonContent(versionedMutationSchema, action)
+		},
+		responses: responses(householdExpenseSchema, `${action} Household expense`)
+	});
 export const createTransaction = createRoute({
 	...common(),
 	method: 'post',

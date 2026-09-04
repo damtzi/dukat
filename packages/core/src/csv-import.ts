@@ -123,7 +123,7 @@ export const summaryInputSchema = z
 	});
 export const summaryTransactionSchema = z.object({
 	id: idSchema,
-	accountId: idSchema,
+	accountId: idSchema.nullable(),
 	date: calendarDateSchema,
 	kind: ledgerTransactionKindSchema,
 	amountMinor: minorUnitsSchema,

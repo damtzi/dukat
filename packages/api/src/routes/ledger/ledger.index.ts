@@ -80,6 +80,46 @@ export const ledgerRouter = router
 	.openapi(routes.searchTransactions, (c) =>
 		success(c, () => c.var.services.ledger.searchTransactions(context(c), c.req.valid('query')))
 	)
+	.openapi(routes.listHouseholdExpenses, (c) =>
+		success(c, () =>
+			c.var.services.ledger.listHouseholdExpenses(
+				context(c),
+				c.req.valid('query').includeTrashed === 'true'
+			)
+		)
+	)
+	.openapi(routes.createHouseholdExpense, (c) =>
+		success(c, () => c.var.services.ledger.createHouseholdExpense(context(c), c.req.valid('json')))
+	)
+	.openapi(routes.updateHouseholdExpense, (c) =>
+		success(c, () =>
+			c.var.services.ledger.updateHouseholdExpense(
+				context(c),
+				c.req.valid('param').expenseId,
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.householdExpenseAction('trash'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.householdExpenseAction(
+				context(c),
+				c.req.valid('param').expenseId,
+				'trash',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.householdExpenseAction('restore'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.householdExpenseAction(
+				context(c),
+				c.req.valid('param').expenseId,
+				'restore',
+				c.req.valid('json')
+			)
+		)
+	)
 	.openapi(routes.createTransaction, (c) =>
 		success(c, () =>
 			c.var.services.ledger.createTransaction(

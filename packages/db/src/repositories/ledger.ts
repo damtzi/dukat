@@ -19,6 +19,7 @@ import type { TransactionSearch } from '@dukat/core/ledger';
 import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
+	householdExpense,
 	ledgerAudit,
 	ledgerBalanceCheck,
 	ledgerBalanceCorrection,
@@ -81,6 +82,17 @@ interface CreateRefund extends Mutation {
 	date: string;
 	merchant?: string | null;
 	description?: string | null;
+}
+interface CreateHouseholdExpense extends Mutation {
+	accountId: string;
+	amountMinor: string;
+	date: string;
+	merchant?: string | null;
+	description?: string | null;
+	categoryId?: string | null;
+}
+interface UpdateHouseholdExpense extends Omit<CreateHouseholdExpense, 'accountId'> {
+	version: number;
 }
 interface UpdateTransaction extends Omit<CreateTransaction, 'kind'> {
 	kind: 'income' | 'expense' | 'refund';
@@ -164,6 +176,32 @@ const checkedBalance = (value: bigint) => {
 const publicTransaction = (row: typeof ledgerTransaction.$inferSelect) => ({
 	...row,
 	amountMinor: row.amountMinor.toString()
+});
+const householdPayerSelection = {
+	id: user.id,
+	name: user.name,
+	username: user.username,
+	image: user.image
+};
+const publicHouseholdExpense = (
+	row: typeof householdExpense.$inferSelect,
+	payer: { id: string; name: string; username: string; image: string | null },
+	userId: string
+) => ({
+	id: row.id,
+	workspaceId: row.workspaceId,
+	amountMinor: row.amountMinor.toString(),
+	currency: row.currency,
+	date: row.date,
+	merchant: row.merchant,
+	description: row.description,
+	categoryId: row.categoryId,
+	payer: { userId: payer.id, name: payer.name, username: payer.username, image: payer.image },
+	version: row.version,
+	trashedAt: row.trashedAt?.toISOString() ?? null,
+	createdAt: row.createdAt.toISOString(),
+	updatedAt: row.updatedAt.toISOString(),
+	canManage: row.payerUserId === userId
 });
 const publicCorrection = (row: typeof ledgerBalanceCorrection.$inferSelect) => ({
 	...row,
@@ -542,7 +580,14 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 	async function audit(
 		tx: Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0],
 		context: Context,
-		entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction' | 'plan',
+		entityType:
+			| 'account'
+			| 'transaction'
+			| 'household_expense'
+			| 'transfer'
+			| 'balance_check'
+			| 'correction'
+			| 'plan',
 		entityId: string,
 		action: string,
 		before: unknown,
@@ -1020,6 +1065,349 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						}
 						await audit(tx, context, 'account', accountId, action, row, updated);
 						return { ...viewAccount(updated, currentBalance), planningImpact };
+					}
+				);
+			});
+		},
+		async listHouseholdExpenses(context: Context, includeTrashed = false) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const rows = await tx
+					.select({ expense: householdExpense, payer: householdPayerSelection })
+					.from(householdExpense)
+					.innerJoin(user, eq(user.id, householdExpense.payerUserId))
+					.innerJoin(workspace, eq(workspace.id, householdExpense.workspaceId))
+					.where(
+						and(
+							eq(householdExpense.workspaceId, context.workspaceId),
+							eq(workspace.type, 'household'),
+							includeTrashed ? undefined : isNull(householdExpense.trashedAt)
+						)
+					)
+					.orderBy(
+						desc(householdExpense.date),
+						desc(householdExpense.createdAt),
+						desc(householdExpense.id)
+					);
+				return rows.map(({ expense, payer }) =>
+					publicHouseholdExpense(expense, payer, context.userId)
+				);
+			});
+		},
+		async createHouseholdExpense(context: Context, input: CreateHouseholdExpense) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					'household_expense.create',
+					input.idempotencyKey,
+					input,
+					async () => {
+						const [household] = await tx
+							.select({ id: workspace.id })
+							.from(workspace)
+							.where(and(eq(workspace.id, context.workspaceId), eq(workspace.type, 'household')));
+						if (!household) throw new LedgerError('not_found', 'Household workspace not found');
+						const [sourceAccount] = await tx
+							.select({ account: financialAccount })
+							.from(financialAccount)
+							.innerJoin(workspace, eq(workspace.id, financialAccount.workspaceId))
+							.where(
+								and(
+									eq(financialAccount.id, input.accountId),
+									eq(workspace.type, 'personal'),
+									eq(workspace.personalOwnerUserId, context.userId),
+									isNull(workspace.deletedAt)
+								)
+							);
+						if (!sourceAccount) throw new LedgerError('not_found', 'Personal account not found');
+						if (sourceAccount.account.archivedAt)
+							throw new LedgerError('conflict', 'Archived accounts do not accept transactions');
+						await validateSelectedCategory(tx, context.workspaceId, input.categoryId);
+						const amountMinor = parsePositiveMinor(input.amountMinor);
+						const now = new Date();
+						const transactionId = crypto.randomUUID();
+						await tx.insert(ledgerTransaction).values({
+							id: transactionId,
+							workspaceId: sourceAccount.account.workspaceId,
+							accountId: sourceAccount.account.id,
+							kind: 'expense',
+							amountMinor,
+							date: input.date,
+							merchant: input.merchant ?? null,
+							description: input.description ?? null
+						});
+						await tx
+							.update(financialAccount)
+							.set({ activityStartedAt: now })
+							.where(
+								and(
+									eq(financialAccount.id, sourceAccount.account.id),
+									isNull(financialAccount.activityStartedAt)
+								)
+							);
+						const expenseId = crypto.randomUUID();
+						await tx.insert(householdExpense).values({
+							id: expenseId,
+							workspaceId: context.workspaceId,
+							sourceTransactionId: transactionId,
+							payerUserId: context.userId,
+							categoryId: input.categoryId ?? null,
+							amountMinor,
+							currency: sourceAccount.account.currency,
+							date: input.date,
+							merchant: input.merchant ?? null,
+							description: input.description ?? null
+						});
+						const [[transaction], [expense], [payer]] = await Promise.all([
+							tx.select().from(ledgerTransaction).where(eq(ledgerTransaction.id, transactionId)),
+							tx.select().from(householdExpense).where(eq(householdExpense.id, expenseId)),
+							tx.select(householdPayerSelection).from(user).where(eq(user.id, context.userId))
+						]);
+						await audit(
+							tx,
+							{ ...context, workspaceId: sourceAccount.account.workspaceId },
+							'transaction',
+							transaction.id,
+							'created',
+							null,
+							transaction
+						);
+						const projected = publicHouseholdExpense(expense, payer, context.userId);
+						await audit(tx, context, 'household_expense', expense.id, 'created', null, projected);
+						await assertBalances(tx, sourceAccount.account.workspaceId, [sourceAccount.account.id]);
+						return projected;
+					}
+				);
+			});
+		},
+		async updateHouseholdExpense(
+			context: Context,
+			expenseId: string,
+			input: UpdateHouseholdExpense
+		) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					`household_expense.update:${expenseId}`,
+					input.idempotencyKey,
+					input,
+					async () => {
+						const [before] = await tx
+							.select()
+							.from(householdExpense)
+							.where(
+								and(
+									eq(householdExpense.id, expenseId),
+									eq(householdExpense.workspaceId, context.workspaceId),
+									eq(householdExpense.payerUserId, context.userId)
+								)
+							);
+						if (!before) throw new LedgerError('not_found', 'Household expense not found');
+						if (before.trashedAt)
+							throw new LedgerError('conflict', 'Trashed Household expenses cannot be edited');
+						if (before.version !== input.version)
+							throw new LedgerError('conflict', 'Household expense version is stale');
+						const [source] = await tx
+							.select()
+							.from(ledgerTransaction)
+							.where(eq(ledgerTransaction.id, before.sourceTransactionId));
+						if (
+							!source ||
+							source.kind !== 'expense' ||
+							source.source !== 'manual' ||
+							source.trashedAt ||
+							source.version !== before.version
+						)
+							throw new LedgerError('conflict', 'Linked Personal expense is unavailable');
+						const [account] = await tx
+							.select()
+							.from(financialAccount)
+							.where(eq(financialAccount.id, source.accountId));
+						if (!account || account.archivedAt)
+							throw new LedgerError(
+								'conflict',
+								'Archived accounts do not allow transaction changes'
+							);
+						await validateSelectedCategory(
+							tx,
+							context.workspaceId,
+							input.categoryId,
+							before.categoryId
+						);
+						const amountMinor = parsePositiveMinor(input.amountMinor);
+						const now = new Date();
+						const [changedSource] = await tx
+							.update(ledgerTransaction)
+							.set({
+								amountMinor,
+								date: input.date,
+								merchant: input.merchant ?? null,
+								description: input.description ?? null,
+								version: source.version + 1,
+								updatedAt: now
+							})
+							.where(
+								and(
+									eq(ledgerTransaction.id, source.id),
+									eq(ledgerTransaction.version, source.version),
+									isNull(ledgerTransaction.trashedAt)
+								)
+							)
+							.returning();
+						const [after] = await tx
+							.update(householdExpense)
+							.set({
+								amountMinor,
+								date: input.date,
+								merchant: input.merchant ?? null,
+								description: input.description ?? null,
+								categoryId: input.categoryId ?? null,
+								version: before.version + 1,
+								updatedAt: now
+							})
+							.where(
+								and(
+									eq(householdExpense.id, expenseId),
+									eq(householdExpense.version, input.version),
+									isNull(householdExpense.trashedAt)
+								)
+							)
+							.returning();
+						if (!changedSource || !after)
+							throw new LedgerError('conflict', 'Household expense changed concurrently');
+						const [payer] = await tx
+							.select(householdPayerSelection)
+							.from(user)
+							.where(eq(user.id, before.payerUserId));
+						const beforeView = publicHouseholdExpense(before, payer, context.userId);
+						const afterView = publicHouseholdExpense(after, payer, context.userId);
+						await audit(
+							tx,
+							{ ...context, workspaceId: source.workspaceId },
+							'transaction',
+							source.id,
+							'updated',
+							source,
+							changedSource
+						);
+						await audit(
+							tx,
+							context,
+							'household_expense',
+							expenseId,
+							'updated',
+							beforeView,
+							afterView
+						);
+						await assertBalances(tx, source.workspaceId, [source.accountId]);
+						return afterView;
+					}
+				);
+			});
+		},
+		async householdExpenseAction(
+			context: Context,
+			expenseId: string,
+			action: 'trash' | 'restore',
+			input: VersionedMutation
+		) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					`household_expense.${action}:${expenseId}`,
+					input.idempotencyKey,
+					input,
+					async () => {
+						const [before] = await tx
+							.select()
+							.from(householdExpense)
+							.where(
+								and(
+									eq(householdExpense.id, expenseId),
+									eq(householdExpense.workspaceId, context.workspaceId),
+									eq(householdExpense.payerUserId, context.userId)
+								)
+							);
+						if (!before) throw new LedgerError('not_found', 'Household expense not found');
+						if (before.version !== input.version)
+							throw new LedgerError('conflict', 'Household expense version is stale');
+						if (action === 'trash' ? before.trashedAt : !before.trashedAt)
+							throw new LedgerError(
+								'conflict',
+								`Household expense is ${action === 'trash' ? 'already trashed' : 'not trashed'}`
+							);
+						const [source] = await tx
+							.select()
+							.from(ledgerTransaction)
+							.where(eq(ledgerTransaction.id, before.sourceTransactionId));
+						if (
+							!source ||
+							source.version !== before.version ||
+							(action === 'trash' ? source.trashedAt : !source.trashedAt)
+						)
+							throw new LedgerError('conflict', 'Linked Personal expense is unavailable');
+						const [account] = await tx
+							.select()
+							.from(financialAccount)
+							.where(eq(financialAccount.id, source.accountId));
+						if (!account || account.archivedAt)
+							throw new LedgerError(
+								'conflict',
+								'Archived accounts do not allow transaction changes'
+							);
+						const now = new Date();
+						const trashedAt = action === 'trash' ? now : null;
+						const [changedSource] = await tx
+							.update(ledgerTransaction)
+							.set({ trashedAt, version: source.version + 1, updatedAt: now })
+							.where(
+								and(
+									eq(ledgerTransaction.id, source.id),
+									eq(ledgerTransaction.version, source.version),
+									action === 'trash'
+										? isNull(ledgerTransaction.trashedAt)
+										: isNotNull(ledgerTransaction.trashedAt)
+								)
+							)
+							.returning();
+						const [after] = await tx
+							.update(householdExpense)
+							.set({ trashedAt, version: before.version + 1, updatedAt: now })
+							.where(
+								and(
+									eq(householdExpense.id, expenseId),
+									eq(householdExpense.version, input.version),
+									action === 'trash'
+										? isNull(householdExpense.trashedAt)
+										: isNotNull(householdExpense.trashedAt)
+								)
+							)
+							.returning();
+						if (!changedSource || !after)
+							throw new LedgerError('conflict', 'Household expense changed concurrently');
+						const [payer] = await tx
+							.select(householdPayerSelection)
+							.from(user)
+							.where(eq(user.id, before.payerUserId));
+						const beforeView = publicHouseholdExpense(before, payer, context.userId);
+						const afterView = publicHouseholdExpense(after, payer, context.userId);
+						await audit(
+							tx,
+							{ ...context, workspaceId: source.workspaceId },
+							'transaction',
+							source.id,
+							action,
+							source,
+							changedSource
+						);
+						await audit(tx, context, 'household_expense', expenseId, action, beforeView, afterView);
+						return afterView;
 					}
 				);
 			});
@@ -1991,6 +2379,19 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Trashed transactions cannot be edited');
 						if (before.version !== input.version)
 							throw new LedgerError('conflict', 'Transaction version is stale');
+						const [linkedHouseholdExpense] = await tx
+							.select()
+							.from(householdExpense)
+							.where(eq(householdExpense.sourceTransactionId, before.id));
+						if (
+							linkedHouseholdExpense &&
+							(linkedHouseholdExpense.payerUserId !== context.userId ||
+								linkedHouseholdExpense.version !== before.version ||
+								linkedHouseholdExpense.trashedAt)
+						)
+							throw new LedgerError('conflict', 'Linked Household expense is unavailable');
+						if (linkedHouseholdExpense && input.kind !== 'expense')
+							throw new LedgerError('invalid', 'A Household expense must remain an expense');
 						const amountMinor = parsePositiveMinor(input.amountMinor);
 						if (before.kind === 'refund') {
 							if (
@@ -2081,6 +2482,41 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							)
 							.returning();
 						if (!after) throw new LedgerError('conflict', 'Transaction changed concurrently');
+						if (linkedHouseholdExpense) {
+							const [changedHouseholdExpense] = await tx
+								.update(householdExpense)
+								.set({
+									amountMinor,
+									date: input.date,
+									merchant: input.merchant ?? null,
+									description: input.description ?? null,
+									version: linkedHouseholdExpense.version + 1,
+									updatedAt: after.updatedAt
+								})
+								.where(
+									and(
+										eq(householdExpense.id, linkedHouseholdExpense.id),
+										eq(householdExpense.version, linkedHouseholdExpense.version),
+										isNull(householdExpense.trashedAt)
+									)
+								)
+								.returning();
+							if (!changedHouseholdExpense)
+								throw new LedgerError('conflict', 'Household expense changed concurrently');
+							const [payer] = await tx
+								.select(householdPayerSelection)
+								.from(user)
+								.where(eq(user.id, linkedHouseholdExpense.payerUserId));
+							await audit(
+								tx,
+								{ ...context, workspaceId: linkedHouseholdExpense.workspaceId },
+								'household_expense',
+								linkedHouseholdExpense.id,
+								'updated',
+								publicHouseholdExpense(linkedHouseholdExpense, payer, context.userId),
+								publicHouseholdExpense(changedHouseholdExpense, payer, context.userId)
+							);
+						}
 						await audit(tx, context, 'transaction', transactionId, 'updated', before, after);
 						const total = checkedBalance(
 							account.openingBalanceMinor +
@@ -2131,6 +2567,19 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Transaction is already trashed');
 						if (action === 'restore' && !before.trashedAt)
 							throw new LedgerError('conflict', 'Transaction is not trashed');
+						const [linkedHouseholdExpense] = await tx
+							.select()
+							.from(householdExpense)
+							.where(eq(householdExpense.sourceTransactionId, before.id));
+						if (
+							linkedHouseholdExpense &&
+							(linkedHouseholdExpense.payerUserId !== context.userId ||
+								linkedHouseholdExpense.version !== before.version ||
+								(action === 'trash'
+									? linkedHouseholdExpense.trashedAt
+									: !linkedHouseholdExpense.trashedAt))
+						)
+							throw new LedgerError('conflict', 'Linked Household expense is unavailable');
 						if (
 							action === 'trash' &&
 							before.kind === 'expense' &&
@@ -2191,6 +2640,40 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							)
 							.returning();
 						if (!after) throw new LedgerError('conflict', 'Transaction changed concurrently');
+						if (linkedHouseholdExpense) {
+							const [changedHouseholdExpense] = await tx
+								.update(householdExpense)
+								.set({
+									trashedAt: after.trashedAt,
+									version: linkedHouseholdExpense.version + 1,
+									updatedAt: after.updatedAt
+								})
+								.where(
+									and(
+										eq(householdExpense.id, linkedHouseholdExpense.id),
+										eq(householdExpense.version, linkedHouseholdExpense.version),
+										action === 'trash'
+											? isNull(householdExpense.trashedAt)
+											: isNotNull(householdExpense.trashedAt)
+									)
+								)
+								.returning();
+							if (!changedHouseholdExpense)
+								throw new LedgerError('conflict', 'Household expense changed concurrently');
+							const [payer] = await tx
+								.select(householdPayerSelection)
+								.from(user)
+								.where(eq(user.id, linkedHouseholdExpense.payerUserId));
+							await audit(
+								tx,
+								{ ...context, workspaceId: linkedHouseholdExpense.workspaceId },
+								'household_expense',
+								linkedHouseholdExpense.id,
+								action,
+								publicHouseholdExpense(linkedHouseholdExpense, payer, context.userId),
+								publicHouseholdExpense(changedHouseholdExpense, payer, context.userId)
+							);
+						}
 						await audit(tx, context, 'transaction', transactionId, action, before, after);
 						const total = checkedBalance(
 							account.openingBalanceMinor +
@@ -2207,7 +2690,13 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		},
 		async history(
 			context: Context,
-			entityType: 'account' | 'transaction' | 'transfer' | 'balance_check' | 'correction',
+			entityType:
+				| 'account'
+				| 'transaction'
+				| 'household_expense'
+				| 'transfer'
+				| 'balance_check'
+				| 'correction',
 			entityId: string
 		) {
 			return database.transaction(async (tx) => {
@@ -2227,6 +2716,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		},
 		async purgeTrashed(before = new Date(Date.now() - 30 * 86_400_000)) {
 			return database.transaction(async (tx) => {
+				const householdExpenses = await tx
+					.delete(householdExpense)
+					.where(and(isNotNull(householdExpense.trashedAt), lt(householdExpense.trashedAt, before)))
+					.returning({ id: householdExpense.id });
 				const refunds = await tx
 					.delete(ledgerTransaction)
 					.where(
@@ -2248,7 +2741,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						)
 					)
 					.returning({ id: ledgerTransaction.id });
-				return refunds.length + transactions.length;
+				return householdExpenses.length + refunds.length + transactions.length;
 			});
 		},
 		async purgeLifecycle(
@@ -2256,6 +2749,12 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 			receiptBefore = new Date(Date.now() - 37 * 86_400_000)
 		) {
 			return database.transaction(async (tx) => {
+				const householdExpenses = await tx
+					.delete(householdExpense)
+					.where(
+						and(isNotNull(householdExpense.trashedAt), lt(householdExpense.trashedAt, trashBefore))
+					)
+					.returning({ id: householdExpense.id });
 				const transfers = await tx
 					.delete(ledgerTransfer)
 					.where(
@@ -2308,6 +2807,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					.returning({ id: mutationReceipt.id });
 				return {
 					transactions: refunds.length + transactions.length,
+					householdExpenses: householdExpenses.length,
 					transfers: transfers.length,
 					balanceChecks: balanceChecks.length,
 					corrections: corrections.length,

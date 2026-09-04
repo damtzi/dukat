@@ -16,6 +16,7 @@ export type Workspace = {
 export type PickerAccount = Account & {
   workspaceId: string
   workspaceLabel: string
+  workspaceType: Workspace['type']
 }
 
 type RateProvenance = {
@@ -162,6 +163,7 @@ export class WorkspaceController {
             ...account,
             workspaceId: workspace.id,
             workspaceLabel: `${workspace.name} (${workspace.type === 'household' ? 'Household' : 'Personal'})`,
+            workspaceType: workspace.type,
           })),
         ),
       )

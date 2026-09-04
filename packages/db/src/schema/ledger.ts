@@ -226,6 +226,54 @@ export const ledgerCategory = sqliteTable(
 	]
 );
 
+export const householdExpense = sqliteTable(
+	'household_expense',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		sourceTransactionId: text('source_transaction_id')
+			.notNull()
+			.references(() => ledgerTransaction.id, { onDelete: 'restrict' }),
+		payerUserId: text('payer_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'restrict' }),
+		categoryId: text('category_id'),
+		amountMinor: int64('amount_minor').notNull(),
+		currency: text('currency').notNull(),
+		date: text('date').notNull(),
+		merchant: text('merchant'),
+		description: text('description'),
+		version: safeInteger('version').default(1).notNull(),
+		trashedAt: secondsTimestamp('trashed_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.categoryId],
+			foreignColumns: [ledgerCategory.workspaceId, ledgerCategory.id]
+		}).onDelete('restrict'),
+		uniqueIndex('household_expense_source_unique').on(table.sourceTransactionId),
+		index('household_expense_workspace_date_idx').on(table.workspaceId, table.date),
+		index('household_expense_trash_idx').on(table.trashedAt),
+		check(
+			'household_expense_amount_check',
+			sql`${table.amountMinor} BETWEEN 1 AND 9223372036854775807`
+		),
+		check(
+			'household_expense_date_check',
+			sql`${table.date} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
+		),
+		check('household_expense_version_check', sql`${table.version} > 0`)
+	]
+);
+
 export const ledgerImportBatch = sqliteTable(
 	'ledger_import_batch',
 	{
@@ -329,6 +377,7 @@ export const ledgerAudit = sqliteTable(
 		entityType: text('entity_type', {
 			enum: [
 				'transaction',
+				'household_expense',
 				'account',
 				'transfer',
 				'balance_check',

@@ -11,6 +11,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
+	householdExpense,
 	ledgerAudit,
 	ledgerBalanceCorrection,
 	ledgerCategory,
@@ -355,7 +356,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 					)
 						throw new LedgerError('not_found', 'Account not found');
 				}
-				const rows = await tx
+				const transactionRows = await tx
 					.select({
 						id: ledgerTransaction.id,
 						accountId: ledgerTransaction.accountId,
@@ -374,6 +375,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 						and(
 							eq(ledgerTransaction.workspaceId, c.workspaceId),
 							eq(ledgerTransaction.source, 'manual'),
+							sql`not exists (select 1 from ${householdExpense} where ${householdExpense.sourceTransactionId} = ${ledgerTransaction.id})`,
 							isNull(ledgerTransaction.trashedAt),
 							sql`${ledgerTransaction.date} >= ${input.startDate}`,
 							sql`${ledgerTransaction.date} <= ${input.endDate}`,
@@ -382,6 +384,36 @@ export function createInsightsRepository(db: FinancialDatabase) {
 								: undefined
 						)
 					);
+				const householdRows = input.accountIds?.length
+					? []
+					: await tx
+							.select({
+								id: householdExpense.id,
+								date: householdExpense.date,
+								description: householdExpense.description,
+								currency: householdExpense.currency,
+								categoryId: householdExpense.categoryId,
+								categoryName: ledgerCategory.name,
+								amount: householdExpense.amountMinor
+							})
+							.from(householdExpense)
+							.leftJoin(ledgerCategory, eq(ledgerCategory.id, householdExpense.categoryId))
+							.where(
+								and(
+									eq(householdExpense.workspaceId, c.workspaceId),
+									isNull(householdExpense.trashedAt),
+									sql`${householdExpense.date} >= ${input.startDate}`,
+									sql`${householdExpense.date} <= ${input.endDate}`
+								)
+							);
+				const rows = [
+					...transactionRows,
+					...householdRows.map((row) => ({
+						...row,
+						accountId: null,
+						kind: 'expense' as const
+					}))
+				];
 				const map = new Map<string, { total: bigint; rows: typeof rows }>();
 				for (const r of rows) {
 					const reportKind = r.kind === 'refund' ? 'expense' : r.kind;

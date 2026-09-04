@@ -1,5 +1,9 @@
 <script lang="ts">
-  import type { Account, Transaction } from '@dukat/core/ledger'
+  import type {
+    Account,
+    HouseholdExpense,
+    Transaction,
+  } from '@dukat/core/ledger'
   import type { Category } from '@dukat/core/csv-import'
   import {
     Alert,
@@ -16,6 +20,8 @@
     open = $bindable(),
     form = $bindable(),
     editingTransaction,
+    editingHouseholdExpense,
+    creatingHouseholdExpense,
     refundingExpense,
     error,
     pending,
@@ -36,12 +42,14 @@
       categoryId: string
     }
     editingTransaction: Transaction | null
+    editingHouseholdExpense: HouseholdExpense | null
+    creatingHouseholdExpense: boolean
     refundingExpense: Transaction | null
     error: string
     pending: boolean
     onsubmit: (event: SubmitEvent) => void
     categories: Category[]
-    accounts: Account[]
+    accounts: Array<Account & { workspaceLabel?: string }>
     recentMerchants: string[]
     recentCategoryIds: string[]
   } = $props()
@@ -86,15 +94,21 @@
       ><Dialog.Title
         >{refundingExpense
           ? 'Add refund'
-          : editingTransaction?.kind === 'refund'
-            ? 'Edit refund'
-            : editingTransaction
-              ? 'Edit transaction'
-              : 'Add transaction'}</Dialog.Title
+          : editingHouseholdExpense
+            ? 'Edit Household expense'
+            : creatingHouseholdExpense
+              ? 'Add Household expense'
+              : editingTransaction?.kind === 'refund'
+                ? 'Edit refund'
+                : editingTransaction
+                  ? 'Edit transaction'
+                  : 'Add transaction'}</Dialog.Title
       ><Dialog.Description
         >{refundMode
           ? 'Link returned money to the original expense. It reduces spending, not income.'
-          : 'Record completed income or spending.'}</Dialog.Description
+          : creatingHouseholdExpense
+            ? 'Record Household spending paid from your Personal account. Other members cannot see the account.'
+            : 'Record completed income or spending.'}</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
@@ -103,9 +117,13 @@
             ><Alert.Title>Could not save transaction</Alert.Title
             ><Alert.Description>{error}</Alert.Description></Alert.Root
           >{/if}
-        {#if !editingTransaction && !refundingExpense}
+        {#if (!editingTransaction && !refundingExpense && !creatingHouseholdExpense) || (creatingHouseholdExpense && !editingHouseholdExpense)}
           <Field.Field>
-            <Field.Label for="transaction-account">Account</Field.Label
+            <Field.Label for="transaction-account"
+              >{creatingHouseholdExpense
+                ? 'Personal account'
+                : 'Account'}</Field.Label
+            >
             ><Select.Root type="single" bind:value={form.accountId}>
               <Select.Trigger id="transaction-account" class="w-full">
                 {selectedAccount
@@ -116,7 +134,9 @@
                 <Select.Group>
                   {#each activeAccounts as account (account.id)}
                     <Select.Item value={account.id} label={account.name}
-                      >{account.name} · {account.currency}</Select.Item
+                      >{account.name} · {account.currency}{account.workspaceLabel
+                        ? ` · ${account.workspaceLabel}`
+                        : ''}</Select.Item
                     >
                   {/each}
                 </Select.Group>
@@ -124,7 +144,7 @@
             </Select.Root>
           </Field.Field>
         {/if}
-        {#if !refundMode}
+        {#if !refundMode && !creatingHouseholdExpense}
           <Field.Field>
             <Field.Label for="kind">Kind</Field.Label><Select.Root
               type="single"
@@ -243,7 +263,11 @@
         </Field.Field>
         <Dialog.Footer
           ><Button type="submit" disabled={pending}
-            >{refundMode ? 'Save refund' : 'Save transaction'}</Button
+            >{refundMode
+              ? 'Save refund'
+              : creatingHouseholdExpense
+                ? 'Save Household expense'
+                : 'Save transaction'}</Button
           ></Dialog.Footer
         >
       </Field.Group>
