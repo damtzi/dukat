@@ -20,6 +20,7 @@ import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
 	householdExpense,
+	householdExpenseAllocation,
 	ledgerAudit,
 	ledgerBalanceCheck,
 	ledgerBalanceCorrection,
@@ -30,6 +31,7 @@ import {
 	plannedOccurrenceException,
 	plannedOccurrenceMatch,
 	plannedSeries,
+	settlementPayment,
 	user,
 	workspace,
 	workspaceMembership
@@ -90,9 +92,19 @@ interface CreateHouseholdExpense extends Mutation {
 	merchant?: string | null;
 	description?: string | null;
 	categoryId?: string | null;
+	allocations?: Array<{ memberUserId: string; amountMinor: string }>;
 }
 interface UpdateHouseholdExpense extends Omit<CreateHouseholdExpense, 'accountId'> {
 	version: number;
+}
+interface CreateSettlementPayment extends Mutation {
+	fromUserId: string;
+	toUserId: string;
+	amountMinor: string;
+	currency: string;
+	date: string;
+	description?: string | null;
+	transferId?: string | null;
 }
 interface UpdateTransaction extends Omit<CreateTransaction, 'kind'> {
 	kind: 'income' | 'expense' | 'refund';
@@ -183,25 +195,64 @@ const householdPayerSelection = {
 	username: user.username,
 	image: user.image
 };
-const publicHouseholdExpense = (
+type PublicActor = { id: string; name: string; username: string; image: string | null };
+const publicActor = (actor: PublicActor) => ({
+	userId: actor.id,
+	name: actor.name,
+	username: actor.username,
+	image: actor.image
+});
+const publicHouseholdExpense = async (
+	tx: FinancialTransaction,
 	row: typeof householdExpense.$inferSelect,
-	payer: { id: string; name: string; username: string; image: string | null },
+	payer: PublicActor,
 	userId: string
+) => {
+	const allocations = await tx
+		.select({ allocation: householdExpenseAllocation, member: householdPayerSelection })
+		.from(householdExpenseAllocation)
+		.innerJoin(user, eq(user.id, householdExpenseAllocation.memberUserId))
+		.where(eq(householdExpenseAllocation.expenseId, row.id))
+		.orderBy(user.name, user.id);
+	return {
+		id: row.id,
+		workspaceId: row.workspaceId,
+		amountMinor: row.amountMinor.toString(),
+		currency: row.currency,
+		date: row.date,
+		merchant: row.merchant,
+		description: row.description,
+		categoryId: row.categoryId,
+		payer: publicActor(payer),
+		allocations: allocations.map(({ allocation, member }) => ({
+			member: publicActor(member),
+			amountMinor: allocation.amountMinor.toString()
+		})),
+		version: row.version,
+		trashedAt: row.trashedAt?.toISOString() ?? null,
+		createdAt: row.createdAt.toISOString(),
+		updatedAt: row.updatedAt.toISOString(),
+		canManage: row.payerUserId === userId
+	};
+};
+const publicSettlementPayment = (
+	row: typeof settlementPayment.$inferSelect,
+	from: PublicActor,
+	to: PublicActor
 ) => ({
 	id: row.id,
 	workspaceId: row.workspaceId,
+	from: publicActor(from),
+	to: publicActor(to),
 	amountMinor: row.amountMinor.toString(),
 	currency: row.currency,
 	date: row.date,
-	merchant: row.merchant,
 	description: row.description,
-	categoryId: row.categoryId,
-	payer: { userId: payer.id, name: payer.name, username: payer.username, image: payer.image },
+	linkedTransfer: row.transferId !== null,
 	version: row.version,
 	trashedAt: row.trashedAt?.toISOString() ?? null,
 	createdAt: row.createdAt.toISOString(),
-	updatedAt: row.updatedAt.toISOString(),
-	canManage: row.payerUserId === userId
+	updatedAt: row.updatedAt.toISOString()
 });
 const publicCorrection = (row: typeof ledgerBalanceCorrection.$inferSelect) => ({
 	...row,
@@ -584,6 +635,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 			| 'account'
 			| 'transaction'
 			| 'household_expense'
+			| 'settlement_payment'
 			| 'transfer'
 			| 'balance_check'
 			| 'correction'
@@ -738,6 +790,66 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				new Set(skipped.map((exception) => exception.planId))
 			)
 		};
+	}
+	async function normalizedAllocations(
+		tx: Transaction,
+		workspaceId: string,
+		amountMinor: bigint,
+		requested?: Array<{ memberUserId: string; amountMinor: string }>,
+		existingExpenseId?: string
+	) {
+		const currentMembers = await tx
+			.select({ userId: workspaceMembership.userId })
+			.from(workspaceMembership)
+			.where(eq(workspaceMembership.workspaceId, workspaceId));
+		const existing = existingExpenseId
+			? await tx
+					.select({ userId: householdExpenseAllocation.memberUserId })
+					.from(householdExpenseAllocation)
+					.where(eq(householdExpenseAllocation.expenseId, existingExpenseId))
+			: [];
+		const allowed = new Set([...currentMembers, ...existing].map(({ userId }) => userId));
+		const participantIds =
+			requested?.map(({ memberUserId }) => memberUserId) ??
+			(existing.length ? existing : currentMembers).map(({ userId }) => userId);
+		if (!participantIds.length)
+			throw new LedgerError('invalid', 'A Household expense needs at least one allocation');
+		if (new Set(participantIds).size !== participantIds.length)
+			throw new LedgerError('invalid', 'Each member can have only one allocation');
+		if (participantIds.some((userId) => !allowed.has(userId)))
+			throw new LedgerError('invalid', 'Allocations can use only current or retained members');
+		if (requested) {
+			const allocations = requested.map(({ memberUserId, amountMinor }) => ({
+				memberUserId,
+				amountMinor: parsePositiveMinor(amountMinor)
+			}));
+			if (allocations.reduce((sum, item) => sum + item.amountMinor, 0n) !== amountMinor)
+				throw new LedgerError('invalid', 'Allocations must equal the expense amount');
+			return allocations;
+		}
+		const sorted = participantIds.sort();
+		const count = BigInt(sorted.length);
+		const base = amountMinor / count;
+		const remainder = amountMinor % count;
+		if (base === 0n)
+			throw new LedgerError('invalid', 'The expense is too small to allocate to every member');
+		return sorted.map((memberUserId, index) => ({
+			memberUserId,
+			amountMinor: base + (BigInt(index) < remainder ? 1n : 0n)
+		}));
+	}
+	async function replaceAllocations(
+		tx: Transaction,
+		workspaceId: string,
+		expenseId: string,
+		allocations: Array<{ memberUserId: string; amountMinor: bigint }>
+	) {
+		await tx
+			.delete(householdExpenseAllocation)
+			.where(eq(householdExpenseAllocation.expenseId, expenseId));
+		await tx
+			.insert(householdExpenseAllocation)
+			.values(allocations.map((allocation) => ({ ...allocation, workspaceId, expenseId })));
 	}
 
 	return {
@@ -1089,8 +1201,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						desc(householdExpense.createdAt),
 						desc(householdExpense.id)
 					);
-				return rows.map(({ expense, payer }) =>
-					publicHouseholdExpense(expense, payer, context.userId)
+				return Promise.all(
+					rows.map(({ expense, payer }) =>
+						publicHouseholdExpense(tx, expense, payer, context.userId)
+					)
 				);
 			});
 		},
@@ -1126,6 +1240,12 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Archived accounts do not accept transactions');
 						await validateSelectedCategory(tx, context.workspaceId, input.categoryId);
 						const amountMinor = parsePositiveMinor(input.amountMinor);
+						const allocations = await normalizedAllocations(
+							tx,
+							context.workspaceId,
+							amountMinor,
+							input.allocations
+						);
 						const now = new Date();
 						const transactionId = crypto.randomUUID();
 						await tx.insert(ledgerTransaction).values({
@@ -1160,6 +1280,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							merchant: input.merchant ?? null,
 							description: input.description ?? null
 						});
+						await replaceAllocations(tx, context.workspaceId, expenseId, allocations);
 						const [[transaction], [expense], [payer]] = await Promise.all([
 							tx.select().from(ledgerTransaction).where(eq(ledgerTransaction.id, transactionId)),
 							tx.select().from(householdExpense).where(eq(householdExpense.id, expenseId)),
@@ -1174,7 +1295,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							null,
 							transaction
 						);
-						const projected = publicHouseholdExpense(expense, payer, context.userId);
+						const projected = await publicHouseholdExpense(tx, expense, payer, context.userId);
 						await audit(tx, context, 'household_expense', expense.id, 'created', null, projected);
 						await assertBalances(tx, sourceAccount.account.workspaceId, [sourceAccount.account.id]);
 						return projected;
@@ -1239,6 +1360,18 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							before.categoryId
 						);
 						const amountMinor = parsePositiveMinor(input.amountMinor);
+						const allocations = await normalizedAllocations(
+							tx,
+							context.workspaceId,
+							amountMinor,
+							input.allocations,
+							expenseId
+						);
+						const [payer] = await tx
+							.select(householdPayerSelection)
+							.from(user)
+							.where(eq(user.id, before.payerUserId));
+						const beforeView = await publicHouseholdExpense(tx, before, payer, context.userId);
 						const now = new Date();
 						const [changedSource] = await tx
 							.update(ledgerTransaction)
@@ -1279,12 +1412,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.returning();
 						if (!changedSource || !after)
 							throw new LedgerError('conflict', 'Household expense changed concurrently');
-						const [payer] = await tx
-							.select(householdPayerSelection)
-							.from(user)
-							.where(eq(user.id, before.payerUserId));
-						const beforeView = publicHouseholdExpense(before, payer, context.userId);
-						const afterView = publicHouseholdExpense(after, payer, context.userId);
+						await replaceAllocations(tx, context.workspaceId, expenseId, allocations);
+						const afterView = await publicHouseholdExpense(tx, after, payer, context.userId);
 						await audit(
 							tx,
 							{ ...context, workspaceId: source.workspaceId },
@@ -1395,8 +1524,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.select(householdPayerSelection)
 							.from(user)
 							.where(eq(user.id, before.payerUserId));
-						const beforeView = publicHouseholdExpense(before, payer, context.userId);
-						const afterView = publicHouseholdExpense(after, payer, context.userId);
+						const beforeView = await publicHouseholdExpense(tx, before, payer, context.userId);
+						const afterView = await publicHouseholdExpense(tx, after, payer, context.userId);
 						await audit(
 							tx,
 							{ ...context, workspaceId: source.workspaceId },
@@ -1407,6 +1536,291 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							changedSource
 						);
 						await audit(tx, context, 'household_expense', expenseId, action, beforeView, afterView);
+						return afterView;
+					}
+				);
+			});
+		},
+		async listSettlementPayments(context: Context, includeTrashed = false) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const rows = await tx
+					.select()
+					.from(settlementPayment)
+					.where(
+						and(
+							eq(settlementPayment.workspaceId, context.workspaceId),
+							includeTrashed ? undefined : isNull(settlementPayment.trashedAt)
+						)
+					)
+					.orderBy(desc(settlementPayment.date), desc(settlementPayment.createdAt));
+				const actorIds = [...new Set(rows.flatMap((row) => [row.fromUserId, row.toUserId]))];
+				const actors = actorIds.length
+					? await tx.select(householdPayerSelection).from(user).where(inArray(user.id, actorIds))
+					: [];
+				const byId = new Map(actors.map((actor) => [actor.id, actor]));
+				return rows.map((row) =>
+					publicSettlementPayment(row, byId.get(row.fromUserId)!, byId.get(row.toUserId)!)
+				);
+			});
+		},
+		async listSettlementBalances(context: Context) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				const [members, expenses, allocations, payments] = await Promise.all([
+					tx
+						.select({ userId: workspaceMembership.userId })
+						.from(workspaceMembership)
+						.where(eq(workspaceMembership.workspaceId, context.workspaceId)),
+					tx
+						.select()
+						.from(householdExpense)
+						.where(
+							and(
+								eq(householdExpense.workspaceId, context.workspaceId),
+								isNull(householdExpense.trashedAt)
+							)
+						),
+					tx
+						.select({
+							expenseId: householdExpenseAllocation.expenseId,
+							memberUserId: householdExpenseAllocation.memberUserId,
+							amountMinor: householdExpenseAllocation.amountMinor
+						})
+						.from(householdExpenseAllocation)
+						.innerJoin(
+							householdExpense,
+							and(
+								eq(householdExpense.id, householdExpenseAllocation.expenseId),
+								isNull(householdExpense.trashedAt)
+							)
+						)
+						.where(eq(householdExpenseAllocation.workspaceId, context.workspaceId)),
+					tx
+						.select()
+						.from(settlementPayment)
+						.where(
+							and(
+								eq(settlementPayment.workspaceId, context.workspaceId),
+								isNull(settlementPayment.trashedAt)
+							)
+						)
+				]);
+				const expenseById = new Map(expenses.map((expense) => [expense.id, expense]));
+				const balances = new Map<string, bigint>();
+				const currencies = new Set([
+					...expenses.map(({ currency }) => currency),
+					...payments.map(({ currency }) => currency)
+				]);
+				const actorIds = new Set(members.map(({ userId }) => userId));
+				const add = (currency: string, userId: string, amount: bigint) => {
+					actorIds.add(userId);
+					const key = `${currency}\0${userId}`;
+					balances.set(key, (balances.get(key) ?? 0n) + amount);
+				};
+				for (const expense of expenses)
+					add(expense.currency, expense.payerUserId, -expense.amountMinor);
+				for (const allocation of allocations) {
+					const expense = expenseById.get(allocation.expenseId)!;
+					add(expense.currency, allocation.memberUserId, allocation.amountMinor);
+				}
+				for (const payment of payments) {
+					add(payment.currency, payment.fromUserId, -payment.amountMinor);
+					add(payment.currency, payment.toUserId, payment.amountMinor);
+				}
+				for (const currency of currencies) {
+					for (const { userId } of members) add(currency, userId, 0n);
+					const total = [...balances]
+						.filter(([key]) => key.startsWith(`${currency}\0`))
+						.reduce((sum, [, amount]) => sum + amount, 0n);
+					if (total !== 0n)
+						throw new LedgerError('conflict', 'Household settlements are unbalanced');
+				}
+				const actors = actorIds.size
+					? await tx
+							.select(householdPayerSelection)
+							.from(user)
+							.where(inArray(user.id, [...actorIds]))
+					: [];
+				const byId = new Map(actors.map((actor) => [actor.id, actor]));
+				return [...balances]
+					.map(([key, balance]) => {
+						const [currency, userId] = key.split('\0');
+						return {
+							member: publicActor(byId.get(userId!)!),
+							currency: currency!,
+							balanceMinor: balance.toString()
+						};
+					})
+					.sort(
+						(a, b) =>
+							a.currency.localeCompare(b.currency) || a.member.name.localeCompare(b.member.name)
+					);
+			});
+		},
+		async createSettlementPayment(context: Context, input: CreateSettlementPayment) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					'settlement_payment.create',
+					input.idempotencyKey,
+					input,
+					async () => {
+						if (input.fromUserId === input.toUserId)
+							throw new LedgerError('invalid', 'Settlement members must be different');
+						const memberRows = await tx
+							.select({ userId: workspaceMembership.userId })
+							.from(workspaceMembership)
+							.where(
+								and(
+									eq(workspaceMembership.workspaceId, context.workspaceId),
+									inArray(workspaceMembership.userId, [input.fromUserId, input.toUserId])
+								)
+							);
+						if (memberRows.length !== 2)
+							throw new LedgerError('invalid', 'Settlement payments require current members');
+						const amountMinor = parsePositiveMinor(input.amountMinor);
+						if (input.transferId) {
+							if (input.fromUserId !== context.userId)
+								throw new LedgerError('not_found', 'Linked transfer not found');
+							const [transfer] = await tx
+								.select()
+								.from(ledgerTransfer)
+								.where(eq(ledgerTransfer.id, input.transferId));
+							if (!transfer || transfer.trashedAt || transfer.detachedAt)
+								throw new LedgerError('not_found', 'Linked transfer not found');
+							const { from } = await canonicalTransferSides(tx, transfer);
+							const [account] = from
+								? await tx
+										.select({
+											currency: financialAccount.currency,
+											ownerUserId: workspace.personalOwnerUserId
+										})
+										.from(financialAccount)
+										.innerJoin(workspace, eq(workspace.id, financialAccount.workspaceId))
+										.where(eq(financialAccount.id, from.accountId))
+								: [];
+							if (
+								!from ||
+								!account ||
+								account.ownerUserId !== input.fromUserId ||
+								account.currency !== input.currency ||
+								from.amountMinor !== amountMinor ||
+								transfer.date !== input.date
+							)
+								throw new LedgerError(
+									'invalid',
+									'Linked transfer does not match the settlement payment'
+								);
+						}
+						const id = crypto.randomUUID();
+						await tx.insert(settlementPayment).values({
+							id,
+							workspaceId: context.workspaceId,
+							fromUserId: input.fromUserId,
+							toUserId: input.toUserId,
+							amountMinor,
+							currency: input.currency,
+							date: input.date,
+							description: input.description ?? null,
+							transferId: input.transferId ?? null
+						});
+						const [[created], actors] = await Promise.all([
+							tx.select().from(settlementPayment).where(eq(settlementPayment.id, id)),
+							tx
+								.select(householdPayerSelection)
+								.from(user)
+								.where(inArray(user.id, [input.fromUserId, input.toUserId]))
+						]);
+						const byId = new Map(actors.map((actor) => [actor.id, actor]));
+						const projected = publicSettlementPayment(
+							created,
+							byId.get(input.fromUserId)!,
+							byId.get(input.toUserId)!
+						);
+						await audit(tx, context, 'settlement_payment', id, 'created', null, projected);
+						return projected;
+					}
+				);
+			});
+		},
+		async settlementPaymentAction(
+			context: Context,
+			paymentId: string,
+			action: 'trash' | 'restore',
+			input: VersionedMutation
+		) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					`settlement_payment.${action}:${paymentId}`,
+					input.idempotencyKey,
+					input,
+					async () => {
+						const [before] = await tx
+							.select()
+							.from(settlementPayment)
+							.where(
+								and(
+									eq(settlementPayment.id, paymentId),
+									eq(settlementPayment.workspaceId, context.workspaceId)
+								)
+							);
+						if (!before) throw new LedgerError('not_found', 'Settlement payment not found');
+						if (before.version !== input.version)
+							throw new LedgerError('conflict', 'Settlement payment version is stale');
+						if ((action === 'trash') === Boolean(before.trashedAt))
+							throw new LedgerError(
+								'conflict',
+								`Settlement payment is ${action === 'trash' ? 'already trashed' : 'not trashed'}`
+							);
+						const [after] = await tx
+							.update(settlementPayment)
+							.set({
+								trashedAt: action === 'trash' ? new Date() : null,
+								version: before.version + 1,
+								updatedAt: new Date()
+							})
+							.where(
+								and(
+									eq(settlementPayment.id, paymentId),
+									eq(settlementPayment.version, input.version),
+									action === 'trash'
+										? isNull(settlementPayment.trashedAt)
+										: isNotNull(settlementPayment.trashedAt)
+								)
+							)
+							.returning();
+						if (!after)
+							throw new LedgerError('conflict', 'Settlement payment changed concurrently');
+						const actors = await tx
+							.select(householdPayerSelection)
+							.from(user)
+							.where(inArray(user.id, [before.fromUserId, before.toUserId]));
+						const byId = new Map(actors.map((actor) => [actor.id, actor]));
+						const beforeView = publicSettlementPayment(
+							before,
+							byId.get(before.fromUserId)!,
+							byId.get(before.toUserId)!
+						);
+						const afterView = publicSettlementPayment(
+							after,
+							byId.get(after.fromUserId)!,
+							byId.get(after.toUserId)!
+						);
+						await audit(
+							tx,
+							context,
+							'settlement_payment',
+							paymentId,
+							action,
+							beforeView,
+							afterView
+						);
 						return afterView;
 					}
 				);
@@ -2393,6 +2807,11 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (linkedHouseholdExpense && input.kind !== 'expense')
 							throw new LedgerError('invalid', 'A Household expense must remain an expense');
 						const amountMinor = parsePositiveMinor(input.amountMinor);
+						if (linkedHouseholdExpense && amountMinor !== linkedHouseholdExpense.amountMinor)
+							throw new LedgerError(
+								'invalid',
+								'Change the amount and allocations through the Household expense'
+							);
 						if (before.kind === 'refund') {
 							if (
 								input.kind !== 'refund' ||
@@ -2483,6 +2902,16 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.returning();
 						if (!after) throw new LedgerError('conflict', 'Transaction changed concurrently');
 						if (linkedHouseholdExpense) {
+							const [payer] = await tx
+								.select(householdPayerSelection)
+								.from(user)
+								.where(eq(user.id, linkedHouseholdExpense.payerUserId));
+							const beforeView = await publicHouseholdExpense(
+								tx,
+								linkedHouseholdExpense,
+								payer,
+								context.userId
+							);
 							const [changedHouseholdExpense] = await tx
 								.update(householdExpense)
 								.set({
@@ -2503,18 +2932,14 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								.returning();
 							if (!changedHouseholdExpense)
 								throw new LedgerError('conflict', 'Household expense changed concurrently');
-							const [payer] = await tx
-								.select(householdPayerSelection)
-								.from(user)
-								.where(eq(user.id, linkedHouseholdExpense.payerUserId));
 							await audit(
 								tx,
 								{ ...context, workspaceId: linkedHouseholdExpense.workspaceId },
 								'household_expense',
 								linkedHouseholdExpense.id,
 								'updated',
-								publicHouseholdExpense(linkedHouseholdExpense, payer, context.userId),
-								publicHouseholdExpense(changedHouseholdExpense, payer, context.userId)
+								beforeView,
+								await publicHouseholdExpense(tx, changedHouseholdExpense, payer, context.userId)
 							);
 						}
 						await audit(tx, context, 'transaction', transactionId, 'updated', before, after);
@@ -2670,8 +3095,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								'household_expense',
 								linkedHouseholdExpense.id,
 								action,
-								publicHouseholdExpense(linkedHouseholdExpense, payer, context.userId),
-								publicHouseholdExpense(changedHouseholdExpense, payer, context.userId)
+								await publicHouseholdExpense(tx, linkedHouseholdExpense, payer, context.userId),
+								await publicHouseholdExpense(tx, changedHouseholdExpense, payer, context.userId)
 							);
 						}
 						await audit(tx, context, 'transaction', transactionId, action, before, after);
@@ -2694,6 +3119,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				| 'account'
 				| 'transaction'
 				| 'household_expense'
+				| 'settlement_payment'
 				| 'transfer'
 				| 'balance_check'
 				| 'correction',

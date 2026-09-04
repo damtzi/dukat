@@ -1194,6 +1194,7 @@ test('keeps workspace selection in the URL across browser navigation', async ({ 
 		if (path === `/api/workspaces/${secondWorkspaceId}/accounts`)
 			return json(route, [secondAccount]);
 		if (path === `/api/workspaces/${secondWorkspaceId}/categories`) return json(route, []);
+		if (path === `/api/workspaces/${secondWorkspaceId}/members`) return json(route, []);
 		if (path === `/api/workspaces/${workspaceId}/accounts`) return json(route, [firstAccount]);
 		if (path === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
 		if (path.includes('/accounts/') && method === 'GET') return json(route, []);

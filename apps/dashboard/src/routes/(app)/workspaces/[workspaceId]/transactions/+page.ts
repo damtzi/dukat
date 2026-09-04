@@ -1,4 +1,9 @@
-import type { HouseholdExpense, Transaction } from '@dukat/core/ledger'
+import type {
+  HouseholdExpense,
+  SettlementBalance,
+  SettlementPayment,
+  Transaction,
+} from '@dukat/core/ledger'
 import { loadApi, workspaceDataDependency } from '$lib/api'
 import { parseAmount } from '$lib/money'
 import type { PageLoad } from './$types'
@@ -28,6 +33,8 @@ export const load: PageLoad = async ({
       searchError: '',
       transactions: [] as Transaction[],
       householdExpenses: [] as HouseholdExpense[],
+      settlementBalances: [] as SettlementBalance[],
+      settlementPayments: [] as SettlementPayment[],
       isHousehold: false,
     }
 
@@ -61,7 +68,12 @@ export const load: PageLoad = async ({
     const isHousehold =
       parentData.workspaces.find(({ id }) => id === params.workspaceId)
         ?.type === 'household'
-    const [transactions, householdExpenses] = await Promise.all([
+    const [
+      transactions,
+      householdExpenses,
+      settlementBalances,
+      settlementPayments,
+    ] = await Promise.all([
       loadApi(
         fetch,
         `/workspaces/${params.workspaceId}/transactions?${query}`,
@@ -72,12 +84,26 @@ export const load: PageLoad = async ({
             `/workspaces/${params.workspaceId}/household-expenses${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
           ) as Promise<HouseholdExpense[]>)
         : Promise.resolve([]),
+      isHousehold
+        ? (loadApi(
+            fetch,
+            `/workspaces/${params.workspaceId}/settlement-balances`,
+          ) as Promise<SettlementBalance[]>)
+        : Promise.resolve([]),
+      isHousehold
+        ? (loadApi(
+            fetch,
+            `/workspaces/${params.workspaceId}/settlement-payments${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
+          ) as Promise<SettlementPayment[]>)
+        : Promise.resolve([]),
     ])
     return {
       filters,
       searchError: '',
       transactions,
       householdExpenses,
+      settlementBalances,
+      settlementPayments,
       isHousehold,
     }
   } catch (error) {
@@ -86,6 +112,8 @@ export const load: PageLoad = async ({
       searchError: (error as Error).message,
       transactions: [] as Transaction[],
       householdExpenses: [] as HouseholdExpense[],
+      settlementBalances: [] as SettlementBalance[],
+      settlementPayments: [] as SettlementPayment[],
       isHousehold: false,
     }
   }

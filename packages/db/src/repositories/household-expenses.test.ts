@@ -103,7 +103,11 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			date: '2026-08-01',
 			merchant: 'Corner Market',
 			description: 'Weekly food',
-			categoryId: groceries.id
+			categoryId: groceries.id,
+			allocations: [
+				{ memberUserId: 'payer', amountMinor: '1000' },
+				{ memberUserId: 'member', amountMinor: '1500' }
+			]
 		};
 		const created = await ledger.createHouseholdExpense(payerContext, input);
 		const replayed = await ledger.createHouseholdExpense(payerContext, input);
@@ -117,6 +121,36 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			image: null
 		});
 		assert.equal(created.canManage, true);
+		assert.deepEqual(
+			created.allocations.map(({ member, amountMinor }) => [member.userId, amountMinor]),
+			[
+				['member', '1500'],
+				['payer', '1000']
+			]
+		);
+		const [sourceBeforeEdit] = await financial.db
+			.select({ id: ledgerTransaction.id })
+			.from(ledgerTransaction)
+			.where(eq(ledgerTransaction.accountId, 'secret-account'));
+		assert.ok(sourceBeforeEdit);
+		await assert.rejects(
+			() =>
+				ledger.updateTransaction(
+					{ userId: 'payer', workspaceId: personal.id },
+					sourceBeforeEdit.id,
+					{
+						idempotencyKey: 'personal-amount-edit',
+						version: 1,
+						kind: 'expense',
+						amountMinor: '2600',
+						date: input.date,
+						merchant: input.merchant,
+						description: input.description,
+						categoryId: null
+					}
+				),
+			(error) => error instanceof LedgerError && error.code === 'invalid'
+		);
 
 		const [memberView] = await ledger.listHouseholdExpenses({
 			userId: 'member',
@@ -162,7 +196,11 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			date: '2026-08-02',
 			merchant: 'New Market',
 			description: 'Updated food',
-			categoryId: groceries.id
+			categoryId: groceries.id,
+			allocations: [
+				{ memberUserId: 'payer', amountMinor: '1000' },
+				{ memberUserId: 'member', amountMinor: '2000' }
+			]
 		});
 		assert.equal(updated.version, 2);
 		assert.equal(
@@ -183,6 +221,99 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			.from(ledgerTransaction)
 			.where(eq(ledgerTransaction.accountId, 'secret-account'));
 		assert.equal(source.amountMinor, 3000n);
+		assert.deepEqual(
+			(await ledger.listSettlementBalances(payerContext)).map(({ member, balanceMinor }) => [
+				member.userId,
+				balanceMinor
+			]),
+			[
+				['member', '2000'],
+				['payer', '-2000']
+			]
+		);
+		const payment = await ledger.createSettlementPayment(payerContext, {
+			idempotencyKey: 'member-settlement',
+			fromUserId: 'member',
+			toUserId: 'payer',
+			amountMinor: '500',
+			currency: 'PLN',
+			date: '2026-08-03',
+			description: 'Partial repayment'
+		});
+		assert.equal(payment.linkedTransfer, false);
+		assert.deepEqual(
+			(await ledger.listSettlementBalances(payerContext)).map(({ member, balanceMinor }) => [
+				member.userId,
+				balanceMinor
+			]),
+			[
+				['member', '1500'],
+				['payer', '-1500']
+			]
+		);
+		assert.equal(
+			(
+				await insights.summary(payerContext, {
+					startDate: '2026-01-01',
+					endDate: '2026-12-31'
+				})
+			).currencies[0]?.spendingMinor,
+			'3000'
+		);
+		const concurrentPaymentActions = await Promise.allSettled([
+			ledger.settlementPaymentAction(payerContext, payment.id, 'trash', {
+				idempotencyKey: 'payment-trash-a',
+				version: payment.version
+			}),
+			ledger.settlementPaymentAction(payerContext, payment.id, 'trash', {
+				idempotencyKey: 'payment-trash-b',
+				version: payment.version
+			})
+		]);
+		assert.equal(concurrentPaymentActions.filter(({ status }) => status === 'fulfilled').length, 1);
+		assert.equal(concurrentPaymentActions.filter(({ status }) => status === 'rejected').length, 1);
+		const restoredPayment = await ledger.settlementPaymentAction(
+			payerContext,
+			payment.id,
+			'restore',
+			{
+				idempotencyKey: 'payment-restore',
+				version: payment.version + 1
+			}
+		);
+		assert.equal(restoredPayment.trashedAt, null);
+		const transfer = await ledger.createTransfer(
+			{ userId: 'payer', workspaceId: personal.id },
+			{
+				idempotencyKey: 'linked-settlement-transfer',
+				fromAccountId: 'secret-account',
+				toAccountId: 'household-cash',
+				amountMinor: '100',
+				date: '2026-08-04',
+				description: 'Linked settlement transfer'
+			}
+		);
+		const linkedPayment = await ledger.createSettlementPayment(payerContext, {
+			idempotencyKey: 'linked-settlement-payment',
+			fromUserId: 'payer',
+			toUserId: 'member',
+			amountMinor: '100',
+			currency: 'PLN',
+			date: '2026-08-04',
+			description: 'Linked repayment',
+			transferId: transfer.id
+		});
+		assert.equal(linkedPayment.linkedTransfer, true);
+		assert.equal((await ledger.listAccounts(payerContext))[0].balanceMinor, '7100');
+		assert.equal(
+			(
+				await insights.summary(payerContext, {
+					startDate: '2026-01-01',
+					endDate: '2026-12-31'
+				})
+			).currencies[0]?.spendingMinor,
+			'3000'
+		);
 
 		const trashed = await ledger.householdExpenseAction(payerContext, created.id, 'trash', {
 			idempotencyKey: 'payer-trash',
@@ -192,7 +323,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 		assert.equal((await ledger.listHouseholdExpenses(payerContext)).length, 0);
 		assert.equal(
 			(await ledger.listAccounts({ userId: 'payer', workspaceId: personal.id }))[0].balanceMinor,
-			'10000'
+			'9900'
 		);
 		assert.deepEqual(
 			await insights.summary(payerContext, {
@@ -224,6 +355,17 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 					eq(workspaceMembership.userId, 'member')
 				)
 			);
+		const retained = await ledger.listHouseholdExpenses(payerContext);
+		assert.equal(
+			retained[0]?.allocations.some(({ member }) => member.userId === 'member'),
+			true
+		);
+		assert.equal(
+			(await ledger.listSettlementBalances(payerContext)).find(
+				({ member }) => member.userId === 'member'
+			)?.balanceMinor,
+			'1600'
+		);
 		for (const userId of ['member', 'outsider']) {
 			const context = { userId, workspaceId: 'household' };
 			const unauthorizedOperations = [

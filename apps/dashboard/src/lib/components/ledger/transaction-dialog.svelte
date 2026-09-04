@@ -8,6 +8,7 @@
   import {
     Alert,
     Button,
+    Checkbox,
     Dialog,
     Field,
     Input,
@@ -40,6 +41,13 @@
       merchant: string
       description: string
       categoryId: string
+      allocationMode: 'equal' | 'custom'
+      allocations: Array<{
+        memberUserId: string
+        name: string
+        selected: boolean
+        amount: string
+      }>
     }
     editingTransaction: Transaction | null
     editingHouseholdExpense: HouseholdExpense | null
@@ -89,7 +97,7 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content
+  <Dialog.Content class="max-h-[calc(100svh-2rem)] overflow-y-auto"
     ><Dialog.Header
       ><Dialog.Title
         >{refundingExpense
@@ -174,6 +182,59 @@
             bind:value={form.amount}
           />
         </Field.Field>
+        {#if creatingHouseholdExpense}
+          <Field.FieldSet>
+            <Field.Legend>Allocation</Field.Legend>
+            <Field.Description>
+              Equal split is the default. The exact minor-unit remainder goes to
+              members in stable order.
+            </Field.Description>
+            <Field.Field>
+              <Field.Label for="allocation-mode">Split</Field.Label>
+              <Select.Root type="single" bind:value={form.allocationMode}>
+                <Select.Trigger id="allocation-mode" class="w-full">
+                  {form.allocationMode === 'equal'
+                    ? 'Equal split'
+                    : 'Custom amounts'}
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Group>
+                    <Select.Item value="equal" label="Equal split"
+                      >Equal split</Select.Item
+                    >
+                    <Select.Item value="custom" label="Custom amounts"
+                      >Custom amounts</Select.Item
+                    >
+                  </Select.Group>
+                </Select.Content>
+              </Select.Root>
+            </Field.Field>
+            <Field.Group>
+              {#each form.allocations as allocation (allocation.memberUserId)}
+                <Field.Field orientation="horizontal">
+                  <Checkbox
+                    id={`allocation-member-${allocation.memberUserId}`}
+                    bind:checked={allocation.selected}
+                  />
+                  <Field.Label
+                    for={`allocation-member-${allocation.memberUserId}`}
+                    class="min-w-0 flex-1">{allocation.name}</Field.Label
+                  >
+                  {#if form.allocationMode === 'custom'}
+                    <Input
+                      aria-label={`${allocation.name} allocation`}
+                      class="w-32"
+                      inputmode="decimal"
+                      required={allocation.selected}
+                      disabled={!allocation.selected}
+                      bind:value={allocation.amount}
+                    />
+                  {/if}
+                </Field.Field>
+              {/each}
+            </Field.Group>
+          </Field.FieldSet>
+        {/if}
         <Field.Field>
           <Field.Label for="date">Date</Field.Label><Input
             id="date"

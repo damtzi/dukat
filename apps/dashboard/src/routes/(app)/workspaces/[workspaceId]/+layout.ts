@@ -5,6 +5,7 @@ import type { Category } from '@dukat/core/csv-import'
 import { loadApi, workspaceDataDependency } from '$lib/api'
 import type {
   ConvertedBalances,
+  HouseholdMember,
   RateStatus,
   WorkspaceForecast,
   WorkspaceRouteData,
@@ -18,6 +19,7 @@ function failed(workspaceId: string, message: string): WorkspaceRouteData {
     workspaceId,
     accounts: [],
     categories: [],
+    members: [],
     selectedAccountId: '',
     rateStatus: null,
     convertedBalances: null,
@@ -42,10 +44,11 @@ export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
   const workspace = workspaces.find(({ id }) => id === workspaceId)!
   let accounts: Account[]
   let categories: Category[]
+  let members: HouseholdMember[] = []
   try {
     if (workspace.type === 'personal' && personalAccountsError)
       throw new Error(personalAccountsError)
-    ;[accounts, categories] = await Promise.all([
+    ;[accounts, categories, members] = await Promise.all([
       workspace.type === 'personal'
         ? Promise.resolve(personalAccounts)
         : (loadApi(fetch, `/workspaces/${workspaceId}/accounts`) as Promise<
@@ -54,6 +57,11 @@ export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
       loadApi(fetch, `/workspaces/${workspaceId}/categories`) as Promise<
         Category[]
       >,
+      workspace.type === 'household'
+        ? (loadApi(fetch, `/workspaces/${workspaceId}/members`) as Promise<
+            HouseholdMember[]
+          >)
+        : Promise.resolve([]),
     ])
   } catch (error) {
     return failed(workspaceId, (error as Error).message)
@@ -91,6 +99,7 @@ export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
     workspaceId,
     accounts,
     categories,
+    members,
     selectedAccountId:
       requestedAccountId ||
       accounts.find(({ archivedAt }) => !archivedAt)?.id ||

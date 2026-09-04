@@ -8,6 +8,7 @@ import {
 	createBalanceCheckSchema,
 	createBalanceCorrectionSchema,
 	createHouseholdExpenseSchema,
+	createSettlementPaymentSchema,
 	createRefundSchema,
 	createTransferSchema,
 	createTransactionSchema,
@@ -15,6 +16,8 @@ import {
 	historyEntrySchema,
 	householdExpenseSchema,
 	minorUnitsSchema,
+	settlementBalanceSchema,
+	settlementPaymentSchema,
 	transactionSearchSchema,
 	transactionSchema,
 	transferSchema,
@@ -32,6 +35,7 @@ const params = z.object({ workspaceId: id });
 const accountParams = params.extend({ accountId: id });
 const transactionParams = params.extend({ transactionId: id });
 const householdExpenseParams = params.extend({ expenseId: id });
+const settlementPaymentParams = params.extend({ paymentId: id });
 const transferParams = params.extend({ transferId: id });
 const reconciliationParams = params.extend({ entityId: id });
 const transactionMutationSchema = z.object({
@@ -157,6 +161,41 @@ export const householdExpenseAction = <A extends 'trash' | 'restore'>(action: A)
 			body: jsonContent(versionedMutationSchema, action)
 		},
 		responses: responses(householdExpenseSchema, `${action} Household expense`)
+	});
+export const listSettlementPayments = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/settlement-payments',
+	request: {
+		params,
+		query: z.object({ includeTrashed: z.enum(['true', 'false']).optional() })
+	},
+	responses: responses(z.array(settlementPaymentSchema), 'Settlement payments')
+});
+export const listSettlementBalances = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/settlement-balances',
+	request: { params },
+	responses: responses(z.array(settlementBalanceSchema), 'Settlement balances')
+});
+export const createSettlementPayment = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/settlement-payments',
+	request: { params, body: jsonContent(createSettlementPaymentSchema, 'Settlement payment') },
+	responses: responses(settlementPaymentSchema, 'Created settlement payment')
+});
+export const settlementPaymentAction = <A extends 'trash' | 'restore'>(action: A) =>
+	createRoute({
+		...common(),
+		method: 'post',
+		path: `/workspaces/{workspaceId}/settlement-payments/{paymentId}/${action}` as `/workspaces/{workspaceId}/settlement-payments/{paymentId}/${A}`,
+		request: {
+			params: settlementPaymentParams,
+			body: jsonContent(versionedMutationSchema, action)
+		},
+		responses: responses(settlementPaymentSchema, `${action} settlement payment`)
 	});
 export const createTransaction = createRoute({
 	...common(),

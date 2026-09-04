@@ -10,6 +10,7 @@ import { minorToDecimal, parseAmount } from '$lib/money'
 import { todayInWarsaw } from '$lib/date'
 import {
   api,
+  type HouseholdMember,
   type PickerAccount,
   type WorkspaceRouteData,
 } from './workspace-controller.svelte'
@@ -74,6 +75,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
 
   let accounts = $derived(callbacks.getRouteData().accounts)
   let categories = $derived(callbacks.getRouteData().categories)
+  let members = $derived(callbacks.getRouteData().members)
   let selectedId = $derived(callbacks.getRouteData().selectedAccountId)
   let message = $state('')
   let accountError = $state('')
@@ -123,6 +125,13 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     merchant: '',
     description: '',
     categoryId: '',
+    allocationMode: 'equal' as 'equal' | 'custom',
+    allocations: [] as Array<{
+      memberUserId: string
+      name: string
+      selected: boolean
+      amount: string
+    }>,
   })
   let transferForm = $state({
     fromAccountId: '',
@@ -347,6 +356,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: '',
       description: '',
       categoryId: '',
+      allocationMode: 'equal',
+      allocations: [],
     }
     transactionOpen = true
     recentMerchants = []
@@ -370,6 +381,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: item.merchant ?? '',
       description: item.description ?? '',
       categoryId: item.categoryId ?? '',
+      allocationMode: 'equal',
+      allocations: [],
     }
     transactionOpen = true
   }
@@ -392,6 +405,8 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: expense.merchant ?? '',
       description: '',
       categoryId: expense.categoryId ?? '',
+      allocationMode: 'equal',
+      allocations: [],
     }
     transactionOpen = true
   }
@@ -425,6 +440,13 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: '',
       description: '',
       categoryId: '',
+      allocationMode: 'equal',
+      allocations: members.map((member: HouseholdMember) => ({
+        memberUserId: member.userId,
+        name: member.name,
+        selected: true,
+        amount: '',
+      })),
     }
     transactionOpen = true
   }
@@ -436,6 +458,14 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     refundingExpense = null
     transactionError = ''
     transactionIntentKey = key()
+    const allocationMembers = [...members]
+    for (const { member } of item.allocations)
+      if (!allocationMembers.some(({ userId }) => userId === member.userId))
+        allocationMembers.push({
+          ...member,
+          role: 'member',
+          joinedAt: '',
+        })
     transactionForm = {
       accountId: '',
       kind: 'expense',
@@ -444,6 +474,20 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: item.merchant ?? '',
       description: item.description ?? '',
       categoryId: item.categoryId ?? '',
+      allocationMode: 'custom',
+      allocations: allocationMembers.map((member) => {
+        const allocation = item.allocations.find(
+          ({ member: actor }) => actor.userId === member.userId,
+        )
+        return {
+          memberUserId: member.userId,
+          name: member.name,
+          selected: Boolean(allocation),
+          amount: allocation
+            ? minorToDecimal(allocation.amountMinor, item.currency)
+            : '',
+        }
+      }),
     }
     transactionOpen = true
   }
@@ -472,6 +516,40 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         idempotencyKey: transactionIntentKey,
         ...(editingTransaction ? { version: editingTransaction.version } : {}),
       }
+      const selectedAllocations = transactionForm.allocations.filter(
+        ({ selected }) => selected,
+      )
+      if (creatingHouseholdExpense && selectedAllocations.length === 0)
+        throw new Error('Select at least one member for the allocation.')
+      const allocations = creatingHouseholdExpense
+        ? transactionForm.allocationMode === 'equal'
+          ? (() => {
+              const sorted = [...selectedAllocations].sort((a, b) =>
+                a.memberUserId.localeCompare(b.memberUserId),
+              )
+              const total = BigInt(transactionBody.amountMinor)
+              const count = BigInt(sorted.length)
+              const base = total / count
+              const remainder = total % count
+              if (base === 0n)
+                throw new Error(
+                  'The expense is too small to allocate to every selected member.',
+                )
+              return sorted.map((allocation, index) => ({
+                memberUserId: allocation.memberUserId,
+                amountMinor: (
+                  base + (BigInt(index) < remainder ? 1n : 0n)
+                ).toString(),
+              }))
+            })()
+          : selectedAllocations.map((allocation) => ({
+              memberUserId: allocation.memberUserId,
+              amountMinor: parseAmount(
+                allocation.amount,
+                editingHouseholdExpense?.currency ?? account!.currency,
+              ),
+            }))
+        : undefined
       const body = refundingExpense
         ? {
             amountMinor: transactionBody.amountMinor,
@@ -488,6 +566,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
               merchant: transactionBody.merchant,
               description: transactionBody.description,
               categoryId: transactionBody.categoryId,
+              allocations,
               idempotencyKey: transactionBody.idempotencyKey,
               ...(editingHouseholdExpense
                 ? { version: editingHouseholdExpense.version }
@@ -972,6 +1051,9 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     },
     get categories() {
       return categories
+    },
+    get members() {
+      return members
     },
     get selectedId() {
       return selectedId

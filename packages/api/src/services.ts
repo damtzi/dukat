@@ -4,6 +4,7 @@ import type {
 	CreateBalanceCheck,
 	CreateBalanceCorrection,
 	CreateHouseholdExpense,
+	CreateSettlementPayment,
 	CreateRefund,
 	CreateTransfer,
 	CreateTransaction,
@@ -169,6 +170,21 @@ export interface LedgerService {
 	householdExpenseAction(
 		context: { userId: string; workspaceId: string },
 		expenseId: string,
+		action: 'trash' | 'restore',
+		input: VersionedMutation
+	): Promise<unknown>;
+	listSettlementPayments(
+		context: { userId: string; workspaceId: string },
+		includeTrashed?: boolean
+	): Promise<unknown>;
+	listSettlementBalances(context: { userId: string; workspaceId: string }): Promise<unknown>;
+	createSettlementPayment(
+		context: { userId: string; workspaceId: string },
+		input: CreateSettlementPayment
+	): Promise<unknown>;
+	settlementPaymentAction(
+		context: { userId: string; workspaceId: string },
+		paymentId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
 	): Promise<unknown>;

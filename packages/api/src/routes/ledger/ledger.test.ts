@@ -69,6 +69,16 @@ function createServices(): APIServices {
 			},
 			async updateHouseholdExpense() {},
 			async householdExpenseAction() {},
+			async listSettlementPayments() {
+				return [];
+			},
+			async listSettlementBalances() {
+				return [];
+			},
+			async createSettlementPayment(_context, input) {
+				return input;
+			},
+			async settlementPaymentAction() {},
 			async createTransaction(_context, _accountId, input) {
 				return input;
 			},
@@ -189,6 +199,24 @@ test('ledger routes require authentication and validate financial boundaries', a
 	assert.equal(invalidAmount.status, 400);
 	assert.deepEqual(await invalidAmount.json(), {
 		message: 'Amount must be a canonical decimal integer string'
+	});
+	const unbalancedAllocation = await app.request('/api/workspaces/workspace-1/household-expenses', {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({
+			accountId: 'personal-account',
+			amountMinor: '100',
+			date: '2026-07-30',
+			allocations: [
+				{ memberUserId: 'user-1', amountMinor: '40' },
+				{ memberUserId: 'user-2', amountMinor: '50' }
+			],
+			idempotencyKey: 'household-allocation-1'
+		})
+	});
+	assert.equal(unbalancedAllocation.status, 400);
+	assert.deepEqual(await unbalancedAllocation.json(), {
+		message: 'Allocations must equal the expense amount'
 	});
 });
 

@@ -104,17 +104,55 @@ export const createRefundSchema = mutationSchema.extend({
 	merchant: z.string().trim().max(200).nullable().optional(),
 	description: z.string().trim().max(500).nullable().optional()
 });
-export const createHouseholdExpenseSchema = mutationSchema.extend({
-	accountId: z.string().min(1),
+const allocationInputSchema = z.object({
+	memberUserId: z.string().min(1),
+	amountMinor: positiveMinorUnitsSchema
+});
+const householdExpenseInputFields = {
 	amountMinor: positiveMinorUnitsSchema,
 	date: calendarDateSchema,
 	merchant: z.string().trim().max(200).nullable().optional(),
 	description: z.string().trim().max(500).nullable().optional(),
-	categoryId: z.string().min(1).nullable().optional()
+	categoryId: z.string().min(1).nullable().optional(),
+	allocations: z.array(allocationInputSchema).min(1).optional()
+};
+const validateAllocations = (
+	value: {
+		amountMinor: string;
+		allocations?: Array<{ memberUserId: string; amountMinor: string }>;
+	},
+	context: z.core.$RefinementCtx<unknown>
+) => {
+	if (!value.allocations) return;
+	if (
+		new Set(value.allocations.map(({ memberUserId }) => memberUserId)).size !==
+		value.allocations.length
+	)
+		context.addIssue({ code: 'custom', message: 'Each member can have only one allocation' });
+	if (
+		value.allocations.reduce((sum, allocation) => sum + BigInt(allocation.amountMinor), 0n) !==
+		BigInt(value.amountMinor)
+	)
+		context.addIssue({ code: 'custom', message: 'Allocations must equal the expense amount' });
+};
+export const createHouseholdExpenseSchema = mutationSchema
+	.extend({ ...householdExpenseInputFields, accountId: z.string().min(1) })
+	.superRefine(validateAllocations);
+export const updateHouseholdExpenseSchema = mutationSchema
+	.extend({
+		...householdExpenseInputFields,
+		version: z.number().int().positive()
+	})
+	.superRefine(validateAllocations);
+export const createSettlementPaymentSchema = mutationSchema.extend({
+	fromUserId: z.string().min(1),
+	toUserId: z.string().min(1),
+	amountMinor: positiveMinorUnitsSchema,
+	currency: currencySchema,
+	date: calendarDateSchema,
+	description: z.string().trim().max(500).nullable().optional(),
+	transferId: z.string().min(1).nullable().optional()
 });
-export const updateHouseholdExpenseSchema = createHouseholdExpenseSchema
-	.omit({ accountId: true })
-	.extend({ version: z.number().int().positive() });
 export const updateTransactionSchema = createTransactionSchema.extend({
 	kind: ledgerTransactionKindSchema,
 	version: z.number().int().positive()
@@ -237,11 +275,48 @@ export const householdExpenseSchema = z.object({
 		username: z.string(),
 		image: z.string().nullable()
 	}),
+	allocations: z.array(
+		z.object({
+			member: z.object({
+				userId: z.string(),
+				name: z.string(),
+				username: z.string(),
+				image: z.string().nullable()
+			}),
+			amountMinor: positiveMinorUnitsSchema
+		})
+	),
 	version: z.number().int().positive(),
 	trashedAt: nullableTimestampSchema,
 	createdAt: z.string(),
 	updatedAt: z.string(),
 	canManage: z.boolean()
+});
+const settlementActorSchema = z.object({
+	userId: z.string(),
+	name: z.string(),
+	username: z.string(),
+	image: z.string().nullable()
+});
+export const settlementPaymentSchema = z.object({
+	id: z.string(),
+	workspaceId: z.string(),
+	from: settlementActorSchema,
+	to: settlementActorSchema,
+	amountMinor: positiveMinorUnitsSchema,
+	currency: z.string(),
+	date: isoCalendarDateSchema,
+	description: z.string().nullable(),
+	linkedTransfer: z.boolean(),
+	version: z.number().int().positive(),
+	trashedAt: nullableTimestampSchema,
+	createdAt: z.string(),
+	updatedAt: z.string()
+});
+export const settlementBalanceSchema = z.object({
+	member: settlementActorSchema,
+	currency: z.string(),
+	balanceMinor: minorUnitsSchema
 });
 export const transferSchema = z.object({
 	id: z.string(),
@@ -301,6 +376,7 @@ export const historyEntrySchema = z.object({
 	entityType: z.enum([
 		'transaction',
 		'household_expense',
+		'settlement_payment',
 		'account',
 		'transfer',
 		'balance_check',
@@ -325,6 +401,7 @@ export type CreateTransaction = z.infer<typeof createTransactionSchema>;
 export type CreateRefund = z.infer<typeof createRefundSchema>;
 export type CreateHouseholdExpense = z.infer<typeof createHouseholdExpenseSchema>;
 export type UpdateHouseholdExpense = z.infer<typeof updateHouseholdExpenseSchema>;
+export type CreateSettlementPayment = z.infer<typeof createSettlementPaymentSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
 export type TransactionSearch = Partial<z.infer<typeof transactionSearchSchema>>;
 export type CreateTransfer = z.infer<typeof createTransferSchema>;
@@ -335,6 +412,8 @@ export type CreateBalanceCorrection = z.infer<typeof createBalanceCorrectionSche
 export type Account = z.infer<typeof accountSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type HouseholdExpense = z.infer<typeof householdExpenseSchema>;
+export type SettlementPayment = z.infer<typeof settlementPaymentSchema>;
+export type SettlementBalance = z.infer<typeof settlementBalanceSchema>;
 export type Transfer = z.infer<typeof transferSchema>;
 export type BalanceCheck = z.infer<typeof balanceCheckSchema>;
 export type Correction = z.infer<typeof correctionSchema>;

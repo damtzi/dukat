@@ -238,7 +238,7 @@ test('tracks a categorized card purchase and bill payment once through the real 
 	expect(archivedAccounts.find(({ id }) => id === cardAccount.id)?.archivedAt).not.toBeNull();
 });
 
-test('shares a Personal-funded Household expense without sharing its account', async ({
+test('allocates and settles a Personal-funded Household expense without sharing its account', async ({
 	page,
 	browser
 }: {
@@ -268,6 +268,10 @@ test('shares a Personal-funded Household expense without sharing its account', a
 	await dialog.getByLabel('Personal account').click();
 	await page.getByRole('option', { name: /^Everyday account ·/ }).click();
 	await dialog.getByLabel('Amount', { exact: true }).fill('42.50');
+	await dialog.getByLabel('Split').click();
+	await page.getByRole('option', { name: 'Custom amounts', exact: true }).click();
+	await dialog.getByLabel('Demo User allocation').fill('12.50');
+	await dialog.getByLabel('Household Member allocation').fill('30.00');
 	await dialog.getByLabel('Category', { exact: true }).click();
 	await page.getByRole('option', { name: 'Groceries', exact: true }).click();
 	await dialog.getByLabel('Merchant').fill('Private-funded Market');
@@ -291,6 +295,16 @@ test('shares a Personal-funded Household expense without sharing its account', a
 		`/workspaces/${householdId}/household-expenses`
 	);
 	expect(ownerProjection).toHaveLength(1);
+	expect(ownerProjection[0]?.allocations).toEqual([
+		expect.objectContaining({
+			member: expect.objectContaining({ name: 'Demo User' }),
+			amountMinor: '1250'
+		}),
+		expect.objectContaining({
+			member: expect.objectContaining({ name: 'Household Member' }),
+			amountMinor: '3000'
+		})
+	]);
 	expect(
 		await apiJson<Array<Record<string, unknown>>>(page, `/workspaces/${householdId}/accounts`)
 	).toEqual(householdAccountsBefore);
@@ -302,6 +316,40 @@ test('shares a Personal-funded Household expense without sharing its account', a
 		currencies: Array<{ spendingMinor: string }>;
 	}>(page, `/workspaces/${householdId}/summary?startDate=2026-01-01&endDate=2026-12-31`);
 	expect(summary.currencies).toContainEqual(expect.objectContaining({ spendingMinor: '4250' }));
+
+	await page.getByRole('button', { name: 'Record payment' }).click();
+	const settlementDialog = page.getByRole('dialog');
+	await settlementDialog.getByLabel('From').click();
+	await page.getByRole('option', { name: 'Household Member', exact: true }).click();
+	await settlementDialog.getByLabel('To').click();
+	await page.getByRole('option', { name: 'Demo User', exact: true }).click();
+	await settlementDialog.getByLabel('Amount').fill('10.00');
+	await settlementDialog.getByLabel('Description').fill('Partial Household settlement');
+	await settlementDialog.getByRole('button', { name: 'Save payment' }).click();
+	const balances = await apiJson<
+		Array<{ member: { name: string }; currency: string; balanceMinor: string }>
+	>(page, `/workspaces/${householdId}/settlement-balances`);
+	expect(balances).toEqual([
+		{
+			member: expect.objectContaining({ name: 'Demo User' }),
+			currency: 'PLN',
+			balanceMinor: '-2000'
+		},
+		{
+			member: expect.objectContaining({ name: 'Household Member' }),
+			currency: 'PLN',
+			balanceMinor: '2000'
+		}
+	]);
+	await expect(page.getByText('Household Member paid Demo User', { exact: true })).toBeVisible();
+	await page.getByText('Member settlement', { exact: true }).scrollIntoViewIfNeeded();
+	await page.screenshot({ path: '../../.amp/in/artifacts/household-settlement.png' });
+	expect(
+		await apiJson<{ currencies: Array<{ spendingMinor: string }> }>(
+			page,
+			`/workspaces/${householdId}/summary?startDate=2026-01-01&endDate=2026-12-31`
+		)
+	).toEqual(summary);
 
 	const memberContext = await browser.newContext();
 	try {

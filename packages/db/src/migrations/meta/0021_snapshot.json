@@ -1,0 +1,3253 @@
+{
+	"version": "6",
+	"dialect": "sqlite",
+	"id": "35e9e674-da97-4805-a96b-79135c040a52",
+	"prevId": "932fe340-a087-4be3-8820-ce5d6fb2c46a",
+	"tables": {
+		"account": {
+			"name": "account",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"provider_id": {
+					"name": "provider_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"access_token": {
+					"name": "access_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"refresh_token": {
+					"name": "refresh_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"id_token": {
+					"name": "id_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"access_token_expires_at": {
+					"name": "access_token_expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"refresh_token_expires_at": {
+					"name": "refresh_token_expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"scope": {
+					"name": "scope",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"password": {
+					"name": "password",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"account_userId_idx": {
+					"name": "account_userId_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"account_user_id_user_id_fk": {
+					"name": "account_user_id_user_id_fk",
+					"tableFrom": "account",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"profile_image_cleanup_job": {
+			"name": "profile_image_cleanup_job",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"public_url": {
+					"name": "public_url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"attempts": {
+					"name": "attempts",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"last_attempt_at": {
+					"name": "last_attempt_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"last_error": {
+					"name": "last_error",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"profile_image_cleanup_job_object_unique": {
+					"name": "profile_image_cleanup_job_object_unique",
+					"columns": ["user_id", "public_url"],
+					"isUnique": true
+				},
+				"profile_image_cleanup_job_created_at_idx": {
+					"name": "profile_image_cleanup_job_created_at_idx",
+					"columns": ["created_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"session": {
+			"name": "session",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"token": {
+					"name": "token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"ip_address": {
+					"name": "ip_address",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"user_agent": {
+					"name": "user_agent",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"session_token_unique": {
+					"name": "session_token_unique",
+					"columns": ["token"],
+					"isUnique": true
+				},
+				"session_userId_idx": {
+					"name": "session_userId_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"session_user_id_user_id_fk": {
+					"name": "session_user_id_user_id_fk",
+					"tableFrom": "session",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"user": {
+			"name": "user",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"username": {
+					"name": "username",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email_verified": {
+					"name": "email_verified",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": false
+				},
+				"image": {
+					"name": "image",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"user_username_unique": {
+					"name": "user_username_unique",
+					"columns": ["username"],
+					"isUnique": true
+				},
+				"user_email_unique": {
+					"name": "user_email_unique",
+					"columns": ["email"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"user_username_canonical_check": {
+					"name": "user_username_canonical_check",
+					"value": "length(\"user\".\"username\") BETWEEN 3 AND 30 AND \"user\".\"username\" GLOB '[a-z]*' AND \"user\".\"username\" NOT GLOB '*[^a-z0-9_]*'"
+				}
+			}
+		},
+		"verification": {
+			"name": "verification",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"identifier": {
+					"name": "identifier",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"value": {
+					"name": "value",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"verification_identifier_idx": {
+					"name": "verification_identifier_idx",
+					"columns": ["identifier"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"exchange_rate": {
+			"name": "exchange_rate",
+			"columns": {
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"table_number": {
+					"name": "table_number",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"effective_date": {
+					"name": "effective_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"rate_to_pln": {
+					"name": "rate_to_pln",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"exchange_rate_currency_date_idx": {
+					"name": "exchange_rate_currency_date_idx",
+					"columns": ["currency", "effective_date"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"exchange_rate_source_table_number_effective_date_currency_pk": {
+					"columns": ["source", "table_number", "effective_date", "currency"],
+					"name": "exchange_rate_source_table_number_effective_date_currency_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"exchange_rate_fetch": {
+			"name": "exchange_rate_fetch",
+			"columns": {
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"request_key": {
+					"name": "request_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"from_date": {
+					"name": "from_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"to_date": {
+					"name": "to_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"fetched_at": {
+					"name": "fetched_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"exchange_rate_fetch_coverage_idx": {
+					"name": "exchange_rate_fetch_coverage_idx",
+					"columns": ["from_date", "to_date"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"exchange_rate_fetch_source_request_key_pk": {
+					"columns": ["source", "request_key"],
+					"name": "exchange_rate_fetch_source_request_key_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"exchange_rate_table": {
+			"name": "exchange_rate_table",
+			"columns": {
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"table_type": {
+					"name": "table_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"table_number": {
+					"name": "table_number",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"effective_date": {
+					"name": "effective_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"fetched_at": {
+					"name": "fetched_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"exchange_rate_table_date_idx": {
+					"name": "exchange_rate_table_date_idx",
+					"columns": ["effective_date"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"exchange_rate_table_source_table_number_effective_date_pk": {
+					"columns": ["source", "table_number", "effective_date"],
+					"name": "exchange_rate_table_source_table_number_effective_date_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace_manual_rate": {
+			"name": "workspace_manual_rate",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"rate_to_pln": {
+					"name": "rate_to_pln",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"effective_date": {
+					"name": "effective_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"actor_display": {
+					"name": "actor_display",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"removed_by_user_id": {
+					"name": "removed_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"removed_at": {
+					"name": "removed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_manual_rate_point_unique": {
+					"name": "workspace_manual_rate_point_unique",
+					"columns": ["workspace_id", "currency", "effective_date"],
+					"isUnique": true,
+					"where": "\"workspace_manual_rate\".\"removed_at\" IS NULL"
+				},
+				"workspace_manual_rate_lookup_idx": {
+					"name": "workspace_manual_rate_lookup_idx",
+					"columns": ["workspace_id", "currency", "effective_date", "removed_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_manual_rate_workspace_id_workspace_id_fk": {
+					"name": "workspace_manual_rate_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_manual_rate",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"workspace_manual_rate_actor_user_id_user_id_fk": {
+					"name": "workspace_manual_rate_actor_user_id_user_id_fk",
+					"tableFrom": "workspace_manual_rate",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"workspace_manual_rate_removed_by_user_id_user_id_fk": {
+					"name": "workspace_manual_rate_removed_by_user_id_user_id_fk",
+					"tableFrom": "workspace_manual_rate",
+					"tableTo": "user",
+					"columnsFrom": ["removed_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"favorite_page": {
+			"name": "favorite_page",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"path": {
+					"name": "path",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"label": {
+					"name": "label",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"favorite_page_user_path_unique": {
+					"name": "favorite_page_user_path_unique",
+					"columns": ["user_id", "path"],
+					"isUnique": true
+				},
+				"favorite_page_user_position_unique": {
+					"name": "favorite_page_user_position_unique",
+					"columns": ["user_id", "position"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"favorite_page_user_id_user_id_fk": {
+					"name": "favorite_page_user_id_user_id_fk",
+					"tableFrom": "favorite_page",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"financial_account": {
+			"name": "financial_account",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"opening_date": {
+					"name": "opening_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"opening_balance_minor": {
+					"name": "opening_balance_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"activity_started_at": {
+					"name": "activity_started_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"financial_account_workspace_idx": {
+					"name": "financial_account_workspace_idx",
+					"columns": ["workspace_id"],
+					"isUnique": false
+				},
+				"financial_account_workspace_id_unique": {
+					"name": "financial_account_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"financial_account_workspace_id_workspace_id_fk": {
+					"name": "financial_account_workspace_id_workspace_id_fk",
+					"tableFrom": "financial_account",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"financial_account_type_check": {
+					"name": "financial_account_type_check",
+					"value": "\"financial_account\".\"type\" IN ('current', 'savings', 'cash', 'credit_card')"
+				},
+				"financial_account_opening_int64_check": {
+					"name": "financial_account_opening_int64_check",
+					"value": "\"financial_account\".\"opening_balance_minor\" BETWEEN -9223372036854775808 AND 9223372036854775807"
+				},
+				"financial_account_opening_date_check": {
+					"name": "financial_account_opening_date_check",
+					"value": "\"financial_account\".\"opening_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+				},
+				"financial_account_version_check": {
+					"name": "financial_account_version_check",
+					"value": "\"financial_account\".\"version\" > 0"
+				}
+			}
+		},
+		"household_expense": {
+			"name": "household_expense",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"source_transaction_id": {
+					"name": "source_transaction_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"payer_user_id": {
+					"name": "payer_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"category_id": {
+					"name": "category_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"merchant": {
+					"name": "merchant",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"household_expense_source_unique": {
+					"name": "household_expense_source_unique",
+					"columns": ["source_transaction_id"],
+					"isUnique": true
+				},
+				"household_expense_workspace_id_unique": {
+					"name": "household_expense_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				},
+				"household_expense_workspace_date_idx": {
+					"name": "household_expense_workspace_date_idx",
+					"columns": ["workspace_id", "date"],
+					"isUnique": false
+				},
+				"household_expense_trash_idx": {
+					"name": "household_expense_trash_idx",
+					"columns": ["trashed_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"household_expense_workspace_id_workspace_id_fk": {
+					"name": "household_expense_workspace_id_workspace_id_fk",
+					"tableFrom": "household_expense",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"household_expense_source_transaction_id_ledger_transaction_id_fk": {
+					"name": "household_expense_source_transaction_id_ledger_transaction_id_fk",
+					"tableFrom": "household_expense",
+					"tableTo": "ledger_transaction",
+					"columnsFrom": ["source_transaction_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"household_expense_payer_user_id_user_id_fk": {
+					"name": "household_expense_payer_user_id_user_id_fk",
+					"tableFrom": "household_expense",
+					"tableTo": "user",
+					"columnsFrom": ["payer_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"household_expense_workspace_id_category_id_ledger_category_workspace_id_id_fk": {
+					"name": "household_expense_workspace_id_category_id_ledger_category_workspace_id_id_fk",
+					"tableFrom": "household_expense",
+					"tableTo": "ledger_category",
+					"columnsFrom": ["workspace_id", "category_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"household_expense_amount_check": {
+					"name": "household_expense_amount_check",
+					"value": "\"household_expense\".\"amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				},
+				"household_expense_date_check": {
+					"name": "household_expense_date_check",
+					"value": "\"household_expense\".\"date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+				},
+				"household_expense_version_check": {
+					"name": "household_expense_version_check",
+					"value": "\"household_expense\".\"version\" > 0"
+				}
+			}
+		},
+		"household_expense_allocation": {
+			"name": "household_expense_allocation",
+			"columns": {
+				"expense_id": {
+					"name": "expense_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"member_user_id": {
+					"name": "member_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"household_expense_allocation_member_unique": {
+					"name": "household_expense_allocation_member_unique",
+					"columns": ["expense_id", "member_user_id"],
+					"isUnique": true
+				},
+				"household_expense_allocation_workspace_member_idx": {
+					"name": "household_expense_allocation_workspace_member_idx",
+					"columns": ["workspace_id", "member_user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"household_expense_allocation_expense_id_household_expense_id_fk": {
+					"name": "household_expense_allocation_expense_id_household_expense_id_fk",
+					"tableFrom": "household_expense_allocation",
+					"tableTo": "household_expense",
+					"columnsFrom": ["expense_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"household_expense_allocation_workspace_id_workspace_id_fk": {
+					"name": "household_expense_allocation_workspace_id_workspace_id_fk",
+					"tableFrom": "household_expense_allocation",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"household_expense_allocation_member_user_id_user_id_fk": {
+					"name": "household_expense_allocation_member_user_id_user_id_fk",
+					"tableFrom": "household_expense_allocation",
+					"tableTo": "user",
+					"columnsFrom": ["member_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"household_expense_allocation_workspace_id_expense_id_household_expense_workspace_id_id_fk": {
+					"name": "household_expense_allocation_workspace_id_expense_id_household_expense_workspace_id_id_fk",
+					"tableFrom": "household_expense_allocation",
+					"tableTo": "household_expense",
+					"columnsFrom": ["workspace_id", "expense_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"household_expense_allocation_amount_check": {
+					"name": "household_expense_allocation_amount_check",
+					"value": "\"household_expense_allocation\".\"amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				}
+			}
+		},
+		"ledger_audit": {
+			"name": "ledger_audit",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"actor_display": {
+					"name": "actor_display",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"entity_type": {
+					"name": "entity_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"entity_id": {
+					"name": "entity_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"before_json": {
+					"name": "before_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"after_json": {
+					"name": "after_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_audit_entity_idx": {
+					"name": "ledger_audit_entity_idx",
+					"columns": ["workspace_id", "entity_type", "entity_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"ledger_audit_workspace_id_workspace_id_fk": {
+					"name": "ledger_audit_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_audit",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_audit_actor_user_id_user_id_fk": {
+					"name": "ledger_audit_actor_user_id_user_id_fk",
+					"tableFrom": "ledger_audit",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"ledger_balance_check": {
+			"name": "ledger_balance_check",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"observed_balance_minor": {
+					"name": "observed_balance_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ledger_balance_check_workspace_id_workspace_id_fk": {
+					"name": "ledger_balance_check_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_balance_check",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_balance_check_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_balance_check_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_balance_check",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_balance_check_version_check": {
+					"name": "ledger_balance_check_version_check",
+					"value": "\"ledger_balance_check\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_balance_correction": {
+			"name": "ledger_balance_correction",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ledger_balance_correction_workspace_id_workspace_id_fk": {
+					"name": "ledger_balance_correction_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_balance_correction",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_balance_correction_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_balance_correction_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_balance_correction",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_balance_correction_amount_check": {
+					"name": "ledger_balance_correction_amount_check",
+					"value": "\"ledger_balance_correction\".\"amount_minor\" <> '0' AND ((\"ledger_balance_correction\".\"amount_minor\" NOT GLOB '*[^0-9]*' AND substr(\"ledger_balance_correction\".\"amount_minor\", 1, 1) BETWEEN '1' AND '9') OR (substr(\"ledger_balance_correction\".\"amount_minor\", 1, 1) = '-' AND substr(\"ledger_balance_correction\".\"amount_minor\", 2) NOT GLOB '*[^0-9]*' AND substr(\"ledger_balance_correction\".\"amount_minor\", 2, 1) BETWEEN '1' AND '9'))"
+				},
+				"ledger_balance_correction_version_check": {
+					"name": "ledger_balance_correction_version_check",
+					"value": "\"ledger_balance_correction\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_category": {
+			"name": "ledger_category",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"normalized_name": {
+					"name": "normalized_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_category_workspace_name_unique": {
+					"name": "ledger_category_workspace_name_unique",
+					"columns": ["workspace_id", "normalized_name"],
+					"isUnique": true
+				},
+				"ledger_category_workspace_id_unique": {
+					"name": "ledger_category_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"ledger_category_workspace_id_workspace_id_fk": {
+					"name": "ledger_category_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_category",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_category_version_check": {
+					"name": "ledger_category_version_check",
+					"value": "\"ledger_category\".\"version\" > 0"
+				}
+			}
+		},
+		"ledger_import_batch": {
+			"name": "ledger_import_batch",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"filename": {
+					"name": "filename",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"ledger_import_batch_workspace_id_unique": {
+					"name": "ledger_import_batch_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				},
+				"ledger_import_batch_workspace_account_id_unique": {
+					"name": "ledger_import_batch_workspace_account_id_unique",
+					"columns": ["workspace_id", "account_id", "id"],
+					"isUnique": true
+				},
+				"ledger_import_batch_workspace_created_idx": {
+					"name": "ledger_import_batch_workspace_created_idx",
+					"columns": ["workspace_id", "created_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"ledger_import_batch_workspace_id_workspace_id_fk": {
+					"name": "ledger_import_batch_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_import_batch",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_import_batch_actor_user_id_user_id_fk": {
+					"name": "ledger_import_batch_actor_user_id_user_id_fk",
+					"tableFrom": "ledger_import_batch",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"ledger_import_batch_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_import_batch_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_import_batch",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"ledger_transaction": {
+			"name": "ledger_transaction",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"category_id": {
+					"name": "category_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"refund_of_transaction_id": {
+					"name": "refund_of_transaction_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"import_batch_id": {
+					"name": "import_batch_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"import_source_row": {
+					"name": "import_source_row",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"merchant": {
+					"name": "merchant",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'manual'"
+				},
+				"transfer_id": {
+					"name": "transfer_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"transfer_side": {
+					"name": "transfer_side",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"ledger_transaction_account_idx": {
+					"name": "ledger_transaction_account_idx",
+					"columns": ["account_id"],
+					"isUnique": false
+				},
+				"ledger_transaction_workspace_id_unique": {
+					"name": "ledger_transaction_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				},
+				"ledger_transaction_workspace_date_idx": {
+					"name": "ledger_transaction_workspace_date_idx",
+					"columns": ["workspace_id", "date"],
+					"isUnique": false
+				},
+				"ledger_transaction_trash_idx": {
+					"name": "ledger_transaction_trash_idx",
+					"columns": ["trashed_at"],
+					"isUnique": false
+				},
+				"ledger_transaction_import_source_unique": {
+					"name": "ledger_transaction_import_source_unique",
+					"columns": ["import_batch_id", "import_source_row"],
+					"isUnique": true
+				},
+				"ledger_transaction_transfer_side_unique": {
+					"name": "ledger_transaction_transfer_side_unique",
+					"columns": ["transfer_id", "transfer_side"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"ledger_transaction_workspace_id_workspace_id_fk": {
+					"name": "ledger_transaction_workspace_id_workspace_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "ledger_transaction_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_workspace_id_category_id_ledger_category_workspace_id_id_fk": {
+					"name": "ledger_transaction_workspace_id_category_id_ledger_category_workspace_id_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "ledger_category",
+					"columnsFrom": ["workspace_id", "category_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_refund_expense_fk": {
+					"name": "ledger_transaction_refund_expense_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "ledger_transaction",
+					"columnsFrom": ["workspace_id", "refund_of_transaction_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_workspace_id_account_id_import_batch_id_ledger_import_batch_workspace_id_account_id_id_fk": {
+					"name": "ledger_transaction_workspace_id_account_id_import_batch_id_ledger_import_batch_workspace_id_account_id_id_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "ledger_import_batch",
+					"columnsFrom": ["workspace_id", "account_id", "import_batch_id"],
+					"columnsTo": ["workspace_id", "account_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"ledger_transaction_transfer_fk": {
+					"name": "ledger_transaction_transfer_fk",
+					"tableFrom": "ledger_transaction",
+					"tableTo": "ledger_transfer",
+					"columnsFrom": ["transfer_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_transaction_kind_check": {
+					"name": "ledger_transaction_kind_check",
+					"value": "\"ledger_transaction\".\"kind\" IN ('income', 'expense', 'refund')"
+				},
+				"ledger_transaction_amount_check": {
+					"name": "ledger_transaction_amount_check",
+					"value": "\"ledger_transaction\".\"amount_minor\" > 0"
+				},
+				"ledger_transaction_amount_int64_check": {
+					"name": "ledger_transaction_amount_int64_check",
+					"value": "\"ledger_transaction\".\"amount_minor\" <= 9223372036854775807"
+				},
+				"ledger_transaction_date_check": {
+					"name": "ledger_transaction_date_check",
+					"value": "\"ledger_transaction\".\"date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+				},
+				"ledger_transaction_version_check": {
+					"name": "ledger_transaction_version_check",
+					"value": "\"ledger_transaction\".\"version\" > 0"
+				},
+				"ledger_transaction_import_source_check": {
+					"name": "ledger_transaction_import_source_check",
+					"value": "(\"ledger_transaction\".\"import_batch_id\" IS NULL) = (\"ledger_transaction\".\"import_source_row\" IS NULL)"
+				},
+				"ledger_transaction_refund_check": {
+					"name": "ledger_transaction_refund_check",
+					"value": "(\"ledger_transaction\".\"kind\" = 'refund' AND \"ledger_transaction\".\"source\" = 'manual' AND \"ledger_transaction\".\"refund_of_transaction_id\" IS NOT NULL AND \"ledger_transaction\".\"import_batch_id\" IS NULL) OR (\"ledger_transaction\".\"kind\" <> 'refund' AND \"ledger_transaction\".\"refund_of_transaction_id\" IS NULL)"
+				},
+				"ledger_transaction_transfer_check": {
+					"name": "ledger_transaction_transfer_check",
+					"value": "(\"ledger_transaction\".\"source\" = 'manual' AND \"ledger_transaction\".\"transfer_id\" IS NULL AND \"ledger_transaction\".\"transfer_side\" IS NULL) OR (\"ledger_transaction\".\"source\" = 'transfer' AND \"ledger_transaction\".\"transfer_id\" IS NOT NULL AND ((\"ledger_transaction\".\"transfer_side\" = 'from' AND \"ledger_transaction\".\"kind\" = 'expense') OR (\"ledger_transaction\".\"transfer_side\" = 'to' AND \"ledger_transaction\".\"kind\" = 'income')))"
+				}
+			}
+		},
+		"ledger_transfer": {
+			"name": "ledger_transfer",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"sent_amount_minor": {
+					"name": "sent_amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"received_amount_minor": {
+					"name": "received_amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"detached_at": {
+					"name": "detached_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"ledger_transfer_version_check": {
+					"name": "ledger_transfer_version_check",
+					"value": "\"ledger_transfer\".\"version\" > 0"
+				},
+				"ledger_transfer_sent_amount_check": {
+					"name": "ledger_transfer_sent_amount_check",
+					"value": "\"ledger_transfer\".\"sent_amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				},
+				"ledger_transfer_received_amount_check": {
+					"name": "ledger_transfer_received_amount_check",
+					"value": "\"ledger_transfer\".\"received_amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				}
+			}
+		},
+		"mutation_receipt": {
+			"name": "mutation_receipt",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"operation": {
+					"name": "operation",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"idempotency_key": {
+					"name": "idempotency_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"request_json": {
+					"name": "request_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"response_json": {
+					"name": "response_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"mutation_receipt_scope_unique": {
+					"name": "mutation_receipt_scope_unique",
+					"columns": ["workspace_id", "actor_user_id", "operation", "idempotency_key"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"mutation_receipt_workspace_id_workspace_id_fk": {
+					"name": "mutation_receipt_workspace_id_workspace_id_fk",
+					"tableFrom": "mutation_receipt",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"mutation_receipt_actor_user_id_user_id_fk": {
+					"name": "mutation_receipt_actor_user_id_user_id_fk",
+					"tableFrom": "mutation_receipt",
+					"tableTo": "user",
+					"columnsFrom": ["actor_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"settlement_payment": {
+			"name": "settlement_payment",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"from_user_id": {
+					"name": "from_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"to_user_id": {
+					"name": "to_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"transfer_id": {
+					"name": "transfer_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"trashed_at": {
+					"name": "trashed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"settlement_payment_transfer_unique": {
+					"name": "settlement_payment_transfer_unique",
+					"columns": ["transfer_id"],
+					"isUnique": true
+				},
+				"settlement_payment_workspace_date_idx": {
+					"name": "settlement_payment_workspace_date_idx",
+					"columns": ["workspace_id", "date"],
+					"isUnique": false
+				},
+				"settlement_payment_trash_idx": {
+					"name": "settlement_payment_trash_idx",
+					"columns": ["trashed_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"settlement_payment_workspace_id_workspace_id_fk": {
+					"name": "settlement_payment_workspace_id_workspace_id_fk",
+					"tableFrom": "settlement_payment",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"settlement_payment_from_user_id_user_id_fk": {
+					"name": "settlement_payment_from_user_id_user_id_fk",
+					"tableFrom": "settlement_payment",
+					"tableTo": "user",
+					"columnsFrom": ["from_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"settlement_payment_to_user_id_user_id_fk": {
+					"name": "settlement_payment_to_user_id_user_id_fk",
+					"tableFrom": "settlement_payment",
+					"tableTo": "user",
+					"columnsFrom": ["to_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"settlement_payment_transfer_id_ledger_transfer_id_fk": {
+					"name": "settlement_payment_transfer_id_ledger_transfer_id_fk",
+					"tableFrom": "settlement_payment",
+					"tableTo": "ledger_transfer",
+					"columnsFrom": ["transfer_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"settlement_payment_members_check": {
+					"name": "settlement_payment_members_check",
+					"value": "\"settlement_payment\".\"from_user_id\" <> \"settlement_payment\".\"to_user_id\""
+				},
+				"settlement_payment_amount_check": {
+					"name": "settlement_payment_amount_check",
+					"value": "\"settlement_payment\".\"amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				},
+				"settlement_payment_date_check": {
+					"name": "settlement_payment_date_check",
+					"value": "\"settlement_payment\".\"date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+				},
+				"settlement_payment_version_check": {
+					"name": "settlement_payment_version_check",
+					"value": "\"settlement_payment\".\"version\" > 0"
+				}
+			}
+		},
+		"planned_occurrence_exception": {
+			"name": "planned_occurrence_exception",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"plan_id": {
+					"name": "plan_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"original_date": {
+					"name": "original_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"changed_date": {
+					"name": "changed_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"changed_amount_minor": {
+					"name": "changed_amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"changed_status": {
+					"name": "changed_status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"planned_exception_occurrence_unique": {
+					"name": "planned_exception_occurrence_unique",
+					"columns": ["plan_id", "original_date"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"planned_occurrence_exception_workspace_id_plan_id_planned_series_workspace_id_id_fk": {
+					"name": "planned_occurrence_exception_workspace_id_plan_id_planned_series_workspace_id_id_fk",
+					"tableFrom": "planned_occurrence_exception",
+					"tableTo": "planned_series",
+					"columnsFrom": ["workspace_id", "plan_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"planned_exception_action_check": {
+					"name": "planned_exception_action_check",
+					"value": "\"planned_occurrence_exception\".\"action\" IN ('skip','change')"
+				},
+				"planned_exception_change_check": {
+					"name": "planned_exception_change_check",
+					"value": "(\"planned_occurrence_exception\".\"action\"='skip' AND \"planned_occurrence_exception\".\"changed_date\" IS NULL AND \"planned_occurrence_exception\".\"changed_amount_minor\" IS NULL AND \"planned_occurrence_exception\".\"changed_status\" IS NULL) OR (\"planned_occurrence_exception\".\"action\"='change' AND (\"planned_occurrence_exception\".\"changed_date\" IS NOT NULL OR \"planned_occurrence_exception\".\"changed_amount_minor\" IS NOT NULL OR \"planned_occurrence_exception\".\"changed_status\" IS NOT NULL))"
+				}
+			}
+		},
+		"planned_occurrence_match": {
+			"name": "planned_occurrence_match",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"plan_id": {
+					"name": "plan_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"original_date": {
+					"name": "original_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"transaction_id": {
+					"name": "transaction_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"planned_match_occurrence_unique": {
+					"name": "planned_match_occurrence_unique",
+					"columns": ["plan_id", "original_date"],
+					"isUnique": true
+				},
+				"planned_match_transaction_unique": {
+					"name": "planned_match_transaction_unique",
+					"columns": ["transaction_id"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"planned_occurrence_match_workspace_id_plan_id_planned_series_workspace_id_id_fk": {
+					"name": "planned_occurrence_match_workspace_id_plan_id_planned_series_workspace_id_id_fk",
+					"tableFrom": "planned_occurrence_match",
+					"tableTo": "planned_series",
+					"columnsFrom": ["workspace_id", "plan_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"planned_occurrence_match_workspace_id_transaction_id_ledger_transaction_workspace_id_id_fk": {
+					"name": "planned_occurrence_match_workspace_id_transaction_id_ledger_transaction_workspace_id_id_fk",
+					"tableFrom": "planned_occurrence_match",
+					"tableTo": "ledger_transaction",
+					"columnsFrom": ["workspace_id", "transaction_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"planned_series": {
+			"name": "planned_series",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"root_plan_id": {
+					"name": "root_plan_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"amount_minor": {
+					"name": "amount_minor",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"effective_from": {
+					"name": "effective_from",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"category_id": {
+					"name": "category_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"recurrence_frequency": {
+					"name": "recurrence_frequency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"recurrence_interval": {
+					"name": "recurrence_interval",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"recurrence_end_date": {
+					"name": "recurrence_end_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"cutoff_date": {
+					"name": "cutoff_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"cancelled": {
+					"name": "cancelled",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"planned_series_workspace_id_unique": {
+					"name": "planned_series_workspace_id_unique",
+					"columns": ["workspace_id", "id"],
+					"isUnique": true
+				},
+				"planned_series_workspace_root_idx": {
+					"name": "planned_series_workspace_root_idx",
+					"columns": ["workspace_id", "root_plan_id"],
+					"isUnique": false
+				},
+				"planned_series_workspace_date_idx": {
+					"name": "planned_series_workspace_date_idx",
+					"columns": ["workspace_id", "date"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"planned_series_workspace_id_workspace_id_fk": {
+					"name": "planned_series_workspace_id_workspace_id_fk",
+					"tableFrom": "planned_series",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"planned_series_workspace_id_account_id_financial_account_workspace_id_id_fk": {
+					"name": "planned_series_workspace_id_account_id_financial_account_workspace_id_id_fk",
+					"tableFrom": "planned_series",
+					"tableTo": "financial_account",
+					"columnsFrom": ["workspace_id", "account_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"planned_series_workspace_id_category_id_ledger_category_workspace_id_id_fk": {
+					"name": "planned_series_workspace_id_category_id_ledger_category_workspace_id_id_fk",
+					"tableFrom": "planned_series",
+					"tableTo": "ledger_category",
+					"columnsFrom": ["workspace_id", "category_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				},
+				"planned_series_workspace_id_root_plan_id_planned_series_workspace_id_id_fk": {
+					"name": "planned_series_workspace_id_root_plan_id_planned_series_workspace_id_id_fk",
+					"tableFrom": "planned_series",
+					"tableTo": "planned_series",
+					"columnsFrom": ["workspace_id", "root_plan_id"],
+					"columnsTo": ["workspace_id", "id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"planned_series_amount_check": {
+					"name": "planned_series_amount_check",
+					"value": "\"planned_series\".\"amount_minor\" BETWEEN 1 AND 9223372036854775807"
+				},
+				"planned_series_version_check": {
+					"name": "planned_series_version_check",
+					"value": "\"planned_series\".\"version\" > 0"
+				},
+				"planned_series_kind_check": {
+					"name": "planned_series_kind_check",
+					"value": "\"planned_series\".\"kind\" IN ('income','expense')"
+				},
+				"planned_series_status_check": {
+					"name": "planned_series_status_check",
+					"value": "\"planned_series\".\"status\" IN ('expected','tentative')"
+				},
+				"planned_series_date_check": {
+					"name": "planned_series_date_check",
+					"value": "\"planned_series\".\"date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND \"planned_series\".\"effective_from\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND (\"planned_series\".\"cutoff_date\" IS NULL OR \"planned_series\".\"cutoff_date\" >= \"planned_series\".\"effective_from\")"
+				},
+				"planned_series_recurrence_check": {
+					"name": "planned_series_recurrence_check",
+					"value": "(\"planned_series\".\"recurrence_frequency\" IS NULL AND \"planned_series\".\"recurrence_interval\" IS NULL AND \"planned_series\".\"recurrence_end_date\" IS NULL) OR (\"planned_series\".\"recurrence_frequency\" IN ('weekly','monthly','yearly') AND \"planned_series\".\"recurrence_interval\" > 0 AND (\"planned_series\".\"recurrence_end_date\" IS NULL OR \"planned_series\".\"recurrence_end_date\" >= \"planned_series\".\"date\"))"
+				}
+			}
+		},
+		"email_outbox": {
+			"name": "email_outbox",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"invitation_id": {
+					"name": "invitation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"to": {
+					"name": "to",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"body": {
+					"name": "body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"attempts": {
+					"name": "attempts",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"next_attempt_at": {
+					"name": "next_attempt_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"sent_at": {
+					"name": "sent_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"email_outbox_delivery_idx": {
+					"name": "email_outbox_delivery_idx",
+					"columns": ["sent_at", "next_attempt_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"email_outbox_invitation_id_workspace_invitation_id_fk": {
+					"name": "email_outbox_invitation_id_workspace_invitation_id_fk",
+					"tableFrom": "email_outbox",
+					"tableTo": "workspace_invitation",
+					"columnsFrom": ["invitation_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace": {
+			"name": "workspace",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"personal_owner_user_id": {
+					"name": "personal_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"reporting_currency": {
+					"name": "reporting_currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_personal_owner_unique": {
+					"name": "workspace_personal_owner_unique",
+					"columns": ["personal_owner_user_id"],
+					"isUnique": true
+				},
+				"workspace_deleted_at_idx": {
+					"name": "workspace_deleted_at_idx",
+					"columns": ["deleted_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_personal_owner_user_id_user_id_fk": {
+					"name": "workspace_personal_owner_user_id_user_id_fk",
+					"tableFrom": "workspace",
+					"tableTo": "user",
+					"columnsFrom": ["personal_owner_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"workspace_version_check": {
+					"name": "workspace_version_check",
+					"value": "\"workspace\".\"version\" > 0"
+				},
+				"workspace_personal_owner_check": {
+					"name": "workspace_personal_owner_check",
+					"value": "(\"workspace\".\"type\" = 'personal' AND \"workspace\".\"personal_owner_user_id\" IS NOT NULL) OR (\"workspace\".\"type\" = 'household' AND \"workspace\".\"personal_owner_user_id\" IS NULL)"
+				}
+			}
+		},
+		"workspace_audit": {
+			"name": "workspace_audit",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor_user_id": {
+					"name": "actor_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"target_user_id": {
+					"name": "target_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"details_json": {
+					"name": "details_json",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_audit_workspace_idx": {
+					"name": "workspace_audit_workspace_idx",
+					"columns": ["workspace_id", "created_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_audit_workspace_id_workspace_id_fk": {
+					"name": "workspace_audit_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_audit",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace_invitation": {
+			"name": "workspace_invitation",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"email_normalized": {
+					"name": "email_normalized",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"token_hash": {
+					"name": "token_hash",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"inviter_user_id": {
+					"name": "inviter_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"generation": {
+					"name": "generation",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 1
+				},
+				"resends_invitation_id": {
+					"name": "resends_invitation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"accepted_at": {
+					"name": "accepted_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"accepted_by_user_id": {
+					"name": "accepted_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"revoked_at": {
+					"name": "revoked_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_invitation_token_unique": {
+					"name": "workspace_invitation_token_unique",
+					"columns": ["token_hash"],
+					"isUnique": true
+				},
+				"workspace_invitation_workspace_idx": {
+					"name": "workspace_invitation_workspace_idx",
+					"columns": ["workspace_id"],
+					"isUnique": false
+				},
+				"workspace_invitation_email_idx": {
+					"name": "workspace_invitation_email_idx",
+					"columns": ["email_normalized"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_invitation_workspace_id_workspace_id_fk": {
+					"name": "workspace_invitation_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"workspace_invitation_inviter_user_id_user_id_fk": {
+					"name": "workspace_invitation_inviter_user_id_user_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "user",
+					"columnsFrom": ["inviter_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"workspace_invitation_accepted_by_user_id_user_id_fk": {
+					"name": "workspace_invitation_accepted_by_user_id_user_id_fk",
+					"tableFrom": "workspace_invitation",
+					"tableTo": "user",
+					"columnsFrom": ["accepted_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"workspace_membership": {
+			"name": "workspace_membership",
+			"columns": {
+				"workspace_id": {
+					"name": "workspace_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"role": {
+					"name": "role",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "(unixepoch())"
+				}
+			},
+			"indexes": {
+				"workspace_membership_workspace_user_unique": {
+					"name": "workspace_membership_workspace_user_unique",
+					"columns": ["workspace_id", "user_id"],
+					"isUnique": true
+				},
+				"workspace_membership_user_idx": {
+					"name": "workspace_membership_user_idx",
+					"columns": ["user_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"workspace_membership_workspace_id_workspace_id_fk": {
+					"name": "workspace_membership_workspace_id_workspace_id_fk",
+					"tableFrom": "workspace_membership",
+					"tableTo": "workspace",
+					"columnsFrom": ["workspace_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"workspace_membership_user_id_user_id_fk": {
+					"name": "workspace_membership_user_id_user_id_fk",
+					"tableFrom": "workspace_membership",
+					"tableTo": "user",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		}
+	},
+	"views": {},
+	"enums": {},
+	"_meta": {
+		"schemas": {},
+		"tables": {},
+		"columns": {}
+	},
+	"internal": {
+		"indexes": {}
+	}
+}

@@ -260,6 +260,7 @@ export const householdExpense = sqliteTable(
 			foreignColumns: [ledgerCategory.workspaceId, ledgerCategory.id]
 		}).onDelete('restrict'),
 		uniqueIndex('household_expense_source_unique').on(table.sourceTransactionId),
+		uniqueIndex('household_expense_workspace_id_unique').on(table.workspaceId, table.id),
 		index('household_expense_workspace_date_idx').on(table.workspaceId, table.date),
 		index('household_expense_trash_idx').on(table.trashedAt),
 		check(
@@ -271,6 +272,84 @@ export const householdExpense = sqliteTable(
 			sql`${table.date} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
 		),
 		check('household_expense_version_check', sql`${table.version} > 0`)
+	]
+);
+
+export const householdExpenseAllocation = sqliteTable(
+	'household_expense_allocation',
+	{
+		expenseId: text('expense_id')
+			.notNull()
+			.references(() => householdExpense.id, { onDelete: 'cascade' }),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		memberUserId: text('member_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'restrict' }),
+		amountMinor: int64('amount_minor').notNull()
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.workspaceId, table.expenseId],
+			foreignColumns: [householdExpense.workspaceId, householdExpense.id]
+		}).onDelete('cascade'),
+		uniqueIndex('household_expense_allocation_member_unique').on(
+			table.expenseId,
+			table.memberUserId
+		),
+		index('household_expense_allocation_workspace_member_idx').on(
+			table.workspaceId,
+			table.memberUserId
+		),
+		check(
+			'household_expense_allocation_amount_check',
+			sql`${table.amountMinor} BETWEEN 1 AND 9223372036854775807`
+		)
+	]
+);
+
+export const settlementPayment = sqliteTable(
+	'settlement_payment',
+	{
+		id: text('id').primaryKey(),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspace.id, { onDelete: 'cascade' }),
+		fromUserId: text('from_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'restrict' }),
+		toUserId: text('to_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'restrict' }),
+		amountMinor: int64('amount_minor').notNull(),
+		currency: text('currency').notNull(),
+		date: text('date').notNull(),
+		description: text('description'),
+		transferId: text('transfer_id').references(() => ledgerTransfer.id, { onDelete: 'restrict' }),
+		version: safeInteger('version').default(1).notNull(),
+		trashedAt: secondsTimestamp('trashed_at'),
+		createdAt: secondsTimestamp('created_at')
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		updatedAt: secondsTimestamp('updated_at')
+			.default(sql`(unixepoch())`)
+			.notNull()
+	},
+	(table) => [
+		uniqueIndex('settlement_payment_transfer_unique').on(table.transferId),
+		index('settlement_payment_workspace_date_idx').on(table.workspaceId, table.date),
+		index('settlement_payment_trash_idx').on(table.trashedAt),
+		check('settlement_payment_members_check', sql`${table.fromUserId} <> ${table.toUserId}`),
+		check(
+			'settlement_payment_amount_check',
+			sql`${table.amountMinor} BETWEEN 1 AND 9223372036854775807`
+		),
+		check(
+			'settlement_payment_date_check',
+			sql`${table.date} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
+		),
+		check('settlement_payment_version_check', sql`${table.version} > 0`)
 	]
 );
 
@@ -378,6 +457,7 @@ export const ledgerAudit = sqliteTable(
 			enum: [
 				'transaction',
 				'household_expense',
+				'settlement_payment',
 				'account',
 				'transfer',
 				'balance_check',

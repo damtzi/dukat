@@ -120,6 +120,40 @@ export const ledgerRouter = router
 			)
 		)
 	)
+	.openapi(routes.listSettlementPayments, (c) =>
+		success(c, () =>
+			c.var.services.ledger.listSettlementPayments(
+				context(c),
+				c.req.valid('query').includeTrashed === 'true'
+			)
+		)
+	)
+	.openapi(routes.listSettlementBalances, (c) =>
+		success(c, () => c.var.services.ledger.listSettlementBalances(context(c)))
+	)
+	.openapi(routes.createSettlementPayment, (c) =>
+		success(c, () => c.var.services.ledger.createSettlementPayment(context(c), c.req.valid('json')))
+	)
+	.openapi(routes.settlementPaymentAction('trash'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.settlementPaymentAction(
+				context(c),
+				c.req.valid('param').paymentId,
+				'trash',
+				c.req.valid('json')
+			)
+		)
+	)
+	.openapi(routes.settlementPaymentAction('restore'), (c) =>
+		success(c, () =>
+			c.var.services.ledger.settlementPaymentAction(
+				context(c),
+				c.req.valid('param').paymentId,
+				'restore',
+				c.req.valid('json')
+			)
+		)
+	)
 	.openapi(routes.createTransaction, (c) =>
 		success(c, () =>
 			c.var.services.ledger.createTransaction(

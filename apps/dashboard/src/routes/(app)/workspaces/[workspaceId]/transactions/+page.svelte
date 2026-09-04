@@ -5,15 +5,20 @@
     Button,
     Card,
     Checkbox,
+    Dialog,
     Empty,
     Field,
     Input,
     Select,
     Table,
+    Textarea,
   } from '@dukat/ui'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
+  import { api } from '$lib/controllers/workspace-controller.svelte'
+  import { todayInWarsaw } from '$lib/date'
   import { formatMoney } from '$lib/money'
+  import { parseAmount } from '$lib/money'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()
@@ -26,6 +31,17 @@
   let dateFrom = $derived(data.filters.dateFrom)
   let dateTo = $derived(data.filters.dateTo)
   let includeTrashed = $derived(data.filters.includeTrashed)
+  let settlementOpen = $state(false)
+  let settlementError = $state('')
+  let settlementPending = $state(false)
+  let settlementForm = $state({
+    fromUserId: '',
+    toUserId: '',
+    amount: '',
+    currency: 'PLN',
+    date: todayInWarsaw(),
+    description: '',
+  })
   let selectedAccount = $derived(
     data.accounts.find(({ id }) => id === accountId),
   )
@@ -44,6 +60,77 @@
         ? (data.categories.find((category) => category.id === id)?.name ??
           'Unknown category')
         : 'Uncategorized'
+  function newSettlement() {
+    const currencies = [
+      ...new Set([
+        ...data.settlementBalances.map(({ currency }) => currency),
+        ...data.accounts.map(({ currency }) => currency),
+      ]),
+    ]
+    settlementError = ''
+    settlementForm = {
+      fromUserId: data.members[0]?.userId ?? '',
+      toUserId: data.members[1]?.userId ?? '',
+      amount: '',
+      currency:
+        data.workspaces.find(({ id }) => id === workspace.workspaceId)
+          ?.reportingCurrency ??
+        currencies[0] ??
+        'PLN',
+      date: todayInWarsaw(),
+      description: '',
+    }
+    settlementOpen = true
+  }
+  async function saveSettlement(event: SubmitEvent) {
+    event.preventDefault()
+    if (settlementPending) return
+    settlementError = ''
+    settlementPending = true
+    try {
+      const currency = settlementForm.currency.toUpperCase()
+      await api(`/workspaces/${workspace.workspaceId}/settlement-payments`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fromUserId: settlementForm.fromUserId,
+          toUserId: settlementForm.toUserId,
+          amountMinor: parseAmount(settlementForm.amount, currency),
+          currency,
+          date: settlementForm.date,
+          description: settlementForm.description.trim() || null,
+          idempotencyKey: `${Date.now()}-${crypto.randomUUID()}`,
+        }),
+      })
+      settlementOpen = false
+      await workspace.refresh()
+    } catch (error) {
+      settlementError = (error as Error).message
+    } finally {
+      settlementPending = false
+    }
+  }
+  async function settlementAction(
+    payment: (typeof data.settlementPayments)[number],
+    action: 'trash' | 'restore',
+  ) {
+    if (settlementPending) return
+    settlementPending = true
+    try {
+      await api(
+        `/workspaces/${workspace.workspaceId}/settlement-payments/${payment.id}/${action}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            version: payment.version,
+            idempotencyKey: `${Date.now()}-${crypto.randomUUID()}`,
+          }),
+        },
+      )
+      await workspace.refresh()
+    } finally {
+      settlementPending = false
+    }
+  }
 </script>
 
 <svelte:head><title>Transactions · Dukat</title></svelte:head>
@@ -107,6 +194,14 @@
                       {item.description}
                     </p>
                   {/if}
+                  <p class="text-sm text-muted-foreground">
+                    {item.allocations
+                      .map(
+                        ({ member, amountMinor }) =>
+                          `${member.name}: ${formatMoney(amountMinor, item.currency)}`,
+                      )
+                      .join(' · ')}
+                  </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 sm:justify-end">
                   <strong class="text-destructive">
@@ -146,6 +241,108 @@
         {/if}
       </Card.Content>
     </Card.Root>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <Card.Root>
+        <Card.Header>
+          <Card.Title>Member settlement</Card.Title>
+          <Card.Description>
+            Positive balances are owed. Negative balances should receive money.
+          </Card.Description>
+          <Card.Action>
+            <Button
+              size="sm"
+              onclick={newSettlement}
+              disabled={data.members.length < 2}>Record payment</Button
+            >
+          </Card.Action>
+        </Card.Header>
+        <Card.Content>
+          {#if data.settlementBalances.length === 0}
+            <p class="text-sm text-muted-foreground">No settlement balance.</p>
+          {:else}
+            <div class="flex flex-col gap-2">
+              {#each data.settlementBalances as balance (`${balance.currency}:${balance.member.userId}`)}
+                <div class="flex items-center justify-between gap-3">
+                  <span>{balance.member.name}</span>
+                  <strong
+                    class:text-destructive={BigInt(balance.balanceMinor) > 0n}
+                  >
+                    {BigInt(balance.balanceMinor) > 0n
+                      ? 'Owes '
+                      : BigInt(balance.balanceMinor) < 0n
+                        ? 'Is owed '
+                        : ''}{formatMoney(
+                      BigInt(balance.balanceMinor) < 0n
+                        ? (-BigInt(balance.balanceMinor)).toString()
+                        : balance.balanceMinor,
+                      balance.currency,
+                    )}
+                  </strong>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </Card.Content>
+      </Card.Root>
+
+      <Card.Root>
+        <Card.Header>
+          <Card.Title>Settlement payments</Card.Title>
+          <Card.Description>
+            Payments reduce balances. They are not income or spending.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          {#if data.settlementPayments.length === 0}
+            <p class="text-sm text-muted-foreground">No settlement payments.</p>
+          {:else}
+            <div class="flex flex-col gap-3">
+              {#each data.settlementPayments as payment (payment.id)}
+                <div
+                  class={[
+                    'flex items-center justify-between gap-3 rounded-lg border p-3',
+                    payment.trashedAt && 'opacity-60',
+                  ]}
+                >
+                  <div>
+                    <p class="font-medium">
+                      {payment.from.name} paid {payment.to.name}
+                    </p>
+                    <p class="text-sm text-muted-foreground">
+                      {payment.date}{payment.description
+                        ? ` · ${payment.description}`
+                        : ''}{payment.linkedTransfer
+                        ? ' · Linked transfer'
+                        : ''}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <strong
+                      >{formatMoney(
+                        payment.amountMinor,
+                        payment.currency,
+                      )}</strong
+                    >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={settlementPending}
+                      onclick={() =>
+                        settlementAction(
+                          payment,
+                          payment.trashedAt ? 'restore' : 'trash',
+                        )}
+                      >{payment.trashedAt ? 'Restore' : 'Move to trash'}</Button
+                    >
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </Card.Content>
+      </Card.Root>
+    </div>
   {/if}
 
   <Card.Root>
@@ -357,3 +554,106 @@
     </div>
   {/if}
 </section>
+
+<Dialog.Root bind:open={settlementOpen}>
+  <Dialog.Content class="max-h-[calc(100svh-2rem)] overflow-y-auto">
+    <Dialog.Header>
+      <Dialog.Title>Record settlement payment</Dialog.Title>
+      <Dialog.Description>
+        This changes only member settlement. It does not change Household cash
+        or cash flow.
+      </Dialog.Description>
+    </Dialog.Header>
+    <form onsubmit={saveSettlement}>
+      <Field.Group>
+        {#if settlementError}
+          <Alert.Root variant="destructive">
+            <Alert.Title>Could not save payment</Alert.Title>
+            <Alert.Description>{settlementError}</Alert.Description>
+          </Alert.Root>
+        {/if}
+        <Field.Field>
+          <Field.Label for="settlement-from">From</Field.Label>
+          <Select.Root type="single" bind:value={settlementForm.fromUserId}>
+            <Select.Trigger id="settlement-from" class="w-full">
+              {data.members.find(
+                ({ userId }) => userId === settlementForm.fromUserId,
+              )?.name ?? 'Select member'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each data.members as member (member.userId)}
+                  <Select.Item value={member.userId} label={member.name}
+                    >{member.name}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="settlement-to">To</Field.Label>
+          <Select.Root type="single" bind:value={settlementForm.toUserId}>
+            <Select.Trigger id="settlement-to" class="w-full">
+              {data.members.find(
+                ({ userId }) => userId === settlementForm.toUserId,
+              )?.name ?? 'Select member'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each data.members.filter(({ userId }) => userId !== settlementForm.fromUserId) as member (member.userId)}
+                  <Select.Item value={member.userId} label={member.name}
+                    >{member.name}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <Field.Field>
+            <Field.Label for="settlement-amount">Amount</Field.Label>
+            <Input
+              id="settlement-amount"
+              required
+              inputmode="decimal"
+              bind:value={settlementForm.amount}
+            />
+          </Field.Field>
+          <Field.Field>
+            <Field.Label for="settlement-currency">Currency</Field.Label>
+            <Input
+              id="settlement-currency"
+              required
+              maxlength={3}
+              bind:value={settlementForm.currency}
+            />
+          </Field.Field>
+        </div>
+        <Field.Field>
+          <Field.Label for="settlement-date">Date</Field.Label>
+          <Input
+            id="settlement-date"
+            required
+            type="date"
+            max={todayInWarsaw()}
+            bind:value={settlementForm.date}
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="settlement-description">Description</Field.Label>
+          <Textarea
+            id="settlement-description"
+            maxlength={500}
+            bind:value={settlementForm.description}
+          />
+        </Field.Field>
+        <Dialog.Footer>
+          <Button type="submit" disabled={settlementPending}
+            >Save payment</Button
+          >
+        </Dialog.Footer>
+      </Field.Group>
+    </form>
+  </Dialog.Content>
+</Dialog.Root>

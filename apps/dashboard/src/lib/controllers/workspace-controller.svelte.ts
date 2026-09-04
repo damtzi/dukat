@@ -13,6 +13,15 @@ export type Workspace = {
   role: 'owner' | 'member' | null
 }
 
+export type HouseholdMember = {
+  userId: string
+  name: string
+  username: string
+  image: string | null
+  role: 'owner' | 'member'
+  joinedAt: string
+}
+
 export type PickerAccount = Account & {
   workspaceId: string
   workspaceLabel: string
@@ -84,6 +93,7 @@ export type WorkspaceRouteData = {
   workspaceId: string
   accounts: Account[]
   categories: Category[]
+  members: HouseholdMember[]
   selectedAccountId: string
   rateStatus: RateStatus | null
   convertedBalances: ConvertedBalances | null
