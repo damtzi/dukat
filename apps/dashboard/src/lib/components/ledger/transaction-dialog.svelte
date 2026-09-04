@@ -16,6 +16,7 @@
     open = $bindable(),
     form = $bindable(),
     editingTransaction,
+    refundingExpense,
     error,
     pending,
     onsubmit,
@@ -35,6 +36,7 @@
       categoryId: string
     }
     editingTransaction: Transaction | null
+    refundingExpense: Transaction | null
     error: string
     pending: boolean
     onsubmit: (event: SubmitEvent) => void
@@ -73,17 +75,26 @@
   let selectedAccount = $derived(
     activeAccounts.find(({ id }) => id === form.accountId),
   )
+  let refundMode = $derived(
+    Boolean(refundingExpense || editingTransaction?.kind === 'refund'),
+  )
 </script>
 
 <Dialog.Root bind:open>
   <Dialog.Content
     ><Dialog.Header
       ><Dialog.Title
-        >{editingTransaction
-          ? 'Edit transaction'
-          : 'Add transaction'}</Dialog.Title
+        >{refundingExpense
+          ? 'Add refund'
+          : editingTransaction?.kind === 'refund'
+            ? 'Edit refund'
+            : editingTransaction
+              ? 'Edit transaction'
+              : 'Add transaction'}</Dialog.Title
       ><Dialog.Description
-        >Record completed income or spending.</Dialog.Description
+        >{refundMode
+          ? 'Link returned money to the original expense. It reduces spending, not income.'
+          : 'Record completed income or spending.'}</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
@@ -92,7 +103,7 @@
             ><Alert.Title>Could not save transaction</Alert.Title
             ><Alert.Description>{error}</Alert.Description></Alert.Root
           >{/if}
-        {#if !editingTransaction}
+        {#if !editingTransaction && !refundingExpense}
           <Field.Field>
             <Field.Label for="transaction-account">Account</Field.Label
             ><Select.Root type="single" bind:value={form.accountId}>
@@ -113,26 +124,28 @@
             </Select.Root>
           </Field.Field>
         {/if}
-        <Field.Field>
-          <Field.Label for="kind">Kind</Field.Label><Select.Root
-            type="single"
-            bind:value={form.kind}
-          >
-            <Select.Trigger id="kind" class="w-full">
-              {transactionKinds.find(({ value }) => value === form.kind)
-                ?.label ?? 'Select kind'}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Group>
-                {#each transactionKinds as option (option.value)}
-                  <Select.Item value={option.value} label={option.label}
-                    >{option.label}</Select.Item
-                  >
-                {/each}
-              </Select.Group>
-            </Select.Content>
-          </Select.Root>
-        </Field.Field>
+        {#if !refundMode}
+          <Field.Field>
+            <Field.Label for="kind">Kind</Field.Label><Select.Root
+              type="single"
+              bind:value={form.kind}
+            >
+              <Select.Trigger id="kind" class="w-full">
+                {transactionKinds.find(({ value }) => value === form.kind)
+                  ?.label ?? 'Select kind'}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Group>
+                  {#each transactionKinds as option (option.value)}
+                    <Select.Item value={option.value} label={option.label}
+                      >{option.label}</Select.Item
+                    >
+                  {/each}
+                </Select.Group>
+              </Select.Content>
+            </Select.Root>
+          </Field.Field>
+        {/if}
         <Field.Field>
           <Field.Label for="amount">Amount</Field.Label><Input
             id="amount"
@@ -146,51 +159,61 @@
             id="date"
             required
             type="date"
+            min={refundingExpense?.date}
             max={todayInWarsaw()}
             bind:value={form.date}
           />
         </Field.Field>
         <Field.Field>
-          <Field.Label for="transaction-category">Category</Field.Label
-          ><Select.Root type="single" bind:value={form.categoryId}>
-            <Select.Trigger id="transaction-category" class="w-full">
-              {selectedCategory
-                ? `${selectedCategory.name}${selectedCategory.archivedAt ? ' (archived, retained)' : ''}`
-                : 'Uncategorized'}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Group>
-                <Select.Item value="" label="Uncategorized"
-                  >Uncategorized</Select.Item
-                >
-              </Select.Group>
-              {#if recentCategories.length}
+          <Field.Label for="transaction-category">Category</Field.Label>
+          {#if refundMode}
+            <Input
+              id="transaction-category"
+              value={selectedCategory?.name ?? 'Uncategorized'}
+              disabled
+            />
+            <Field.Description
+              >Refunds keep the original expense category.</Field.Description
+            >
+          {:else}<Select.Root type="single" bind:value={form.categoryId}>
+              <Select.Trigger id="transaction-category" class="w-full">
+                {selectedCategory
+                  ? `${selectedCategory.name}${selectedCategory.archivedAt ? ' (archived, retained)' : ''}`
+                  : 'Uncategorized'}
+              </Select.Trigger>
+              <Select.Content>
                 <Select.Group>
-                  <Select.GroupHeading>Recent</Select.GroupHeading>
-                  {#each recentCategories as category (category.id)}
-                    <Select.Item value={category.id} label={category.name}
-                      >{category.name}</Select.Item
+                  <Select.Item value="" label="Uncategorized"
+                    >Uncategorized</Select.Item
+                  >
+                </Select.Group>
+                {#if recentCategories.length}
+                  <Select.Group>
+                    <Select.GroupHeading>Recent</Select.GroupHeading>
+                    {#each recentCategories as category (category.id)}
+                      <Select.Item value={category.id} label={category.name}
+                        >{category.name}</Select.Item
+                      >
+                    {/each}
+                  </Select.Group>
+                {/if}
+                <Select.Group>
+                  {#if recentCategories.length}
+                    <Select.GroupHeading>All categories</Select.GroupHeading>
+                  {/if}
+                  {#each otherCategories as category (category.id)}
+                    <Select.Item
+                      value={category.id}
+                      label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
                     >
+                      {category.name}{category.archivedAt
+                        ? ' (archived, retained)'
+                        : ''}
+                    </Select.Item>
                   {/each}
                 </Select.Group>
-              {/if}
-              <Select.Group>
-                {#if recentCategories.length}
-                  <Select.GroupHeading>All categories</Select.GroupHeading>
-                {/if}
-                {#each otherCategories as category (category.id)}
-                  <Select.Item
-                    value={category.id}
-                    label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
-                  >
-                    {category.name}{category.archivedAt
-                      ? ' (archived, retained)'
-                      : ''}
-                  </Select.Item>
-                {/each}
-              </Select.Group>
-            </Select.Content>
-          </Select.Root>
+              </Select.Content>
+            </Select.Root>{/if}
         </Field.Field>
         <Field.Field>
           <Field.Label for="merchant">Merchant</Field.Label><Input
@@ -219,7 +242,8 @@
           />
         </Field.Field>
         <Dialog.Footer
-          ><Button type="submit" disabled={pending}>Save transaction</Button
+          ><Button type="submit" disabled={pending}
+            >{refundMode ? 'Save refund' : 'Save transaction'}</Button
           ></Dialog.Footer
         >
       </Field.Group>

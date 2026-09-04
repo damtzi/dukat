@@ -89,6 +89,15 @@ export const ledgerRouter = router
 			)
 		)
 	)
+	.openapi(routes.createRefund, (c) =>
+		success(c, () =>
+			c.var.services.ledger.createRefund(
+				context(c),
+				c.req.valid('param').transactionId,
+				c.req.valid('json')
+			)
+		)
+	)
 	.openapi(routes.updateTransaction, (c) =>
 		success(c, () =>
 			c.var.services.ledger.updateTransaction(

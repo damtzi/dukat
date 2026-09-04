@@ -83,6 +83,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   let checkOpen = $state(false)
   let editingAccount = $state.raw<Account | null>(null)
   let editingTransaction = $state.raw<Transaction | null>(null)
+  let refundingExpense = $state.raw<Transaction | null>(null)
   let editingTransfer = $state.raw<Transfer | null>(null)
   let editingCheck = $state.raw<BalanceCheck | null>(null)
   let pending = $state(false)
@@ -325,6 +326,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     const usableAccount = (id?: string | null) =>
       accounts.find((candidate) => candidate.id === id && !candidate.archivedAt)
     editingTransaction = null
+    refundingExpense = null
     transactionError = ''
     transactionIntentKey = key()
     transactionForm = {
@@ -351,6 +353,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     transactionIntentKey = key()
     recentMerchants = []
     recentCategoryIds = []
+    refundingExpense = null
     editingTransaction = item
     transactionForm = {
       accountId: selected()!.id,
@@ -360,6 +363,26 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
       merchant: item.merchant ?? '',
       description: item.description ?? '',
       categoryId: item.categoryId ?? '',
+    }
+    transactionOpen = true
+  }
+  function newRefund(expense: Transaction) {
+    const account = accounts.find(({ id }) => id === expense.accountId)
+    if (!account || expense.kind !== 'expense' || expense.trashedAt) return
+    editingTransaction = null
+    refundingExpense = expense
+    transactionError = ''
+    transactionIntentKey = key()
+    recentMerchants = []
+    recentCategoryIds = []
+    transactionForm = {
+      accountId: expense.accountId,
+      kind: 'refund',
+      amount: '',
+      date: todayInWarsaw(),
+      merchant: expense.merchant ?? '',
+      description: '',
+      categoryId: expense.categoryId ?? '',
     }
     transactionOpen = true
   }
@@ -373,7 +396,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     try {
       if (transactionForm.date > todayInWarsaw())
         throw new Error('Date cannot be in the future.')
-      const body = {
+      const transactionBody = {
         kind: transactionForm.kind,
         amountMinor: parseAmount(transactionForm.amount, account.currency),
         date: transactionForm.date,
@@ -383,14 +406,26 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
         idempotencyKey: transactionIntentKey,
         ...(editingTransaction ? { version: editingTransaction.version } : {}),
       }
-      const path = editingTransaction
-        ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
-        : `/workspaces/${workspaceId}/accounts/${account.id}/transactions`
+      const body = refundingExpense
+        ? {
+            amountMinor: transactionBody.amountMinor,
+            date: transactionBody.date,
+            merchant: transactionBody.merchant,
+            description: transactionBody.description,
+            idempotencyKey: transactionBody.idempotencyKey,
+          }
+        : transactionBody
+      const path = refundingExpense
+        ? `/workspaces/${workspaceId}/transactions/${refundingExpense.id}/refunds`
+        : editingTransaction
+          ? `/workspaces/${workspaceId}/transactions/${editingTransaction.id}`
+          : `/workspaces/${workspaceId}/accounts/${account.id}/transactions`
       await api(path, {
         method: editingTransaction ? 'PUT' : 'POST',
         body: JSON.stringify(body),
       })
-      if (!editingTransaction) rememberAccount(workspaceId, account.id)
+      if (!editingTransaction && !refundingExpense)
+        rememberAccount(workspaceId, account.id)
       transactionOpen = false
       await callbacks.reloadAccounts()
     } catch (error) {
@@ -880,6 +915,9 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     set editingTransaction(value) {
       editingTransaction = value
     },
+    get refundingExpense() {
+      return refundingExpense
+    },
     get editingTransfer() {
       return editingTransfer
     },
@@ -965,6 +1003,7 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     accountAction,
     newTransaction,
     editTransaction,
+    newRefund,
     saveTransaction,
     transactionAction,
     transferDestinations,

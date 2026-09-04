@@ -9,6 +9,7 @@
     pending,
     onnew,
     onedit,
+    onrefund,
     onaction,
     onhistory,
   }: {
@@ -17,6 +18,7 @@
     pending: boolean
     onnew: () => void
     onedit: (item: Transaction) => void
+    onrefund: (item: Transaction) => void
     onaction: (item: Transaction, action: 'trash' | 'restore') => void
     onhistory: (item: Transaction) => void
   } = $props()
@@ -63,6 +65,7 @@
               account,
               pending,
               onedit,
+              onrefund,
               onaction,
               onhistory,
             )}</Card.Footer
@@ -97,6 +100,7 @@
                   account,
                   pending,
                   onedit,
+                  onrefund,
                   onaction,
                   onhistory,
                 )}</Table.Cell
@@ -113,6 +117,7 @@
   account: Account,
   pending: boolean,
   onedit: (item: Transaction) => void,
+  onrefund: (item: Transaction) => void,
   onaction: (item: Transaction, action: 'trash' | 'restore') => void,
   onhistory: (item: Transaction) => void,
 )}
@@ -128,7 +133,12 @@
         variant="outline"
         disabled={pending}
         onclick={() => onedit(item)}>Edit</Button
-      ><Button
+      >{#if item.kind === 'expense'}<Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onclick={() => onrefund(item)}>Refund</Button
+        >{/if}<Button
         size="sm"
         variant="outline"
         disabled={pending}

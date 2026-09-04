@@ -384,9 +384,11 @@ export function createInsightsRepository(db: FinancialDatabase) {
 					);
 				const map = new Map<string, { total: bigint; rows: typeof rows }>();
 				for (const r of rows) {
-					const key = JSON.stringify([r.currency, r.kind, r.categoryId, r.categoryName]);
+					const reportKind = r.kind === 'refund' ? 'expense' : r.kind;
+					const reportAmount = r.kind === 'refund' ? -r.amount : r.amount;
+					const key = JSON.stringify([r.currency, reportKind, r.categoryId, r.categoryName]);
 					const group = map.get(key) ?? { total: 0n, rows: [] };
-					group.total += r.amount;
+					group.total += reportAmount;
 					group.rows.push(r);
 					map.set(key, group);
 				}
@@ -422,7 +424,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 								accountId: row.accountId,
 								date: row.date,
 								kind: row.kind,
-								amountMinor: row.amount.toString(),
+								amountMinor: (row.kind === 'refund' ? -row.amount : row.amount).toString(),
 								description: row.description
 							}))
 					});
@@ -599,7 +601,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 							)
 						);
 					let projected = current.reduce(
-						(total, row) => total + (row.kind === 'income' ? row.amount : -row.amount),
+						(total, row) => total + (row.kind === 'expense' ? -row.amount : row.amount),
 						account.openingBalanceMinor
 					);
 					const corrections = await tx
@@ -825,7 +827,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 					let resulting =
 						account.openingBalanceMinor +
 						remaining.reduce(
-							(sum, row) => sum + (row.kind === 'income' ? row.amount : -row.amount),
+							(sum, row) => sum + (row.kind === 'expense' ? -row.amount : row.amount),
 							0n
 						);
 					const corrections = await tx

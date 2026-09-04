@@ -31,6 +31,7 @@
         pending={ledger.pending}
         onnew={() => ledger.newTransaction(account.id)}
         onedit={ledger.editTransaction}
+        onrefund={ledger.newRefund}
         onaction={ledger.transactionAction}
         onhistory={(item) =>
           ledger.showHistory('transactions', item.id, 'Transaction history')}

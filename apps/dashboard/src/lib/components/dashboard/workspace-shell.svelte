@@ -101,6 +101,7 @@
   bind:open={ledger.transactionOpen}
   bind:form={ledger.transactionForm}
   editingTransaction={ledger.editingTransaction}
+  refundingExpense={ledger.refundingExpense}
   error={ledger.transactionError}
   pending={ledger.pending}
   categories={ledger.categories}

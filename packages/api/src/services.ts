@@ -3,6 +3,7 @@ import type {
 	ArchiveAccount,
 	CreateBalanceCheck,
 	CreateBalanceCorrection,
+	CreateRefund,
 	CreateTransfer,
 	CreateTransaction,
 	TransactionSearch,
@@ -154,6 +155,11 @@ export interface LedgerService {
 		context: { userId: string; workspaceId: string },
 		accountId: string,
 		input: CreateTransaction
+	): Promise<unknown>;
+	createRefund(
+		context: { userId: string; workspaceId: string },
+		expenseId: string,
+		input: CreateRefund
 	): Promise<unknown>;
 	updateTransaction(
 		context: { userId: string; workspaceId: string },

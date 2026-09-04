@@ -155,6 +155,240 @@ test('transaction search filters one workspace and returns recent matches first'
 	}
 });
 
+test('a partial refund links to an active expense and increases its account balance', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-refund-'));
+	const url = `file:${join(directory, 'ledger.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db.insert(user).values([
+			{
+				id: 'refund-owner',
+				name: 'Refund Owner',
+				username: 'refund_owner',
+				email: 'refund@example.com'
+			},
+			{
+				id: 'refund-outsider',
+				name: 'Refund Outsider',
+				username: 'refund_outsider',
+				email: 'refund-outsider@example.com'
+			}
+		]);
+		const [personal] = await connection.db
+			.select()
+			.from(workspace)
+			.where(eq(workspace.personalOwnerUserId, 'refund-owner'));
+		const context = { userId: 'refund-owner', workspaceId: personal.id };
+		const ledger = createLedgerRepository(financial.db);
+		const account = await ledger.createAccount(context, {
+			idempotencyKey: 'refund-account',
+			name: 'Current account',
+			type: 'current',
+			currency: 'PLN',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: '10000'
+		});
+		const [category, otherCategory] = await financial.db
+			.select()
+			.from(ledgerCategory)
+			.where(eq(ledgerCategory.workspaceId, personal.id));
+		const expense = await ledger.createTransaction(context, account.id, {
+			idempotencyKey: 'refunded-expense',
+			kind: 'expense',
+			amountMinor: '6000',
+			date: '2026-08-01',
+			merchant: 'Shop',
+			categoryId: category.id
+		});
+		const [outsiderWorkspace] = await connection.db
+			.select()
+			.from(workspace)
+			.where(eq(workspace.personalOwnerUserId, 'refund-outsider'));
+		await assert.rejects(
+			() =>
+				ledger.createRefund(
+					{ userId: 'refund-outsider', workspaceId: outsiderWorkspace.id },
+					expense.transaction.id,
+					{
+						idempotencyKey: 'inaccessible-refund',
+						amountMinor: '100',
+						date: '2026-08-02'
+					}
+				),
+			(error) => error instanceof LedgerError && error.code === 'not_found'
+		);
+
+		const result = await ledger.createRefund(context, expense.transaction.id, {
+			idempotencyKey: 'partial-refund',
+			amountMinor: '2500',
+			date: '2026-08-02',
+			description: 'Returned item'
+		});
+
+		assert.equal(result.balanceMinor, '6500');
+		assert.deepEqual(result.transaction, {
+			...result.transaction,
+			accountId: account.id,
+			kind: 'refund',
+			amountMinor: '2500',
+			categoryId: category.id,
+			refundOfTransactionId: expense.transaction.id
+		});
+		await assert.rejects(
+			() =>
+				ledger.createRefund(context, expense.transaction.id, {
+					idempotencyKey: 'excess-refund',
+					amountMinor: '3501',
+					date: '2026-08-03'
+				}),
+			(error) =>
+				error instanceof LedgerError &&
+				error.code === 'invalid' &&
+				/expense amount/i.test(error.message)
+		);
+
+		const editedRefund = await ledger.updateTransaction(context, result.transaction.id, {
+			idempotencyKey: 'edit-refund',
+			version: 1,
+			kind: 'refund',
+			amountMinor: '3000',
+			date: '2026-08-02',
+			merchant: 'Shop',
+			description: 'Two returned items',
+			categoryId: category.id
+		});
+		assert.equal(editedRefund.balanceMinor, '7000');
+		await assert.rejects(
+			() =>
+				ledger.updateTransaction(context, expense.transaction.id, {
+					idempotencyKey: 'move-refunded-expense-category',
+					version: 1,
+					kind: 'expense',
+					amountMinor: '6000',
+					date: '2026-08-01',
+					merchant: 'Shop',
+					description: null,
+					categoryId: otherCategory.id
+				}),
+			/refund/i
+		);
+		await assert.rejects(
+			() =>
+				ledger.updateTransaction(context, expense.transaction.id, {
+					idempotencyKey: 'move-expense-after-refund',
+					version: 1,
+					kind: 'expense',
+					amountMinor: '6000',
+					date: '2026-08-03',
+					merchant: 'Shop',
+					description: null,
+					categoryId: category.id
+				}),
+			/refunds/i
+		);
+		await assert.rejects(
+			() =>
+				ledger.updateTransaction(context, expense.transaction.id, {
+					idempotencyKey: 'expense-below-refunds',
+					version: 1,
+					kind: 'expense',
+					amountMinor: '2999',
+					date: '2026-08-01',
+					merchant: 'Shop',
+					description: null,
+					categoryId: category.id
+				}),
+			/active refunds/i
+		);
+		await assert.rejects(
+			() =>
+				ledger.transactionAction(context, expense.transaction.id, 'trash', {
+					idempotencyKey: 'trash-refunded-expense',
+					version: 1
+				}),
+			/active refunds/i
+		);
+
+		const trashedRefund = await ledger.transactionAction(
+			context,
+			editedRefund.transaction.id,
+			'trash',
+			{ idempotencyKey: 'trash-refund', version: 2 }
+		);
+		assert.equal(trashedRefund.balanceMinor, '4000');
+		const trashedExpense = await ledger.transactionAction(
+			context,
+			expense.transaction.id,
+			'trash',
+			{ idempotencyKey: 'trash-expense-after-refund', version: 1 }
+		);
+		assert.equal(trashedExpense.balanceMinor, '10000');
+		await assert.rejects(
+			() =>
+				ledger.transactionAction(context, editedRefund.transaction.id, 'restore', {
+					idempotencyKey: 'restore-refund-before-expense',
+					version: 3
+				}),
+			/active expense not found/i
+		);
+		await ledger.transactionAction(context, expense.transaction.id, 'restore', {
+			idempotencyKey: 'restore-expense',
+			version: 2
+		});
+		const restoredRefund = await ledger.transactionAction(
+			context,
+			editedRefund.transaction.id,
+			'restore',
+			{ idempotencyKey: 'restore-refund', version: 3 }
+		);
+		assert.equal(restoredRefund.balanceMinor, '7000');
+		const balancingExpense = await ledger.createTransaction(context, account.id, {
+			idempotencyKey: 'balance-before-archive',
+			kind: 'expense',
+			amountMinor: '7000',
+			date: '2026-08-04',
+			categoryId: category.id
+		});
+		const archiveImpact = await ledger.accountArchiveImpact(context, account.id);
+		await ledger.accountAction(context, account.id, 'archive', {
+			idempotencyKey: 'archive-refund-account',
+			version: 1,
+			impactToken: archiveImpact.impactToken
+		});
+		await assert.rejects(
+			() =>
+				ledger.createRefund(context, balancingExpense.transaction.id, {
+					idempotencyKey: 'refund-on-archived-account',
+					amountMinor: '100',
+					date: '2026-08-05'
+				}),
+			(error) => error instanceof LedgerError && error.code === 'conflict'
+		);
+		const purgeTime = new Date();
+		await financial.db
+			.update(ledgerTransaction)
+			.set({ trashedAt: purgeTime })
+			.where(eq(ledgerTransaction.id, expense.transaction.id));
+		await financial.db
+			.update(ledgerTransaction)
+			.set({ trashedAt: purgeTime })
+			.where(eq(ledgerTransaction.id, restoredRefund.transaction.id));
+		assert.equal(
+			await ledger.purgeTrashed(new Date(purgeTime.getTime() + 1000)),
+			2,
+			'linked refunds are purged before their expense'
+		);
+	} finally {
+		financial.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
 test('account archive preflight guards and atomically applies plan impact with audits', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-archive-impact-'));
 	const url = `file:${join(directory, 'ledger.db')}`;

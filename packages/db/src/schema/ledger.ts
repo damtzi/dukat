@@ -114,9 +114,10 @@ export const ledgerTransaction = sqliteTable(
 			.references(() => workspace.id, { onDelete: 'cascade' }),
 		accountId: text('account_id').notNull(),
 		categoryId: text('category_id'),
+		refundOfTransactionId: text('refund_of_transaction_id'),
 		importBatchId: text('import_batch_id'),
 		importSourceRow: safeInteger('import_source_row'),
-		kind: text('kind', { enum: ['income', 'expense'] }).notNull(),
+		kind: text('kind', { enum: ['income', 'expense', 'refund'] }).notNull(),
 		amountMinor: int64('amount_minor').notNull(),
 		date: text('date').notNull(),
 		merchant: text('merchant'),
@@ -145,6 +146,11 @@ export const ledgerTransaction = sqliteTable(
 			foreignColumns: [ledgerCategory.workspaceId, ledgerCategory.id]
 		}).onDelete('restrict'),
 		foreignKey({
+			columns: [table.workspaceId, table.refundOfTransactionId],
+			foreignColumns: [table.workspaceId, table.id],
+			name: 'ledger_transaction_refund_expense_fk'
+		}).onDelete('restrict'),
+		foreignKey({
 			columns: [table.workspaceId, table.accountId, table.importBatchId],
 			foreignColumns: [
 				ledgerImportBatch.workspaceId,
@@ -166,7 +172,7 @@ export const ledgerTransaction = sqliteTable(
 			table.importSourceRow
 		),
 		uniqueIndex('ledger_transaction_transfer_side_unique').on(table.transferId, table.transferSide),
-		check('ledger_transaction_kind_check', sql`${table.kind} IN ('income', 'expense')`),
+		check('ledger_transaction_kind_check', sql`${table.kind} IN ('income', 'expense', 'refund')`),
 		check('ledger_transaction_amount_check', sql`${table.amountMinor} > 0`),
 		check(
 			'ledger_transaction_amount_int64_check',
@@ -180,6 +186,10 @@ export const ledgerTransaction = sqliteTable(
 		check(
 			'ledger_transaction_import_source_check',
 			sql`(${table.importBatchId} IS NULL) = (${table.importSourceRow} IS NULL)`
+		),
+		check(
+			'ledger_transaction_refund_check',
+			sql`(${table.kind} = 'refund' AND ${table.source} = 'manual' AND ${table.refundOfTransactionId} IS NOT NULL AND ${table.importBatchId} IS NULL) OR (${table.kind} <> 'refund' AND ${table.refundOfTransactionId} IS NULL)`
 		),
 		check(
 			'ledger_transaction_transfer_check',

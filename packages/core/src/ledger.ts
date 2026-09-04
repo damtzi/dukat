@@ -15,6 +15,7 @@ export function todayInDefaultTimeZone(now = new Date()) {
 
 export const accountTypeSchema = z.enum(['current', 'savings', 'cash', 'credit_card']);
 export const transactionKindSchema = z.enum(['income', 'expense']);
+export const ledgerTransactionKindSchema = z.enum(['income', 'expense', 'refund']);
 export const currencySchema = supportedCurrencySchema;
 
 export const INT64_MIN = -(1n << 63n);
@@ -97,7 +98,14 @@ export const createTransactionSchema = mutationSchema.extend({
 	description: z.string().trim().max(500).nullable().optional(),
 	categoryId: z.string().min(1).nullable().optional()
 });
+export const createRefundSchema = mutationSchema.extend({
+	amountMinor: positiveMinorUnitsSchema,
+	date: calendarDateSchema,
+	merchant: z.string().trim().max(200).nullable().optional(),
+	description: z.string().trim().max(500).nullable().optional()
+});
 export const updateTransactionSchema = createTransactionSchema.extend({
+	kind: ledgerTransactionKindSchema,
 	version: z.number().int().positive()
 });
 export const transactionSearchSchema = z
@@ -190,12 +198,13 @@ export const transactionSchema = z.object({
 	id: z.string(),
 	workspaceId: z.string(),
 	accountId: z.string(),
-	kind: transactionKindSchema,
+	kind: ledgerTransactionKindSchema,
 	amountMinor: positiveMinorUnitsSchema,
 	date: z.string(),
 	merchant: z.string().nullable(),
 	description: z.string().nullable(),
 	categoryId: z.string().nullable(),
+	refundOfTransactionId: z.string().nullable(),
 	source: z.literal('manual'),
 	version: z.number().int(),
 	trashedAt: nullableTimestampSchema,
@@ -280,6 +289,7 @@ export type VersionedMutation = z.infer<typeof versionedMutationSchema>;
 export type ArchiveAccount = z.infer<typeof archiveAccountSchema>;
 export type AccountArchiveImpact = z.infer<typeof accountArchiveImpactSchema>;
 export type CreateTransaction = z.infer<typeof createTransactionSchema>;
+export type CreateRefund = z.infer<typeof createRefundSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
 export type TransactionSearch = Partial<z.infer<typeof transactionSearchSchema>>;
 export type CreateTransfer = z.infer<typeof createTransferSchema>;

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
 	calendarDateSchema,
 	isoCalendarDateSchema,
+	ledgerTransactionKindSchema,
+	minorUnitsSchema,
 	mutationSchema,
 	positiveMinorUnitsSchema,
 	transactionKindSchema
@@ -123,8 +125,8 @@ export const summaryTransactionSchema = z.object({
 	id: idSchema,
 	accountId: idSchema,
 	date: calendarDateSchema,
-	kind: transactionKindSchema,
-	amountMinor: positiveMinorUnitsSchema,
+	kind: ledgerTransactionKindSchema,
+	amountMinor: minorUnitsSchema,
 	description: z.string().nullable()
 });
 export const exchangeRateProvenanceSchema = z.object({

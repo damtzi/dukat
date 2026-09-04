@@ -134,6 +134,13 @@
 			"when": 1788519560532,
 			"tag": "0018_married_magma",
 			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "6",
+			"when": 1788523488320,
+			"tag": "0019_powerful_guardian",
+			"breakpoints": true
 		}
 	]
 }

@@ -91,6 +91,54 @@ async function fixture() {
 const rejected = (code: string) => (error: unknown) =>
 	error instanceof LedgerError && error.code === code;
 
+test('a refund reduces original-category spending without becoming income', async () => {
+	const f = await fixture();
+	try {
+		const groceries = (await f.repo.listCategories(f.context)).find(
+			(category) => category.name === 'Groceries'
+		)!;
+		const expense = await f.ledger.createTransaction(f.context, 'eur', {
+			idempotencyKey: 'refund-report-expense',
+			kind: 'expense',
+			amountMinor: '6000',
+			date: '2026-08-01',
+			description: 'Groceries',
+			categoryId: groceries.id
+		});
+		await f.ledger.createRefund(f.context, expense.transaction.id, {
+			idempotencyKey: 'refund-report-partial',
+			amountMinor: '2500',
+			date: '2026-08-02',
+			description: 'Returned groceries'
+		});
+
+		const summary = await f.repo.summary(f.context, {
+			startDate: '2026-08-01',
+			endDate: '2026-08-31'
+		});
+		const eur = summary.currencies.find(({ currency }) => currency === 'EUR')!;
+		assert.equal(eur.incomeMinor, '0');
+		assert.equal(eur.spendingMinor, '3500');
+		const group = eur.groups.find(({ categoryId }) => categoryId === groceries.id)!;
+		assert.equal(group.kind, 'expense');
+		assert.equal(group.categoryName, 'Groceries');
+		assert.equal(group.amountMinor, '3500');
+		assert.deepEqual(
+			group.transactions.map(({ kind, amountMinor, description }) => ({
+				kind,
+				amountMinor,
+				description
+			})),
+			[
+				{ kind: 'expense', amountMinor: '6000', description: 'Groceries' },
+				{ kind: 'refund', amountMinor: '-2500', description: 'Returned groceries' }
+			]
+		);
+	} finally {
+		await f.close();
+	}
+});
+
 test('migration seeds exactly the twelve starter categories for every future workspace', async () => {
 	const f = await fixture();
 	try {

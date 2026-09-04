@@ -1,4 +1,18 @@
-import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, lt, or, sql } from 'drizzle-orm';
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	lt,
+	ne,
+	or,
+	sql
+} from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 import type { TransactionSearch } from '@dukat/core/ledger';
 
@@ -62,7 +76,14 @@ interface CreateTransaction extends Mutation {
 	description?: string | null;
 	categoryId?: string | null;
 }
-interface UpdateTransaction extends CreateTransaction {
+interface CreateRefund extends Mutation {
+	amountMinor: string;
+	date: string;
+	merchant?: string | null;
+	description?: string | null;
+}
+interface UpdateTransaction extends Omit<CreateTransaction, 'kind'> {
+	kind: 'income' | 'expense' | 'refund';
 	version: number;
 }
 interface CreateTransfer extends Mutation {
@@ -214,6 +235,19 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		if (category.archivedAt)
 			throw new LedgerError('conflict', 'Archived categories cannot be selected');
 	}
+	async function activeRefundTotal(tx: Transaction, expenseId: string, excludedId?: string) {
+		const [{ total }] = await tx
+			.select({ total: sql<bigint>`coalesce(sum(${ledgerTransaction.amountMinor}), 0)` })
+			.from(ledgerTransaction)
+			.where(
+				and(
+					eq(ledgerTransaction.refundOfTransactionId, expenseId),
+					isNull(ledgerTransaction.trashedAt),
+					excludedId ? sql`${ledgerTransaction.id} <> ${excludedId}` : undefined
+				)
+			);
+		return BigInt(total);
+	}
 	async function balance(
 		workspaceId: string,
 		accountId: string,
@@ -234,7 +268,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				)
 			);
 		const transactionTotal = rows.reduce(
-			(sum, row) => sum + (row.kind === 'income' ? row.amountMinor : -row.amountMinor),
+			(sum, row) => sum + (row.kind === 'expense' ? -row.amountMinor : row.amountMinor),
 			0n
 		);
 		const corrections = await source
@@ -1150,6 +1184,76 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 				);
 			});
 		},
+		async createRefund(context: Context, expenseId: string, input: CreateRefund) {
+			return database.transaction(async (tx) => {
+				await authorizedPersonal(tx, context);
+				return idempotent(
+					tx,
+					context,
+					`refund.create:${expenseId}`,
+					input.idempotencyKey,
+					input,
+					async () => {
+						const [expense] = await tx
+							.select()
+							.from(ledgerTransaction)
+							.where(
+								and(
+									eq(ledgerTransaction.id, expenseId),
+									eq(ledgerTransaction.workspaceId, context.workspaceId),
+									eq(ledgerTransaction.kind, 'expense'),
+									eq(ledgerTransaction.source, 'manual'),
+									isNull(ledgerTransaction.trashedAt)
+								)
+							);
+						if (!expense) throw new LedgerError('not_found', 'Active expense not found');
+						const [account] = await tx
+							.select()
+							.from(financialAccount)
+							.where(
+								and(
+									eq(financialAccount.id, expense.accountId),
+									eq(financialAccount.workspaceId, context.workspaceId)
+								)
+							);
+						if (!account || account.archivedAt)
+							throw new LedgerError('conflict', 'Archived accounts do not accept refunds');
+						const amountMinor = parsePositiveMinor(input.amountMinor);
+						if ((await activeRefundTotal(tx, expense.id)) + amountMinor > expense.amountMinor)
+							throw new LedgerError('invalid', 'Active refunds cannot exceed the expense amount');
+						if (input.date < expense.date)
+							throw new LedgerError('invalid', 'Refund date cannot be before the expense date');
+						const row: typeof ledgerTransaction.$inferInsert = {
+							id: crypto.randomUUID(),
+							workspaceId: context.workspaceId,
+							accountId: expense.accountId,
+							categoryId: expense.categoryId,
+							refundOfTransactionId: expense.id,
+							kind: 'refund',
+							amountMinor,
+							date: input.date,
+							merchant: input.merchant ?? expense.merchant,
+							description: input.description ?? null
+						};
+						await tx.insert(ledgerTransaction).values(row);
+						const [created] = await tx
+							.select()
+							.from(ledgerTransaction)
+							.where(eq(ledgerTransaction.id, row.id));
+						await audit(tx, context, 'transaction', created.id, 'created', null, created);
+						const balanceMinor = checkedBalance(
+							account.openingBalanceMinor +
+								(await balance(context.workspaceId, account.id, account.openingDate, tx))
+						);
+						return {
+							transaction: publicTransaction(created),
+							balanceMinor: balanceMinor.toString(),
+							negativeBalance: balanceMinor < 0n
+						};
+					}
+				);
+			});
+		},
 		async createTransfer(context: Context, input: CreateTransfer) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
@@ -1887,6 +1991,53 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Trashed transactions cannot be edited');
 						if (before.version !== input.version)
 							throw new LedgerError('conflict', 'Transaction version is stale');
+						const amountMinor = parsePositiveMinor(input.amountMinor);
+						if (before.kind === 'refund') {
+							if (
+								input.kind !== 'refund' ||
+								input.categoryId !== before.categoryId ||
+								!before.refundOfTransactionId
+							)
+								throw new LedgerError('invalid', 'A refund link and category cannot be changed');
+							const [expense] = await tx
+								.select()
+								.from(ledgerTransaction)
+								.where(
+									and(
+										eq(ledgerTransaction.id, before.refundOfTransactionId),
+										eq(ledgerTransaction.kind, 'expense'),
+										isNull(ledgerTransaction.trashedAt)
+									)
+								);
+							if (!expense) throw new LedgerError('conflict', 'Active expense not found');
+							if (
+								(await activeRefundTotal(tx, expense.id, before.id)) + amountMinor >
+								expense.amountMinor
+							)
+								throw new LedgerError('invalid', 'Active refunds cannot exceed the expense amount');
+							if (input.date < expense.date)
+								throw new LedgerError('invalid', 'Refund date cannot be before the expense date');
+						} else {
+							if (input.kind === 'refund')
+								throw new LedgerError('invalid', 'Only an expense can create a linked refund');
+							const linkedRefunds = await tx
+								.select({ date: ledgerTransaction.date })
+								.from(ledgerTransaction)
+								.where(eq(ledgerTransaction.refundOfTransactionId, before.id));
+							if (linkedRefunds.length > 0 && input.categoryId !== before.categoryId)
+								throw new LedgerError(
+									'invalid',
+									'An expense category cannot change after a refund'
+								);
+							if (linkedRefunds.some((refund) => input.date > refund.date))
+								throw new LedgerError('invalid', 'An expense date cannot be after its refunds');
+							const refundTotal = await activeRefundTotal(tx, before.id);
+							if (refundTotal && (input.kind !== 'expense' || amountMinor < refundTotal))
+								throw new LedgerError(
+									'invalid',
+									'An expense cannot be less than its active refunds or changed to income'
+								);
+						}
 						const [account] = await tx
 							.select()
 							.from(financialAccount)
@@ -1901,17 +2052,18 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								'conflict',
 								'Archived accounts do not allow transaction changes'
 							);
-						await validateSelectedCategory(
-							tx,
-							context.workspaceId,
-							input.categoryId,
-							before.categoryId
-						);
+						if (before.kind !== 'refund')
+							await validateSelectedCategory(
+								tx,
+								context.workspaceId,
+								input.categoryId,
+								before.categoryId
+							);
 						const [after] = await tx
 							.update(ledgerTransaction)
 							.set({
 								kind: input.kind,
-								amountMinor: parsePositiveMinor(input.amountMinor),
+								amountMinor,
 								date: input.date,
 								merchant: input.merchant ?? null,
 								description: input.description ?? null,
@@ -1979,6 +2131,33 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							throw new LedgerError('conflict', 'Transaction is already trashed');
 						if (action === 'restore' && !before.trashedAt)
 							throw new LedgerError('conflict', 'Transaction is not trashed');
+						if (
+							action === 'trash' &&
+							before.kind === 'expense' &&
+							(await activeRefundTotal(tx, before.id)) > 0n
+						)
+							throw new LedgerError('conflict', 'Trash active refunds before trashing the expense');
+						if (action === 'restore' && before.kind === 'refund') {
+							const [expense] = await tx
+								.select()
+								.from(ledgerTransaction)
+								.where(
+									and(
+										eq(ledgerTransaction.id, before.refundOfTransactionId!),
+										eq(ledgerTransaction.kind, 'expense'),
+										isNull(ledgerTransaction.trashedAt)
+									)
+								);
+							if (!expense) throw new LedgerError('conflict', 'Active expense not found');
+							if (
+								(await activeRefundTotal(tx, expense.id)) + before.amountMinor >
+								expense.amountMinor
+							)
+								throw new LedgerError(
+									'conflict',
+									'Active refunds cannot exceed the expense amount'
+								);
+						}
 						const [account] = await tx
 							.select()
 							.from(financialAccount)
@@ -2048,17 +2227,28 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		},
 		async purgeTrashed(before = new Date(Date.now() - 30 * 86_400_000)) {
 			return database.transaction(async (tx) => {
-				const deleted = await tx
+				const refunds = await tx
 					.delete(ledgerTransaction)
 					.where(
 						and(
-							eq(ledgerTransaction.source, 'manual'),
+							eq(ledgerTransaction.kind, 'refund'),
 							isNotNull(ledgerTransaction.trashedAt),
 							lt(ledgerTransaction.trashedAt, before)
 						)
 					)
 					.returning({ id: ledgerTransaction.id });
-				return deleted.length;
+				const transactions = await tx
+					.delete(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.source, 'manual'),
+							ne(ledgerTransaction.kind, 'refund'),
+							isNotNull(ledgerTransaction.trashedAt),
+							lt(ledgerTransaction.trashedAt, before)
+						)
+					)
+					.returning({ id: ledgerTransaction.id });
+				return refunds.length + transactions.length;
 			});
 		},
 		async purgeLifecycle(
@@ -2072,11 +2262,22 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						and(isNotNull(ledgerTransfer.trashedAt), lt(ledgerTransfer.trashedAt, trashBefore))
 					)
 					.returning({ id: ledgerTransfer.id });
+				const refunds = await tx
+					.delete(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.kind, 'refund'),
+							isNotNull(ledgerTransaction.trashedAt),
+							lt(ledgerTransaction.trashedAt, trashBefore)
+						)
+					)
+					.returning({ id: ledgerTransaction.id });
 				const transactions = await tx
 					.delete(ledgerTransaction)
 					.where(
 						and(
 							eq(ledgerTransaction.source, 'manual'),
+							ne(ledgerTransaction.kind, 'refund'),
 							isNotNull(ledgerTransaction.trashedAt),
 							lt(ledgerTransaction.trashedAt, trashBefore)
 						)
@@ -2106,7 +2307,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					.where(lt(mutationReceipt.createdAt, receiptBefore))
 					.returning({ id: mutationReceipt.id });
 				return {
-					transactions: transactions.length,
+					transactions: refunds.length + transactions.length,
 					transfers: transfers.length,
 					balanceChecks: balanceChecks.length,
 					corrections: corrections.length,

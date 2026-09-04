@@ -64,6 +64,9 @@ function createServices(): APIServices {
 			async createTransaction(_context, _accountId, input) {
 				return input;
 			},
+			async createRefund(_context, _expenseId, input) {
+				return input;
+			},
 			async updateTransaction() {},
 			async transactionAction() {},
 			async createTransfer(_context, input) {
@@ -247,6 +250,38 @@ test('ledger transaction search validates and forwards structured filters', asyn
 	assert.deepEqual(await invalid.json(), {
 		message: 'Minimum amount cannot exceed maximum amount'
 	});
+});
+
+test('ledger creates a validated refund from an expense', async () => {
+	const app = createAPI(createServices());
+	const response = await app.request('/api/workspaces/workspace-1/transactions/expense-1/refunds', {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({
+			amountMinor: '2500',
+			date: '2026-08-02',
+			description: 'Returned item',
+			idempotencyKey: 'partial-refund'
+		})
+	});
+	assert.equal(response.status, 200);
+	assert.deepEqual(await response.json(), {
+		amountMinor: '2500',
+		date: '2026-08-02',
+		description: 'Returned item',
+		idempotencyKey: 'partial-refund'
+	});
+
+	const invalid = await app.request('/api/workspaces/workspace-1/transactions/expense-1/refunds', {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({
+			amountMinor: '0',
+			date: '2026-08-02',
+			idempotencyKey: 'invalid-refund'
+		})
+	});
+	assert.equal(invalid.status, 400);
 });
 
 test('ledger HTTP routes use the migrated database and exact-money repository', async () => {

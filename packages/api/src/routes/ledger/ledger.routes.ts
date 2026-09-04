@@ -7,6 +7,7 @@ import {
 	createAccountSchema,
 	createBalanceCheckSchema,
 	createBalanceCorrectionSchema,
+	createRefundSchema,
 	createTransferSchema,
 	createTransactionSchema,
 	correctionSchema,
@@ -121,6 +122,13 @@ export const createTransaction = createRoute({
 	path: '/workspaces/{workspaceId}/accounts/{accountId}/transactions',
 	request: { params: accountParams, body: jsonContent(createTransactionSchema, 'Transaction') },
 	responses: responses(transactionMutationSchema, 'Created transaction')
+});
+export const createRefund = createRoute({
+	...common(),
+	method: 'post',
+	path: '/workspaces/{workspaceId}/transactions/{transactionId}/refunds',
+	request: { params: transactionParams, body: jsonContent(createRefundSchema, 'Refund') },
+	responses: responses(transactionMutationSchema, 'Created refund')
 });
 export const updateTransaction = createRoute({
 	...common(),

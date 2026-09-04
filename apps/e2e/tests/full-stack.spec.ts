@@ -48,6 +48,7 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	const transactionDialog = page.getByRole('dialog');
 	await transactionDialog.getByLabel('Amount', { exact: true }).fill('25.00');
+	await chooseSelect(page, 'Category', 'Groceries');
 	await transactionDialog.getByLabel('Merchant').fill('Corner Market');
 	await transactionDialog.getByLabel('Description').fill('Full-stack expense');
 	await transactionDialog.getByRole('button', { name: 'Save transaction' }).click();
@@ -57,6 +58,36 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 		.filter({ hasText: accountName })
 		.first();
 	await expect(accountSummary).toContainText(/75,00\sUSD/);
+	const expenseRow = page
+		.getByText('Full-stack expense', { exact: true })
+		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
+	await expenseRow.getByRole('button', { name: 'Refund' }).click();
+	const refundDialog = page.getByRole('dialog');
+	await refundDialog.getByLabel('Amount', { exact: true }).fill('10.00');
+	await refundDialog.getByLabel('Description').fill('Full-stack partial refund');
+	await refundDialog.getByRole('button', { name: 'Save refund' }).click();
+	await expect(accountSummary).toContainText(/85,00\sUSD/);
+	const createdAccount = (
+		await apiJson<Array<{ id: string; name: string }>>(page, `/workspaces/${workspaceId}/accounts`)
+	).find(({ name }) => name === accountName)!;
+	const refundedSummary = await apiJson<{
+		currencies: Array<{
+			incomeMinor: string;
+			spendingMinor: string;
+			groups: Array<{ categoryName: string; amountMinor: string }>;
+		}>;
+	}>(
+		page,
+		`/workspaces/${workspaceId}/summary?startDate=2026-01-01&endDate=2026-12-31&accountId=${createdAccount.id}`
+	);
+	const usdSummary = refundedSummary.currencies.find(({ groups }) =>
+		groups.some(({ categoryName }) => categoryName === 'Groceries')
+	)!;
+	expect(usdSummary.incomeMinor).toBe('0');
+	expect(usdSummary.spendingMinor).toBe('1500');
+	expect(usdSummary.groups).toContainEqual(
+		expect.objectContaining({ categoryName: 'Groceries', amountMinor: '1500' })
+	);
 
 	await page.getByRole('link', { name: 'Reconciliation' }).click();
 	await page.getByRole('button', { name: 'Add balance snapshot' }).click();
@@ -70,16 +101,18 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	page.once('dialog', (dialog) => dialog.accept());
 	await snapshotCard.getByRole('button', { name: 'Create correction' }).click();
 	await expect(page.getByText('Balance correction for snapshot on 2026-07-30')).toBeVisible();
-	await expect(accountSummary).toContainText(/95,00\sUSD/);
+	await expect(accountSummary).toContainText(/105,00\sUSD/);
 	await page.reload();
-	await expect(accountSummary).toContainText(/95,00\sUSD/);
+	await expect(accountSummary).toContainText(/105,00\sUSD/);
 
 	await page.goto(`/workspaces/${workspaceId}/transactions`);
 	await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible();
 	await page.getByLabel('Search').fill('corner');
 	await page.getByRole('button', { name: 'Search', exact: true }).click();
 	await expect(page).toHaveURL(/transactions\?query=corner/);
-	await expect(page.getByRole('cell', { name: 'Corner Market', exact: true })).toBeVisible();
+	await expect(
+		page.getByRole('cell', { name: 'Corner Market', exact: true }).first()
+	).toBeVisible();
 	await expect(page.getByRole('cell', { name: 'Full-stack expense', exact: true })).toBeVisible();
 });
 

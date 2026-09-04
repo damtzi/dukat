@@ -767,7 +767,7 @@ export function createPlanningRepository(
 				const balance = corrections.reduce(
 					(v: bigint, x) => v + BigInt(x.amountMinor),
 					transactions.reduce(
-						(v: bigint, t) => v + (t.kind === 'income' ? t.amountMinor : -t.amountMinor),
+						(v: bigint, t) => v + (t.kind === 'expense' ? -t.amountMinor : t.amountMinor),
 						a.openingBalanceMinor
 					)
 				);

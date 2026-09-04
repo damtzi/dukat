@@ -14,11 +14,14 @@ type Account = {
 
 type Transaction = {
 	id: string;
-	kind: 'expense' | 'income';
+	accountId?: string;
+	kind: 'expense' | 'income' | 'refund';
 	amountMinor: string;
 	date: string;
 	merchant: string | null;
 	description: string | null;
+	categoryId?: string | null;
+	refundOfTransactionId?: string | null;
 	version: number;
 	trashedAt: string | null;
 };
@@ -100,7 +103,7 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			.filter((item) => !item.trashedAt)
 			.reduce(
 				(sum, item) =>
-					sum + (item.kind === 'income' ? BigInt(item.amountMinor) : -BigInt(item.amountMinor)),
+					sum + (item.kind === 'expense' ? -BigInt(item.amountMinor) : BigInt(item.amountMinor)),
 				0n
 			);
 	const accountResponse = () => ({
@@ -256,30 +259,20 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			pathname === `/api/workspaces/${workspaceId}/accounts/${accountId}/transactions` &&
 			method === 'POST'
 		) {
-			const expected =
-				transactionNumber === 0
-					? {
-							kind: 'expense',
-							amountMinor: '12500',
-							merchant: 'Landlord',
-							description: 'Rent',
-							categoryId: null,
-							date: body!.date,
-							idempotencyKey: key
-						}
-					: {
-							kind: 'income',
-							amountMinor: '2500',
-							merchant: null,
-							description: 'Refund',
-							categoryId: null,
-							date: body!.date,
-							idempotencyKey: key
-						};
+			const expected = {
+				kind: 'expense',
+				amountMinor: '12500',
+				merchant: 'Landlord',
+				description: 'Rent',
+				categoryId: null,
+				date: body!.date,
+				idempotencyKey: key
+			};
 			expect(body).toEqual(expected);
 			expect(body!.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 			const transaction: Transaction = {
-				id: transactionNumber++ === 0 ? 'expense-e2e' : 'income-e2e',
+				id: `expense-e2e-${transactionNumber++}`,
+				accountId,
 				kind: body!.kind as Transaction['kind'],
 				amountMinor: body!.amountMinor as string,
 				date: body!.date as string,
@@ -296,10 +289,41 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			);
 		}
 		if (
-			pathname === `/api/workspaces/${workspaceId}/transactions/expense-e2e` &&
+			pathname === `/api/workspaces/${workspaceId}/transactions/expense-e2e-0/refunds` &&
+			method === 'POST'
+		) {
+			expect(body).toEqual({
+				amountMinor: '2500',
+				merchant: 'Landlord',
+				description: 'Refund',
+				date: body!.date,
+				idempotencyKey: key
+			});
+			const transaction: Transaction = {
+				id: 'refund-e2e',
+				accountId,
+				kind: 'refund',
+				amountMinor: '2500',
+				date: body!.date as string,
+				merchant: 'Landlord',
+				description: 'Refund',
+				categoryId: null,
+				refundOfTransactionId: 'expense-e2e-0',
+				version: 1,
+				trashedAt: null
+			};
+			transactions.push(transaction);
+			return json(route, {
+				transaction,
+				balanceMinor: balance().toString(),
+				negativeBalance: balance() < 0n
+			});
+		}
+		if (
+			pathname === `/api/workspaces/${workspaceId}/transactions/expense-e2e-0` &&
 			method === 'PUT'
 		) {
-			const item = transactions.find(({ id }) => id === 'expense-e2e')!;
+			const item = transactions.find(({ id }) => id === 'expense-e2e-0')!;
 			expect(body).toEqual({
 				kind: 'expense',
 				amountMinor: item.version === 1 ? '12000' : '12500',
@@ -1461,13 +1485,16 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(page.getByText('Negative balance')).toBeVisible();
 	await expect(page.getByText('-25,00 USD', { exact: true }).last()).toBeVisible();
 
-	await page.getByRole('button', { name: 'Add transaction' }).click();
-	await expect(page.locator('datalist#recent-merchants option[value="Landlord"]')).toHaveCount(1);
-	await expect(page.getByText('Recent merchants are suggested.')).toBeVisible();
-	await chooseSelect(page, 'Kind', 'Income');
+	const originalRent = page
+		.getByText('Rent', { exact: true })
+		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
+	await originalRent.getByRole('button', { name: 'Refund' }).click();
+	await expect(page.getByRole('heading', { name: 'Add refund' })).toBeVisible();
+	await expect(page.getByText('Refunds keep the original expense category.')).toBeVisible();
+	await expect(page.getByLabel('Kind', { exact: true })).toBeHidden();
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Refund');
-	await submitDialog(page);
+	await page.getByRole('button', { name: 'Save refund' }).click();
 	await expect(page.getByText('0,00 USD', { exact: true }).last()).toBeVisible();
 
 	const rent = page
@@ -1480,7 +1507,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(page.getByText('5,00 USD', { exact: true }).last()).toBeVisible();
 
 	const refund = page
-		.getByText('Refund', { exact: true })
+		.getByText('+25,00 USD', { exact: true })
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
 	await refund.getByRole('button', { name: 'Trash' }).click();
 	await expect(page.getByText('Negative balance')).toBeVisible();
