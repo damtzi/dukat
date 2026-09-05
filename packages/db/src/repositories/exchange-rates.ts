@@ -101,6 +101,14 @@ export function createExchangeRateRepository(
 			.limit(1);
 		if (!found) throw Object.assign(new Error('Workspace not found'), { code: 'not_found' });
 	};
+	const resolveReportingCurrency = async (workspaceId: string, targetCurrency?: string) => {
+		if (targetCurrency) return targetCurrency;
+		const [found] = await database
+			.select({ reportingCurrency: workspace.reportingCurrency })
+			.from(workspace)
+			.where(eq(workspace.id, workspaceId));
+		return found?.reportingCurrency ?? 'PLN';
+	};
 	const cacheTables = async (tables: NbpTable[], fetchedAt = new Date()) =>
 		database.transaction(async (tx) => {
 			for (const table of tables) {
@@ -346,12 +354,8 @@ export function createExchangeRateRepository(
 				throw Object.assign(new Error('Override not found'), { code: 'not_found' });
 			return { deleted: true };
 		},
-		async reportingSummary(workspaceId: string, summary: Summary) {
-			const [ws] = await database
-				.select({ reportingCurrency: workspace.reportingCurrency })
-				.from(workspace)
-				.where(eq(workspace.id, workspaceId));
-			const currency = ws?.reportingCurrency ?? 'PLN';
+		async reportingSummary(workspaceId: string, summary: Summary, targetCurrency?: string) {
+			const currency = await resolveReportingCurrency(workspaceId, targetCurrency);
 			let income: Rational = { numerator: 0n, denominator: 1n };
 			let spending: Rational = { numerator: 0n, denominator: 1n };
 			let uncategorized: Rational = { numerator: 0n, denominator: 1n };
@@ -596,14 +600,11 @@ export function createExchangeRateRepository(
 					amountMinor: string;
 				}>;
 				[key: string]: unknown;
-			}>
+			}>,
+			targetCurrency?: string
 		) {
 			await authorized(userId, workspaceId);
-			const [ws] = await database
-				.select({ reportingCurrency: workspace.reportingCurrency })
-				.from(workspace)
-				.where(eq(workspace.id, workspaceId));
-			const reportingCurrency = ws.reportingCurrency ?? 'PLN';
+			const reportingCurrency = await resolveReportingCurrency(workspaceId, targetCurrency);
 			const usedRates = new Map<string, ReturnType<typeof provenance>>();
 			const conversion = new Map<
 				string,
@@ -698,24 +699,17 @@ export function createExchangeRateRepository(
 				rates: [...usedRates.values()]
 			};
 		},
-		async currentBalances(
+		async currentBalances<T extends { currency: string; balanceMinor: string }>(
 			userId: string,
 			workspaceId: string,
-			ledger: { listAccounts(context: { userId: string; workspaceId: string }): Promise<unknown> }
+			ledger: { listAccounts(context: { userId: string; workspaceId: string }): Promise<unknown> },
+			targetCurrency?: string
 		) {
 			await authorized(userId, workspaceId);
-			const [ws] = await database
-				.select({ reportingCurrency: workspace.reportingCurrency })
-				.from(workspace)
-				.where(eq(workspace.id, workspaceId));
-			const reportingCurrency = ws.reportingCurrency ?? 'PLN';
+			const reportingCurrency = await resolveReportingCurrency(workspaceId, targetCurrency);
 			const result = await ledger.listAccounts({ userId, workspaceId });
 			if (!Array.isArray(result)) throw new Error('Account service returned an invalid response');
-			const accounts = result as Array<{
-				currency: string;
-				balanceMinor: string;
-				[key: string]: unknown;
-			}>;
+			const accounts = result as T[];
 			let total: Rational = { numerator: 0n, denominator: 1n };
 			let missingRate = false;
 			const converted = [];

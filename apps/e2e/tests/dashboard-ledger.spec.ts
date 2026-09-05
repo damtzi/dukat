@@ -44,6 +44,30 @@ const personalWorkspace = {
 	role: null
 };
 
+function overviewResponse(
+	workspaces: Array<{ id: string; name: string; type: 'personal' | 'household' }> = [
+		personalWorkspace
+	]
+) {
+	const total = { amountMinor: '0', missingRate: false };
+	return {
+		reportingCurrency: 'USD',
+		personalNetWorth: total,
+		householdNetWorth: total,
+		combinedNetWorth: total,
+		currentMonthSpending: { ...total, originals: [] },
+		accounts: [],
+		upcoming: [],
+		workspaces: workspaces.map(({ id, name, type }) => ({
+			id,
+			name,
+			type,
+			netWorthMinor: '0',
+			missingRate: false
+		}))
+	};
+}
+
 function json(route: Route, body: unknown, status = 200) {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
@@ -141,6 +165,9 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 		}
 		if (pathname === '/api/workspaces' && method === 'GET') {
 			return json(route, [personalWorkspace]);
+		}
+		if (pathname === '/api/overview' && method === 'GET') {
+			return json(route, overviewResponse());
 		}
 		if (pathname === '/api/rates/status' && method === 'GET') {
 			return json(route, { available: true, stale: false, latest: null });
@@ -442,6 +469,11 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 		}
 		if (pathname === '/api/favorites') {
 			return authenticated ? json(route, []) : json(route, { message: 'Unauthorized' }, 401);
+		}
+		if (pathname === '/api/overview') {
+			return authenticated
+				? json(route, overviewResponse())
+				: json(route, { message: 'Unauthorized' }, 401);
 		}
 		if (pathname === '/api/auth/sign-up/email') {
 			expect(body).toEqual({
@@ -906,7 +938,7 @@ test('keeps the shell recoverable for a stored route-like favorite path', async 
 	]);
 	await page.goto('/home');
 
-	await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'My overview', level: 1 })).toBeVisible();
 	await openSidebar(page);
 	const favorites = page.getByLabel('Favorites', { exact: true });
 	await expect(favorites.getByRole('link', { name: 'Old favorite' })).toHaveAttribute(
@@ -915,6 +947,50 @@ test('keeps the shell recoverable for a stored route-like favorite path', async 
 	);
 	await favorites.getByRole('button', { name: 'Remove Old favorite from favorites' }).click();
 	await expect(favorites).toHaveCount(0);
+});
+
+test('omits combined values when rates are missing and keeps original values', async ({ page }) => {
+	await page.route('**/api/**', async (route) => {
+		const { pathname } = new URL(route.request().url());
+		if (pathname === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (pathname === '/api/workspaces') return json(route, [personalWorkspace]);
+		if (pathname === '/api/favorites') return json(route, []);
+		if (pathname === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
+		if (pathname === '/api/overview') {
+			return json(route, {
+				...overviewResponse(),
+				personalNetWorth: { amountMinor: null, missingRate: true },
+				combinedNetWorth: { amountMinor: null, missingRate: true },
+				currentMonthSpending: {
+					amountMinor: null,
+					missingRate: true,
+					originals: [{ currency: 'EUR', amountMinor: '1234' }]
+				},
+				accounts: [
+					{
+						id: accountId,
+						workspaceId,
+						workspaceName: 'Personal',
+						workspaceType: 'personal',
+						name: 'Euro cash',
+						type: 'cash',
+						currency: 'EUR',
+						balanceMinor: '4567',
+						convertedBalanceMinor: null,
+						archivedAt: null
+					}
+				]
+			});
+		}
+		return json(route, { message: `Unexpected mocked request: ${pathname}` }, 500);
+	});
+
+	await page.goto('/home');
+	await expect(page.getByText('Some combined values are unavailable')).toBeVisible();
+	await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(3);
+	await expect(page.getByText('12,34 €', { exact: true })).toBeVisible();
+	await expect(page.getByText('45,67 €', { exact: true })).toBeVisible();
 });
 
 test('creates and selects a household workspace', async ({ page }) => {
@@ -937,6 +1013,8 @@ test('creates and selects a household workspace', async ({ page }) => {
 		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces' && method === 'GET')
 			return json(route, created ? [personalWorkspace, household] : [personalWorkspace]);
+		if (path === '/api/overview' && method === 'GET')
+			return json(route, overviewResponse(created ? [personalWorkspace, household] : undefined));
 		if (path === '/api/workspaces' && method === 'POST') {
 			expect(request.postDataJSON()).toEqual({
 				name: 'Lovelace household',
@@ -965,7 +1043,7 @@ test('creates and selects a household workspace', async ({ page }) => {
 	});
 
 	await page.goto('/home');
-	await page.getByRole('link', { name: 'New shared workspace' }).click();
+	await page.getByRole('link', { name: 'New Household workspace' }).click();
 	await page.getByLabel('Name', { exact: true }).fill('Lovelace household');
 	await page.getByLabel('Reporting currency', { exact: true }).fill('eur');
 	await page.getByRole('button', { name: 'Create workspace', exact: true }).click();
@@ -973,7 +1051,7 @@ test('creates and selects a household workspace', async ({ page }) => {
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.goto('/home');
 	await expect(
-		page.getByLabel('Shared', { exact: true }).getByText('Lovelace household', { exact: true })
+		page.getByLabel('Household', { exact: true }).getByText('Lovelace household', { exact: true })
 	).toBeVisible();
 });
 

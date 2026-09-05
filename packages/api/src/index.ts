@@ -11,6 +11,7 @@ export type {
 	APIServices,
 	AuthenticationService,
 	LedgerService,
+	OverviewService,
 	WorkspaceService,
 	WorkspaceSummary
 } from './services';

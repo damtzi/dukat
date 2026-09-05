@@ -7,6 +7,7 @@ import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { createBudgetRepository } from '@dukat/db/repositories/budgets';
+import { createOverviewRepository } from '@dukat/db/repositories/overview';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import {
 	createExchangeRateRepository,
@@ -104,6 +105,8 @@ export async function shutdownOutbox() {
 }
 
 const ledgerRepository = createLedgerRepository(financialDb);
+const planningRepository = createPlanningRepository(financialDb);
+const insightsRepository = createInsightsRepository(financialDb);
 const nbp = createNbpAdapter();
 const exchangeRateRepository = createExchangeRateRepository(financialDb, nbp);
 const refreshRates = () =>
@@ -152,10 +155,17 @@ const api = createAPI({
 		cleanup: profileImageCleanup
 	}),
 	ledger: ledgerRepository,
-	planning: createPlanningRepository(financialDb),
+	planning: planningRepository,
 	budgets: createBudgetRepository(financialDb, exchangeRateRepository),
 	exchangeRates: exchangeRateRepository,
-	insights: createInsightsRepository(financialDb),
+	insights: insightsRepository,
+	overview: createOverviewRepository({
+		workspaces: workspaceRepository,
+		ledger: ledgerRepository,
+		planning: planningRepository,
+		insights: insightsRepository,
+		exchangeRates: exchangeRateRepository
+	}),
 	readiness: () => db.run('select 1'),
 	workspaces: workspaceService
 });

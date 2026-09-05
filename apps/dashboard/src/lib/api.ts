@@ -2,6 +2,7 @@ type Fetch = typeof globalThis.fetch
 
 export const workspacesDataDependency = 'dukat:workspaces'
 export const workspaceDataDependency = 'dukat:workspace'
+export const overviewDataDependency = 'dukat:overview'
 
 async function request(fetcher: Fetch, path: string, options?: RequestInit) {
   const headers = new Headers(options?.headers)

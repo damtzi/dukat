@@ -465,6 +465,177 @@ test('allocates and settles a Personal-funded Household expense without sharing 
 	}
 });
 
+test('My overview combines Personal and Household values once without exposing Personal data', async ({
+	page,
+	browser
+}: {
+	page: Page;
+	browser: Browser;
+}) => {
+	test.setTimeout(60_000);
+	const ownerEmail = requiredEnvironment('FULL_STACK_TEST_EMAIL');
+	const ownerPassword = requiredEnvironment('FULL_STACK_TEST_PASSWORD');
+	const personalWorkspaceId = requiredEnvironment('FULL_STACK_TEST_WORKSPACE_ID');
+	const memberEmail = requiredEnvironment('FULL_STACK_MEMBER_EMAIL');
+	const memberPassword = requiredEnvironment('FULL_STACK_MEMBER_PASSWORD');
+	const householdId = requiredEnvironment('FULL_STACK_HOUSEHOLD_ID');
+	const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw' }).format(new Date());
+	const future = new Date(`${today}T12:00:00Z`);
+	future.setUTCDate(future.getUTCDate() + 7);
+	const futureDate = future.toISOString().slice(0, 10);
+
+	await signIn(page, ownerEmail, ownerPassword);
+	type Overview = {
+		personalNetWorth: { amountMinor: string | null };
+		householdNetWorth: { amountMinor: string | null };
+		combinedNetWorth: { amountMinor: string | null };
+		currentMonthSpending: { amountMinor: string | null };
+		accounts: Array<{
+			id: string;
+			workspaceId: string;
+			name: string;
+			type: string;
+			balanceMinor: string;
+		}>;
+		upcoming: Array<{ workspaceId: string; planId: string; amountMinor: string }>;
+	};
+	const before = await apiJson<Overview>(page, '/overview');
+	const personalAccounts = await apiJson<Array<{ id: string; name: string }>>(
+		page,
+		`/workspaces/${personalWorkspaceId}/accounts`
+	);
+	const sourceAccount = personalAccounts.find(({ name }) => name === 'Everyday account')!;
+	const householdAccount = await apiMutation<{ id: string }>(
+		page,
+		`/workspaces/${householdId}/accounts`,
+		'POST',
+		{
+			name: 'Household reserve',
+			type: 'savings',
+			currency: 'PLN',
+			openingDate: today,
+			openingBalanceMinor: '20000',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+	const card = await apiMutation<{ id: string }>(
+		page,
+		`/workspaces/${personalWorkspaceId}/accounts`,
+		'POST',
+		{
+			name: 'Overview credit card',
+			type: 'credit_card',
+			currency: 'PLN',
+			openingDate: today,
+			openingBalanceMinor: '-3000',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+	const householdCategories = await apiJson<Array<{ id: string; name: string }>>(
+		page,
+		`/workspaces/${householdId}/categories`
+	);
+	await apiMutation(page, `/workspaces/${householdId}/household-expenses`, 'POST', {
+		accountId: sourceAccount.id,
+		amountMinor: '4250',
+		date: today,
+		merchant: 'Overview Market',
+		categoryId: householdCategories.find(({ name }) => name === 'Groceries')!.id,
+		allocations: [
+			{ memberUserId: 'seed-demo-user', amountMinor: '1250' },
+			{ memberUserId: 'full-stack-member', amountMinor: '3000' }
+		],
+		idempotencyKey: crypto.randomUUID()
+	});
+	const personalPlan = await apiMutation<{ id: string }>(
+		page,
+		`/workspaces/${personalWorkspaceId}/plans`,
+		'POST',
+		{
+			accountId: sourceAccount.id,
+			kind: 'income',
+			amountMinor: '1000',
+			date: futureDate,
+			status: 'expected',
+			description: 'Expected Personal cash',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+	const householdPlan = await apiMutation<{ id: string }>(
+		page,
+		`/workspaces/${householdId}/plans`,
+		'POST',
+		{
+			accountId: householdAccount.id,
+			kind: 'expense',
+			amountMinor: '500',
+			date: futureDate,
+			status: 'expected',
+			description: 'Expected Household cash',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+
+	const overview = await apiJson<Overview>(page, '/overview');
+	expect(overview.personalNetWorth.amountMinor).toBe(
+		(BigInt(before.personalNetWorth.amountMinor!) - 7250n).toString()
+	);
+	expect(overview.householdNetWorth.amountMinor).toBe(
+		(BigInt(before.householdNetWorth.amountMinor!) + 20000n).toString()
+	);
+	expect(overview.combinedNetWorth.amountMinor).toBe(
+		(
+			BigInt(overview.personalNetWorth.amountMinor!) +
+			BigInt(overview.householdNetWorth.amountMinor!)
+		).toString()
+	);
+	expect(overview.currentMonthSpending.amountMinor).toBe(
+		(BigInt(before.currentMonthSpending.amountMinor!) + 4250n).toString()
+	);
+	expect(overview.accounts).toContainEqual(
+		expect.objectContaining({ id: card.id, type: 'credit_card', balanceMinor: '-3000' })
+	);
+	expect(overview.upcoming).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ planId: personalPlan.id, workspaceId: personalWorkspaceId }),
+			expect.objectContaining({ planId: householdPlan.id, workspaceId: householdId })
+		])
+	);
+
+	await page.goto('/home');
+	await expect(page.getByRole('heading', { name: 'My overview' })).toBeVisible();
+	await expect(
+		page.getByLabel('Overview details').getByText('Owed 30,00 zł', { exact: true })
+	).toBeVisible();
+	const spendingLabel = page.getByText('Current-month spending', { exact: true }).first();
+	const upcomingLabel = page.getByText('Upcoming expected cash', { exact: true }).first();
+	await expect(spendingLabel).toBeVisible();
+	await expect(upcomingLabel).toBeVisible();
+	const viewportHeight = page.viewportSize()!.height;
+	expect((await spendingLabel.boundingBox())!.y).toBeLessThan(viewportHeight);
+	expect((await upcomingLabel.boundingBox())!.y).toBeLessThan(viewportHeight);
+	await page.setViewportSize({ width: 390, height: 844 });
+	for (const label of [spendingLabel, upcomingLabel]) {
+		const box = (await label.boundingBox())!;
+		expect(box.y + box.height).toBeLessThanOrEqual(844);
+	}
+
+	const memberContext = await browser.newContext();
+	try {
+		const memberPage = await memberContext.newPage();
+		await signIn(memberPage, memberEmail, memberPassword);
+		const memberOverview = await apiJson<Overview>(memberPage, '/overview?userId=seed-demo-user');
+		expect(
+			memberOverview.accounts.some(({ id }) => id === sourceAccount.id || id === card.id)
+		).toBe(false);
+		expect(memberOverview.accounts).toContainEqual(
+			expect.objectContaining({ id: householdAccount.id, workspaceId: householdId })
+		);
+	} finally {
+		await memberContext.close();
+	}
+});
+
 function assertAccountBalance(
 	accounts: Array<{ id: string; balanceMinor: string }>,
 	accountId: string,
