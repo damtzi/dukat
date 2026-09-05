@@ -411,6 +411,54 @@ export function createExchangeRateRepository(
 				}
 			};
 		},
+		async reportingTotals(
+			workspaceId: string,
+			entries: Array<{
+				group: string;
+				amountMinor: string;
+				currency: string;
+				date: string;
+			}>,
+			targetCurrency?: string
+		) {
+			let reportingCurrency = targetCurrency;
+			if (!reportingCurrency) {
+				const [ws] = await database
+					.select({ reportingCurrency: workspace.reportingCurrency })
+					.from(workspace)
+					.where(eq(workspace.id, workspaceId));
+				reportingCurrency = ws?.reportingCurrency ?? 'PLN';
+			}
+			const totals = new Map<string, Rational>();
+			for (const entry of entries) {
+				const sameCurrency = entry.currency === reportingCurrency;
+				const from = sameCurrency ? null : await point(workspaceId, entry.currency, entry.date);
+				const to = sameCurrency ? null : await point(workspaceId, reportingCurrency, entry.date);
+				if (!sameCurrency && (!from || !to))
+					return { reportingCurrency, missingRate: true as const, totals: [] };
+				const amount = sameCurrency
+					? { numerator: BigInt(entry.amountMinor), denominator: 1n }
+					: convertMinorRational(
+							BigInt(entry.amountMinor),
+							entry.currency,
+							reportingCurrency,
+							from!.rateToPln,
+							to!.rateToPln
+						);
+				totals.set(
+					entry.group,
+					addRational(totals.get(entry.group) ?? { numerator: 0n, denominator: 1n }, amount)
+				);
+			}
+			return {
+				reportingCurrency,
+				missingRate: false as const,
+				totals: [...totals].map(([group, amount]) => ({
+					group,
+					amountMinor: roundRational(amount).toString()
+				}))
+			};
+		},
 		async reportingCashFlow(
 			workspaceId: string,
 			summary: Summary,

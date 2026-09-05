@@ -4,3 +4,4 @@ export * from './favorites';
 export * from './ledger';
 export * from './planning';
 export * from './workspaces';
+export * from './budgets';

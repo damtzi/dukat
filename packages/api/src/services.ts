@@ -19,6 +19,7 @@ import type {
 import type { InsightsRepository } from '@dukat/db/repositories/insights';
 import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import type { PlanningRepository } from '@dukat/db/repositories/planning';
+import type { BudgetRepository } from '@dukat/db/repositories/budgets';
 
 import type { ProfileImageCleanupService, ProfileImageService } from './profile-images';
 
@@ -281,6 +282,7 @@ export interface APIServices {
 	readiness(): Promise<unknown>;
 	ledger: LedgerService;
 	planning: PlanningRepository;
+	budgets?: BudgetRepository;
 	insights: InsightsRepository;
 	exchangeRates?: ReturnType<typeof createExchangeRateRepository>;
 	workspaces: WorkspaceService;

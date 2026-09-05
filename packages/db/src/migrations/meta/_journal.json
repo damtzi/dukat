@@ -155,6 +155,13 @@
 			"when": 1788536631835,
 			"tag": "0021_spooky_echo",
 			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "6",
+			"when": 1788602337510,
+			"tag": "0022_slow_sauron",
+			"breakpoints": true
 		}
 	]
 }

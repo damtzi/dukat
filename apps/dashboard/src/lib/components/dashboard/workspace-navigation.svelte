@@ -12,6 +12,7 @@
   import PlusIcon from 'phosphor-svelte/lib/Plus'
   import ReceiptIcon from 'phosphor-svelte/lib/Receipt'
   import LayoutDashboardIcon from 'phosphor-svelte/lib/SquaresFour'
+  import PiggyBankIcon from 'phosphor-svelte/lib/PiggyBank'
   import TagIcon from 'phosphor-svelte/lib/Tag'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
   import { formatAccountBalance } from '$lib/account'
@@ -62,6 +63,9 @@
   let categoriesPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/categories', { workspaceId }),
   )
+  let budgetsPath = $derived(
+    resolve('/(app)/workspaces/[workspaceId]/budgets', { workspaceId }),
+  )
   let importsPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/imports', { workspaceId }),
   )
@@ -82,6 +86,36 @@
 </script>
 
 <Sidebar.Menu>
+  <Sidebar.MenuItem>
+    <Sidebar.MenuButton
+      isActive={workspaceActive &&
+        routeId === '/(app)/workspaces/[workspaceId]/budgets'}
+      tooltipContent="Budgets"
+    >
+      {#snippet child({ props })}
+        <a
+          {...props}
+          href={budgetsPath}
+          aria-current={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/budgets'
+            ? 'page'
+            : undefined}
+          onclick={closeMobile}
+        >
+          <PiggyBankIcon aria-hidden="true" />
+          <span>Budgets</span>
+        </a>
+      {/snippet}
+    </Sidebar.MenuButton>
+    <FavoriteAction
+      active={favoriteFor(budgetsPath) !== undefined}
+      pending={pendingFavoritePath === budgetsPath}
+      path={budgetsPath}
+      label={`${workspace.name} · Budgets`}
+      ontoggle={ontogglefavorite}
+    />
+  </Sidebar.MenuItem>
+
   <Sidebar.MenuItem>
     <Sidebar.MenuButton
       isActive={workspaceActive &&

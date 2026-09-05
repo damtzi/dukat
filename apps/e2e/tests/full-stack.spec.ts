@@ -14,6 +14,26 @@ async function apiJson<T>(page: Page, path: string): Promise<T> {
 	}, path);
 }
 
+async function apiMutation<T>(
+	page: Page,
+	path: string,
+	method: 'POST' | 'PUT' | 'DELETE',
+	body: unknown
+) {
+	return page.evaluate(
+		async ({ requestPath, requestMethod, requestBody }) => {
+			const response = await fetch(`/api${requestPath}`, {
+				method: requestMethod,
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(requestBody)
+			});
+			if (!response.ok) throw new Error(`API request failed (${response.status}).`);
+			return response.json();
+		},
+		{ requestPath: path, requestMethod: method, requestBody: body }
+	) as Promise<T>;
+}
+
 async function chooseSelect(page: Page, label: string, option: string) {
 	await page.getByLabel(label, { exact: true }).click();
 	await page.getByRole('option', { name: option, exact: true }).click();
@@ -123,6 +143,66 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 		page.getByRole('cell', { name: 'Corner Market', exact: true }).first()
 	).toBeVisible();
 	await expect(page.getByRole('cell', { name: 'Full-stack expense', exact: true })).toBeVisible();
+});
+
+test('moves a category budget from available to forecast overspend through the real stack', async ({
+	page
+}) => {
+	const email = requiredEnvironment('FULL_STACK_TEST_EMAIL');
+	const password = requiredEnvironment('FULL_STACK_TEST_PASSWORD');
+	const workspaceId = requiredEnvironment('FULL_STACK_TEST_WORKSPACE_ID');
+	await signIn(page, email, password);
+	const accounts = await apiJson<Array<{ id: string; name: string; currency: string }>>(
+		page,
+		`/workspaces/${workspaceId}/accounts`
+	);
+	const account = accounts.find(({ currency }) => currency === 'PLN')!;
+	const category = await apiMutation<{ id: string; name: string }>(
+		page,
+		`/workspaces/${workspaceId}/categories`,
+		'POST',
+		{ name: 'Budget journey', idempotencyKey: crypto.randomUUID() }
+	);
+
+	await page.goto(`/workspaces/${workspaceId}/budgets`);
+	await page.getByLabel('Month', { exact: true }).fill('2026-08');
+	await page.getByLabel('Category').click();
+	await page.getByRole('option', { name: category.name, exact: true }).click();
+	await page.getByLabel('Monthly limit (PLN)').fill('100.00');
+	await page.getByRole('button', { name: 'Add budget' }).click();
+	const budget = page.locator('[data-slot="card"]').filter({ hasText: category.name }).last();
+	await expect(budget).toContainText(/Remaining\s*100,00/);
+	await expect(budget).toContainText(/Forecast overspend\s*0,00/);
+
+	await apiMutation(
+		page,
+		`/workspaces/${workspaceId}/accounts/${account.id}/transactions`,
+		'POST',
+		{
+			kind: 'expense',
+			amountMinor: '4000',
+			date: '2026-08-02',
+			categoryId: category.id,
+			description: 'Budget seam completed expense',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+	await apiMutation(page, `/workspaces/${workspaceId}/plans`, 'POST', {
+		accountId: account.id,
+		kind: 'expense',
+		amountMinor: '8000',
+		date: '2026-08-20',
+		status: 'expected',
+		categoryId: category.id,
+		description: 'Budget seam expected expense',
+		idempotencyKey: crypto.randomUUID()
+	});
+	await page.reload();
+	await page.getByLabel('Month', { exact: true }).fill('2026-08');
+	await expect(budget).toContainText(/Completed\s*40,00/);
+	await expect(budget).toContainText(/Expected plans\s*80,00/);
+	await expect(budget).toContainText(/Remaining\s*60,00/);
+	await expect(budget).toContainText(/Forecast overspend\s*20,00/);
 });
 
 test('tracks a categorized card purchase and bill payment once through the real stack', async ({

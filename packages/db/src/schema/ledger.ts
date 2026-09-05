@@ -466,7 +466,8 @@ export const ledgerAudit = sqliteTable(
 				'import_batch',
 				'plan',
 				'plan_occurrence',
-				'plan_match'
+				'plan_match',
+				'budget'
 			]
 		}).notNull(),
 		entityId: text('entity_id').notNull(),

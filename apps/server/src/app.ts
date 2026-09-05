@@ -6,6 +6,7 @@ import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
+import { createBudgetRepository } from '@dukat/db/repositories/budgets';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import {
 	createExchangeRateRepository,
@@ -152,6 +153,7 @@ const api = createAPI({
 	}),
 	ledger: ledgerRepository,
 	planning: createPlanningRepository(financialDb),
+	budgets: createBudgetRepository(financialDb, exchangeRateRepository),
 	exchangeRates: exchangeRateRepository,
 	insights: createInsightsRepository(financialDb),
 	readiness: () => db.run('select 1'),
