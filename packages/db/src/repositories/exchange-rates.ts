@@ -702,12 +702,18 @@ export function createExchangeRateRepository(
 		async currentBalances<T extends { currency: string; balanceMinor: string }>(
 			userId: string,
 			workspaceId: string,
-			ledger: { listAccounts(context: { userId: string; workspaceId: string }): Promise<unknown> },
-			targetCurrency?: string
+			ledger: {
+				listAccounts(
+					context: { userId: string; workspaceId: string },
+					throughDate?: string
+				): Promise<unknown>;
+			},
+			targetCurrency?: string,
+			onOrBefore?: string
 		) {
 			await authorized(userId, workspaceId);
 			const reportingCurrency = await resolveReportingCurrency(workspaceId, targetCurrency);
-			const result = await ledger.listAccounts({ userId, workspaceId });
+			const result = await ledger.listAccounts({ userId, workspaceId }, onOrBefore);
 			if (!Array.isArray(result)) throw new Error('Account service returned an invalid response');
 			const accounts = result as T[];
 			let total: Rational = { numerator: 0n, denominator: 1n };
@@ -716,8 +722,8 @@ export function createExchangeRateRepository(
 			const usedRates = new Map<string, ReturnType<typeof provenance>>();
 			for (const account of accounts) {
 				const sameCurrency = account.currency === reportingCurrency;
-				const from = sameCurrency ? null : await point(workspaceId, account.currency);
-				const to = sameCurrency ? null : await point(workspaceId, reportingCurrency);
+				const from = sameCurrency ? null : await point(workspaceId, account.currency, onOrBefore);
+				const to = sameCurrency ? null : await point(workspaceId, reportingCurrency, onOrBefore);
 				if (!sameCurrency && (!from || !to)) {
 					missingRate = true;
 					converted.push({ ...account, convertedBalanceMinor: null, rates: [] });

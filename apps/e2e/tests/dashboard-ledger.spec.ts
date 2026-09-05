@@ -58,6 +58,7 @@ function overviewResponse(
 		currentMonthSpending: { ...total, originals: [] },
 		accounts: [],
 		upcoming: [],
+		history: [],
 		workspaces: workspaces.map(({ id, name, type }) => ({
 			id,
 			name,

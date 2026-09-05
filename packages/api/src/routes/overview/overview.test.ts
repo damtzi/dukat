@@ -50,7 +50,8 @@ function services(): APIServices {
 					currentMonthSpending: { ...total, originals: [] },
 					accounts: [],
 					upcoming: [],
-					workspaces: []
+					workspaces: [],
+					history: []
 				};
 			}
 		}

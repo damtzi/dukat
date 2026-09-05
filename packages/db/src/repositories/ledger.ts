@@ -376,13 +376,14 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 	}
 	async function accountView(
 		account: typeof financialAccount.$inferSelect,
-		source: FinancialDatabase | Transaction = rawDatabase
+		source: FinancialDatabase | Transaction = rawDatabase,
+		throughDate?: string
 	) {
 		return viewAccount(
 			account,
 			checkedBalance(
 				account.openingBalanceMinor +
-					(await balance(account.workspaceId, account.id, account.openingDate, source))
+					(await balance(account.workspaceId, account.id, account.openingDate, source, throughDate))
 			)
 		);
 	}
@@ -853,14 +854,19 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 	}
 
 	return {
-		async listAccounts(context: Context) {
+		async listAccounts(context: Context, throughDate?: string) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
 				const rows = await tx
 					.select()
 					.from(financialAccount)
-					.where(eq(financialAccount.workspaceId, context.workspaceId));
-				return Promise.all(rows.map((account) => accountView(account, tx)));
+					.where(
+						and(
+							eq(financialAccount.workspaceId, context.workspaceId),
+							throughDate ? lte(financialAccount.openingDate, throughDate) : undefined
+						)
+					);
+				return Promise.all(rows.map((account) => accountView(account, tx, throughDate)));
 			});
 		},
 		async createAccount(context: Context, input: CreateAccount) {

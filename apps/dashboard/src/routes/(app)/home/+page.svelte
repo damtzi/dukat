@@ -6,6 +6,7 @@
   import { formatAccountBalance } from '$lib/account'
   import { overviewDataDependency } from '$lib/api'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
+  import NetWorthHistoryChart from '$lib/components/overview/net-worth-history-chart.svelte'
   import { formatMoney } from '$lib/money'
   import type { PageProps } from './$types'
 
@@ -151,6 +152,11 @@
         </Alert.Description>
       </Alert.Root>
     {/if}
+
+    <NetWorthHistoryChart
+      history={overview.history}
+      currency={overview.reportingCurrency}
+    />
 
     <section class="grid gap-6 lg:grid-cols-2" aria-label="Overview details">
       <Card.Root>

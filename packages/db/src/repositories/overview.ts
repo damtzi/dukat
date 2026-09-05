@@ -3,6 +3,7 @@ import { todayInDefaultTimeZone, type MyOverview, type Summary } from '@dukat/co
 import type { createExchangeRateRepository } from './exchange-rates';
 import type { InsightsRepository } from './insights';
 import type { LedgerRepository } from './ledger';
+import type { NetWorthHistoryRepository } from './net-worth-history';
 import type { PlanningRepository } from './planning';
 
 type WorkspaceRepository = {
@@ -40,12 +41,14 @@ export function createOverviewRepository(dependencies: {
 	planning: PlanningRepository;
 	insights: InsightsRepository;
 	exchangeRates: ReturnType<typeof createExchangeRateRepository>;
+	history: Pick<NetWorthHistoryRepository, 'list'>;
 	clock?: () => Date;
 }) {
 	const reportingCurrency = 'PLN';
 	return {
 		async get(userId: string): Promise<MyOverview> {
 			const workspaces = await dependencies.workspaces.listAuthorized(userId);
+			const history = await dependencies.history.list(userId);
 			const range = monthRange(todayInDefaultTimeZone(dependencies.clock?.() ?? new Date()));
 			const originalSpending = new Map<string, bigint>();
 			const accountRows: MyOverview['accounts'] = [];
@@ -160,7 +163,8 @@ export function createOverviewRepository(dependencies: {
 							`${right.workspaceId}:${right.planId}`
 						)
 				),
-				workspaces: workspaceRows
+				workspaces: workspaceRows,
+				history
 			};
 		}
 	};

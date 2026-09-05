@@ -8,6 +8,7 @@ import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { createBudgetRepository } from '@dukat/db/repositories/budgets';
 import { createOverviewRepository } from '@dukat/db/repositories/overview';
+import { createNetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import {
 	createExchangeRateRepository,
@@ -109,15 +110,42 @@ const planningRepository = createPlanningRepository(financialDb);
 const insightsRepository = createInsightsRepository(financialDb);
 const nbp = createNbpAdapter();
 const exchangeRateRepository = createExchangeRateRepository(financialDb, nbp);
+const netWorthHistoryRepository = createNetWorthHistoryRepository({
+	database: financialDb,
+	workspaces: workspaceRepository,
+	ledger: ledgerRepository,
+	exchangeRates: exchangeRateRepository
+});
 const refreshRates = () =>
 	(exchangeRateRepository.refreshLatest() ?? Promise.resolve()).catch((error) =>
 		logOutboxError('exchange_rates.refresh_failed', {
 			errorName: error instanceof Error ? error.name : 'UnknownError'
 		})
 	);
-const exchangeRateTimer = setInterval(() => void refreshRates(), 60 * 60 * 1000);
+const recordNetWorth = async () => {
+	const failures = await netWorthHistoryRepository.recordAll();
+	if (failures.length)
+		logOutboxError('net_worth_snapshot.users_failed', { count: failures.length });
+};
+const refreshRatesAndRecordNetWorth = async () => {
+	await refreshRates();
+	await recordNetWorth();
+};
+const exchangeRateTimer = setInterval(
+	() =>
+		void refreshRatesAndRecordNetWorth().catch((error) =>
+			logOutboxError('net_worth_snapshot.run_failed', {
+				errorName: error instanceof Error ? error.name : 'UnknownError'
+			})
+		),
+	60 * 60 * 1000
+);
 exchangeRateTimer.unref();
-void refreshRates();
+void refreshRatesAndRecordNetWorth().catch((error) =>
+	logOutboxError('net_worth_snapshot.run_failed', {
+		errorName: error instanceof Error ? error.name : 'UnknownError'
+	})
+);
 const profileImageStorage = createProfileImageStorage({
 	nodeEnv: serverEnv.NODE_ENV,
 	localDirectory: resolve(serverEnv.PROFILE_IMAGE_DIRECTORY),
@@ -164,7 +192,8 @@ const api = createAPI({
 		ledger: ledgerRepository,
 		planning: planningRepository,
 		insights: insightsRepository,
-		exchangeRates: exchangeRateRepository
+		exchangeRates: exchangeRateRepository,
+		history: netWorthHistoryRepository
 	}),
 	readiness: () => db.run('select 1'),
 	workspaces: workspaceService

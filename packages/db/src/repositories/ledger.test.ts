@@ -1261,6 +1261,12 @@ test('transfers and dated reconciliation are atomic, exact and versioned', async
 			amountMinor: '50',
 			date: '2026-07-31'
 		});
+		assert.equal(
+			(await ledger.listAccounts(context, '2026-07-30')).find((account) => account.id === from.id)
+				?.balanceMinor,
+			'700',
+			'a dated account list excludes later activity'
+		);
 		const check = await ledger.createBalanceCheck(context, {
 			idempotencyKey: 'dated-check',
 			accountId: from.id,

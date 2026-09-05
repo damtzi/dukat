@@ -9,7 +9,13 @@ import { fileURLToPath } from 'node:url';
 import { hashPassword } from 'better-auth/crypto';
 import { DEMO_CREDENTIALS, seedDatabase } from '../../../packages/db/src/seed';
 import { createDatabase } from '../../../packages/db/src/connection';
-import { account, user, workspace, workspaceMembership } from '../../../packages/db/src/schema';
+import {
+	account,
+	netWorthSnapshot,
+	user,
+	workspace,
+	workspaceMembership
+} from '../../../packages/db/src/schema';
 
 const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const children: ChildProcess[] = [];
@@ -191,6 +197,87 @@ try {
 				workspaceId: environment.FULL_STACK_HOUSEHOLD_ID,
 				userId: 'full-stack-member',
 				role: 'member'
+			}
+		]);
+		const historyPayload = (date: string, balanceMinor: string, rateToPln: string) => {
+			const convertedBalanceMinor = (
+				(BigInt(balanceMinor) * BigInt(rateToPln.replace('.', ''))) /
+				10n
+			).toString();
+			const total = { amountMinor: convertedBalanceMinor, missingRate: false };
+			return {
+				date,
+				reportingCurrency: 'PLN',
+				personalNetWorth: total,
+				householdNetWorth: { amountMinor: '20000', missingRate: false },
+				combinedNetWorth: {
+					amountMinor: (BigInt(convertedBalanceMinor) + 20000n).toString(),
+					missingRate: false
+				},
+				workspaces: [
+					{
+						id: environment.FULL_STACK_TEST_WORKSPACE_ID,
+						name: 'Personal',
+						type: 'personal',
+						netWorthMinor: convertedBalanceMinor,
+						missingRate: false,
+						accounts: [
+							{
+								id: 'historical-eur-cash',
+								name: 'Historical EUR cash',
+								type: 'cash',
+								currency: 'EUR',
+								balanceMinor,
+								convertedBalanceMinor,
+								rates: [
+									{
+										currency: 'EUR',
+										rateToPln,
+										source: 'manual',
+										effectiveDate: date,
+										tableNumber: null,
+										manualOverrideId: `history-rate-${date}`,
+										reason: 'Full-stack history fixture',
+										actorDisplay: 'Demo User'
+									}
+								]
+							}
+						]
+					},
+					{
+						id: environment.FULL_STACK_HOUSEHOLD_ID,
+						name: 'Full-stack Household',
+						type: 'household',
+						netWorthMinor: '20000',
+						missingRate: false,
+						accounts: []
+					}
+				]
+			};
+		};
+		await setup.db.insert(netWorthSnapshot).values([
+			{
+				id: 'full-stack-history-1',
+				userId: 'seed-demo-user',
+				date: '2026-08-30',
+				payloadJson: JSON.stringify(historyPayload('2026-08-30', '10000', '4.2'))
+			},
+			{
+				id: 'full-stack-history-2',
+				userId: 'seed-demo-user',
+				date: '2026-08-31',
+				payloadJson: JSON.stringify(historyPayload('2026-08-31', '10000', '4.3'))
+			},
+			{
+				id: 'full-stack-member-history',
+				userId: 'full-stack-member',
+				date: '2026-08-30',
+				payloadJson: JSON.stringify({
+					...historyPayload('2026-08-30', '10000', '4.2'),
+					personalNetWorth: { amountMinor: '0', missingRate: false },
+					combinedNetWorth: { amountMinor: '20000', missingRate: false },
+					workspaces: historyPayload('2026-08-30', '10000', '4.2').workspaces.slice(1)
+				})
 			}
 		]);
 	} finally {

@@ -498,6 +498,11 @@ test('My overview combines Personal and Household values once without exposing P
 			balanceMinor: string;
 		}>;
 		upcoming: Array<{ workspaceId: string; planId: string; amountMinor: string }>;
+		history: Array<{
+			date: string;
+			personalNetWorth: { amountMinor: string | null };
+			workspaces: Array<{ id: string; accounts: Array<{ rates: Array<{ rateToPln: string }> }> }>;
+		}>;
 	};
 	const before = await apiJson<Overview>(page, '/overview');
 	const personalAccounts = await apiJson<Array<{ id: string; name: string }>>(
@@ -601,9 +606,20 @@ test('My overview combines Personal and Household values once without exposing P
 			expect.objectContaining({ planId: householdPlan.id, workspaceId: householdId })
 		])
 	);
+	expect(
+		overview.history
+			.slice(0, 2)
+			.map(({ date, personalNetWorth }) => [date, personalNetWorth.amountMinor])
+	).toEqual([
+		['2026-08-30', '42000'],
+		['2026-08-31', '43000']
+	]);
+	expect(overview.history[0].workspaces[0].accounts[0].rates[0].rateToPln).toBe('4.2');
 
 	await page.goto('/home');
 	await expect(page.getByRole('heading', { name: 'My overview' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Net-worth history' })).toBeVisible();
+	await expect(page.getByRole('img', { name: /Net-worth history from 2026-08-30/ })).toBeVisible();
 	await expect(
 		page.getByLabel('Overview details').getByText('Owed 30,00 zł', { exact: true })
 	).toBeVisible();
@@ -631,6 +647,10 @@ test('My overview combines Personal and Household values once without exposing P
 		expect(memberOverview.accounts).toContainEqual(
 			expect.objectContaining({ id: householdAccount.id, workspaceId: householdId })
 		);
+		expect(memberOverview.history[0].workspaces).toEqual([
+			expect.objectContaining({ id: householdId })
+		]);
+		expect(JSON.stringify(memberOverview.history)).not.toContain('historical-eur-cash');
 	} finally {
 		await memberContext.close();
 	}
