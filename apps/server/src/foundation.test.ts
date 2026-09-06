@@ -25,6 +25,7 @@ import sharp from 'sharp';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
 import { createProfileImageCleanup } from './profile-image-cleanup';
+import { normalizeProfileImage } from './profile-image-normalizer';
 import { createLocalProfileImageStorage } from './profile-image-storage';
 
 const origin = 'http://localhost:9999';
@@ -130,7 +131,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		const profileImages = createProfileImageService({
 			auth,
 			storage: profileImageStorage,
-			cleanup: profileImageCleanup
+			cleanup: profileImageCleanup,
+			normalize: normalizeProfileImage
 		});
 		const app = createServerApp({
 			api: createAPI({

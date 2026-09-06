@@ -1,0 +1,34 @@
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "dukat",
+	"main": "src/worker.ts",
+	"compatibility_date": "2026-09-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"workers_dev": true,
+	"assets": {
+		"directory": "../dashboard/build",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/profile-images/*"]
+	},
+	"r2_buckets": [
+		{
+			"binding": "PROFILE_IMAGES",
+			"bucket_name": "dukat-profile-images",
+			"preview_bucket_name": "dukat-profile-images-preview"
+		}
+	],
+	"images": {
+		"binding": "IMAGES"
+	},
+	"triggers": {
+		"crons": ["17 * * * *"]
+	},
+	"vars": {
+		"NODE_ENV": "production",
+		"LOG_LEVEL": "info"
+	},
+	"observability": {
+		"enabled": true
+	}
+}

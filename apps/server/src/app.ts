@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
 import { createProfileImageCleanup } from './profile-image-cleanup';
+import { normalizeProfileImage } from './profile-image-normalizer';
 import { createProfileImageStorage } from './profile-image-storage';
 
 const workspaceRepository = createWorkspaceRepository(db);
@@ -172,32 +173,36 @@ const drainProfileImages = () =>
 		})
 	);
 void drainProfileImages();
-const api = createAPI({
-	auth,
-	trustedOrigins,
-	favorites: createFavoriteRepository(db),
-	profileImageCleanup,
-	profileImages: createProfileImageService({
+const api = createAPI(
+	{
 		auth,
-		storage: profileImageStorage.storage,
-		cleanup: profileImageCleanup
-	}),
-	ledger: ledgerRepository,
-	planning: planningRepository,
-	budgets: createBudgetRepository(financialDb, exchangeRateRepository),
-	exchangeRates: exchangeRateRepository,
-	insights: insightsRepository,
-	overview: createOverviewRepository({
-		workspaces: workspaceRepository,
+		trustedOrigins,
+		favorites: createFavoriteRepository(db),
+		profileImageCleanup,
+		profileImages: createProfileImageService({
+			auth,
+			storage: profileImageStorage.storage,
+			cleanup: profileImageCleanup,
+			normalize: normalizeProfileImage
+		}),
 		ledger: ledgerRepository,
 		planning: planningRepository,
-		insights: insightsRepository,
+		budgets: createBudgetRepository(financialDb, exchangeRateRepository),
 		exchangeRates: exchangeRateRepository,
-		history: netWorthHistoryRepository
-	}),
-	readiness: () => db.run('select 1'),
-	workspaces: workspaceService
-});
+		insights: insightsRepository,
+		overview: createOverviewRepository({
+			workspaces: workspaceRepository,
+			ledger: ledgerRepository,
+			planning: planningRepository,
+			insights: insightsRepository,
+			exchangeRates: exchangeRateRepository,
+			history: netWorthHistoryRepository
+		}),
+		readiness: () => db.run('select 1'),
+		workspaces: workspaceService
+	},
+	{ logLevel: serverEnv.LOG_LEVEL }
+);
 
 export const app = createServerApp({
 	api,

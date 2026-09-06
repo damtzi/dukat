@@ -1,11 +1,11 @@
 import { OpenAPIHono, RouteConfig, RouteHandler } from '@hono/zod-openapi';
-import type { Logger } from 'pino';
+import type { BaseLogger } from '@hono/structured-logger';
 
 import type { APIServices } from '../services';
 
 export interface AppBindings {
 	Variables: {
-		logger: Logger;
+		logger: BaseLogger;
 		services: APIServices;
 		userId: string;
 	};

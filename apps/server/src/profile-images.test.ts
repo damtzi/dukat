@@ -24,6 +24,7 @@ import sharp from 'sharp';
 
 import { createServerApp } from './create-server-app';
 import { createProfileImageCleanup } from './profile-image-cleanup';
+import { normalizeProfileImage } from './profile-image-normalizer';
 import {
 	createLocalProfileImageStorage,
 	createS3ProfileImageStorage
@@ -96,7 +97,12 @@ function createServices(
 		auth,
 		trustedOrigins: [`${portalOrigin}/`],
 		profileImageCleanup: cleanup,
-		profileImages: createProfileImageService({ auth, storage, cleanup }),
+		profileImages: createProfileImageService({
+			auth,
+			storage,
+			cleanup,
+			normalize: normalizeProfileImage
+		}),
 		async readiness() {},
 		favorites: {} as APIServices['favorites'],
 		ledger: {} as APIServices['ledger'],
@@ -494,7 +500,12 @@ test('replacement, removal, and failed updates persist cleanup through a new dra
 		const configured = createServices(storage);
 		configured.auth = auth;
 		configured.profileImageCleanup = cleanup;
-		configured.profileImages = createProfileImageService({ auth, storage, cleanup });
+		configured.profileImages = createProfileImageService({
+			auth,
+			storage,
+			cleanup,
+			normalize: normalizeProfileImage
+		});
 		const app = createAPI(configured);
 		const source = await sharp({
 			create: { width: 2, height: 2, channels: 3, background: 'red' }

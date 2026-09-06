@@ -119,6 +119,14 @@ async function waitFor(url: string, child: ChildProcess, name: string) {
 	throw new Error(`${name} did not become ready within 30 seconds.`);
 }
 
+async function waitForSuccess(child: ChildProcess, name: string) {
+	const exitCode = await new Promise<number>((resolveExit, reject) => {
+		child.once('error', reject);
+		child.once('exit', (code) => resolveExit(code ?? 1));
+	});
+	if (exitCode !== 0) throw new Error(`${name} failed with exit code ${exitCode}.`);
+}
+
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'dukat-full-stack-'));
 const databaseUrl = `file:${join(temporaryDirectory, 'dukat.db')}`;
 const [apiPort, dashboardPort] = await availablePorts(2);
@@ -284,6 +292,13 @@ try {
 		setup.client.close();
 	}
 	if (receivedSignal) throw new Error(`Full-stack test interrupted by ${receivedSignal}.`);
+	const build = start(
+		executable('vite'),
+		['build'],
+		environment,
+		join(repositoryRoot, 'apps/dashboard')
+	);
+	await waitForSuccess(build, 'SvelteKit production build');
 	const api = start(
 		executable('tsx'),
 		['src/index.ts'],
@@ -293,11 +308,11 @@ try {
 	await waitFor(`${apiOrigin}/api/health/ready`, api, 'Hono API');
 	const dashboard = start(
 		executable('vite'),
-		['dev', '--host', '127.0.0.1', '--port', String(dashboardPort), '--strictPort'],
+		['preview', '--host', '127.0.0.1', '--port', String(dashboardPort), '--strictPort'],
 		environment,
 		join(repositoryRoot, 'apps/dashboard')
 	);
-	await waitFor(`${dashboardOrigin}/api/health/ready`, dashboard, 'SvelteKit test server');
+	await waitFor(`${dashboardOrigin}/api/health/ready`, dashboard, 'SvelteKit production preview');
 	const playwright = start(
 		executable('playwright'),
 		['test', '--config', 'playwright.full-stack.config.ts'],

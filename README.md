@@ -9,7 +9,8 @@ This repository contains the Dukat TypeScript applications and shared packages.
 - `apps/website` — Astro public website with Tailwind CSS and optional Svelte islands.
 - `apps/dashboard` — client-side SvelteKit dashboard served by the Node application.
 - `apps/admin` — SvelteKit app placeholder for internal tooling.
-- `apps/server` — same-origin Node/Hono runtime for the dashboard and `/api/*`.
+- `apps/server` — same-origin Cloudflare Worker and local Node/Hono runtime for the dashboard and
+  `/api/*`.
 
 ### Packages
 
@@ -99,4 +100,6 @@ Open [http://localhost:3001](http://localhost:3001). Vite reloads dashboard chan
 `pnpm dev` starts every app in the monorepo. Use `pnpm dev:app` when you only need the dashboard and
 API.
 
-Production releases use `db:migrate:release`; backup and restore procedures are documented in [`docs/operations/recovery.md`](docs/operations/recovery.md).
+Production releases use `db:migrate:release`. See the
+[Cloudflare deployment runbook](docs/operations/cloudflare-deployment.md) and
+[backup and restore runbook](docs/operations/recovery.md).

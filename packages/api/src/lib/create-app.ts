@@ -1,5 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { notFound, onError, requestLogger } from '../middleware';
+import { createRequestLogger, notFound, onError, type LogLevel } from '../middleware';
 import { requestId } from 'hono/request-id';
 import type { AppBindings } from './types';
 import { defaultHook } from '../openapi';
@@ -12,11 +12,11 @@ export function createRouter() {
 	});
 }
 
-export default function createApp(services: APIServices) {
+export default function createApp(services: APIServices, options: { logLevel?: LogLevel } = {}) {
 	const app = createRouter();
 
 	app.use(requestId());
-	app.use(requestLogger);
+	app.use(createRequestLogger(options.logLevel));
 	app.use('*', async (c, next) => {
 		c.set('services', services);
 		await next();

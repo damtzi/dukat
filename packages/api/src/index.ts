@@ -4,6 +4,7 @@ export {
 	ProfileImageError,
 	type ProfileImageCrop,
 	type ProfileImageCleanupService,
+	type ProfileImageNormalizer,
 	type ProfileImageService,
 	type ProfileImageStorage
 } from './profile-images';

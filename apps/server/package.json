@@ -3,7 +3,10 @@
 	"type": "module",
 	"scripts": {
 		"dev": "tsx watch src/index.ts",
+		"dev:worker": "wrangler dev",
 		"build": "tsc",
+		"build:worker": "pnpm --filter @dukat/dashboard build && wrangler deploy --dry-run",
+		"deploy": "pnpm --filter @dukat/dashboard build && wrangler deploy",
 		"start": "tsx src/index.ts",
 		"lint": "eslint",
 		"test": "tsx --test src/*.test.ts"
@@ -25,6 +28,7 @@
 		"drizzle-orm": "^0.45.2",
 		"eslint": "catalog:",
 		"sharp": "^0.34.5",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"wrangler": "^4.129.0"
 	}
 }
