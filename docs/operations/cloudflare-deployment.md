@@ -127,7 +127,7 @@ pnpm db:migrate:release
 Deploy only after migration succeeds:
 
 ```sh
-pnpm deploy
+pnpm run deploy
 ```
 
 Wrangler builds the static SvelteKit dashboard and deploys it with the Hono API as one Worker. The
@@ -143,7 +143,7 @@ worth history.
 5. Create a financial account.
 6. Add one manual transaction and confirm the displayed balance changes after reload.
 7. Upload, replace, and remove a profile image. Confirm the image URL stays on the Worker origin.
-8. Open `/api/health/ready`; expect HTTP 200 and `{"status":"ready"}`.
+8. Open `/api/health/ready`; expect HTTP 200 and `{"status":"ok"}`.
 
 The repository's full-stack browser test builds and serves the production dashboard, then proves the
 same registration, sign-in, account, transaction, and persisted-balance seam against a freshly

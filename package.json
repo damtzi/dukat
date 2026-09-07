@@ -5,7 +5,7 @@
 		"build": "turbo run build",
 		"check-types": "turbo run check-types",
 		"db:migrate:release": "pnpm --filter @dukat/db db:migrate:release",
-		"deploy": "pnpm --filter @dukat/server deploy",
+		"deploy": "pnpm --filter @dukat/server run deploy",
 		"db:seed": "pnpm --filter @dukat/db db:seed",
 		"dev": "turbo run dev",
 		"dev:app": "turbo run dev --filter=@dukat/dashboard --filter=@dukat/server",
