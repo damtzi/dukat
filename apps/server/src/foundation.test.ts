@@ -19,6 +19,7 @@ import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-ra
 import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import sharp from 'sharp';
@@ -111,11 +112,13 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		await import('node:fs/promises').then(({ mkdir }) => mkdir(dashboardDirectory));
 		await writeFile(join(dashboardDirectory, 'index.html'), '<h1>Dukat dashboard</h1>');
 
+		const administration = createAdministrationRepository(source.db);
 		const auth = createAuth({
 			database: source.db,
 			baseURL: origin,
 			secret,
 			trustedOrigins: [origin],
+			registrationOpen: administration.registrationOpen,
 			emailSender: {
 				async send(message) {
 					emails.push(message);
@@ -136,6 +139,7 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		});
 		const app = createServerApp({
 			api: createAPI({
+				administration,
 				auth,
 				favorites: createFavoriteRepository(source.db),
 				profileImageCleanup,
@@ -207,6 +211,20 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			assert.equal(response.status, 200, await response.text());
 			return cookieFrom(response);
 		}
+
+		await administration.setRegistrationOpen(false);
+		assert.equal(
+			(
+				await postJson(app, '/api/auth/sign-up/email', {
+					name: 'Closed User',
+					username: 'closed_user',
+					email: 'closed@example.com',
+					password: 'initial-password-closed'
+				})
+			).status,
+			403
+		);
+		await administration.setRegistrationOpen(true);
 
 		const available = await app.request(
 			`${origin}/api/auth/username-availability?username=%20First_User%20`
@@ -724,6 +742,47 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			headers: { cookie: signOutCookie }
 		});
 		assert.equal(await signedOutSession.text(), 'null');
+
+		const disabledCookie = await signIn('first@example.com', 'replacement-password-1');
+		await administration.setUserDisabled(firstSession.user.id, true);
+		assert.equal(
+			(await app.request(`${origin}/api/workspaces`, { headers: { cookie: disabledCookie } }))
+				.status,
+			401
+		);
+		assert.equal(
+			(
+				await postJson(app, '/api/auth/sign-in/email', {
+					email: 'first@example.com',
+					password: 'replacement-password-1'
+				})
+			).status,
+			403
+		);
+		await administration.setUserDisabled(firstSession.user.id, false);
+		const deletionCookie = await signIn('first@example.com', 'replacement-password-1');
+		const deletion = await app.request(`${origin}/api/account/delete`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie: deletionCookie, origin },
+			body: JSON.stringify({ password: 'replacement-password-1', confirmation: 'DELETE' })
+		});
+		assert.equal(deletion.status, 200, await deletion.clone().text());
+		assert.equal(
+			(await app.request(`${origin}/api/workspaces`, { headers: { cookie: deletionCookie } }))
+				.status,
+			401
+		);
+		assert.equal(
+			(
+				await postJson(app, '/api/auth/sign-in/email', {
+					email: 'first@example.com',
+					password: 'replacement-password-1'
+				})
+			).status,
+			403
+		);
+		await administration.restoreAccount(firstSession.user.id);
+		await signIn('first@example.com', 'replacement-password-1');
 
 		await profileImageCleanup.enqueue(
 			firstSession.user.id,

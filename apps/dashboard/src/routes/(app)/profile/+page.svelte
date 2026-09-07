@@ -386,7 +386,8 @@
     <Card.Header>
       <Card.Title>Delete your account</Card.Title>
       <Card.Description>
-        Review ownership requirements before permanently deleting your account.
+        Start a 30-day recovery period for data in your personal workspace.
+        Household data stays with its Household workspace.
       </Card.Description>
     </Card.Header>
     <Card.Content class="flex flex-col gap-4">
@@ -426,11 +427,12 @@
                 required
               />
               <Field.Label for="delete-account-confirmation">
-                I understand this action is permanent.
+                I understand access ends now and data in my personal workspace
+                is deleted after 30 days.
               </Field.Label>
             </Field.Field>
             <Button type="submit" variant="destructive" disabled={pending}>
-              Delete my account
+              Start account deletion
             </Button>
           </Field.Group>
         </form>

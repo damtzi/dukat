@@ -2,11 +2,13 @@ import { createRouter } from '../../lib/create-app';
 import { authenticated } from '../../middleware/authenticated';
 import * as handlers from './workspaces.handlers';
 import * as routes from './workspaces.routes';
+import { rateLimit } from '../../middleware/rate-limit';
 
 const router = createRouter();
 router.use('/workspaces/*', authenticated);
 router.use('/workspace-invitations/*', authenticated);
 router.use('/account/*', authenticated);
+router.use('/account/delete', rateLimit('account-delete', 3, 3600));
 
 export const workspacesRouter = router
 	.openapi(routes.list, handlers.list)

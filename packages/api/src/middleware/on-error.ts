@@ -3,9 +3,13 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { ReasonPhrases, StatusCodes } from 'http-status-codes';
 import { LedgerError } from '@dukat/db/repositories/ledger';
 import { WorkspaceError } from '@dukat/db/repositories/workspaces';
+import { AdministrationError } from '@dukat/db/repositories/administration';
 
 const onError: ErrorHandler = (err, c) => {
-	const applicationError = err instanceof WorkspaceError || err instanceof LedgerError;
+	const applicationError =
+		err instanceof WorkspaceError ||
+		err instanceof LedgerError ||
+		err instanceof AdministrationError;
 	const applicationCode = applicationError ? err.code : undefined;
 	const currentStatus = 'status' in err ? err.status : c.newResponse(null).status;
 	const statusCode =

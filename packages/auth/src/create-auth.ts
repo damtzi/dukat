@@ -25,9 +25,14 @@ export interface CreateAuthOptions {
 	emailSender: TransactionalEmailSender;
 	trustedOrigins?: string[];
 	isProduction?: boolean;
+	registrationOpen?: () => Promise<boolean>;
+	administratorEmails?: readonly string[];
 }
 
 export function createAuth(options: CreateAuthOptions) {
+	const administratorEmails = new Set(
+		options.administratorEmails?.map((email) => email.trim().toLowerCase()) ?? []
+	);
 	function validName(value: string) {
 		const name = normalizeName(value);
 		const message = nameValidationMessage(name);
@@ -102,6 +107,24 @@ export function createAuth(options: CreateAuthOptions) {
 		plugins: [profileIdentityPlugin],
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
+				if (ctx.path === '/sign-up/email' && options.registrationOpen) {
+					if (!(await options.registrationOpen())) {
+						throw new APIError('FORBIDDEN', { message: 'Registration is closed.' });
+					}
+				}
+				if (ctx.path === '/sign-in/email' && typeof ctx.body.email === 'string') {
+					const [accountStatus] = await options.database
+						.select({
+							disabledAt: schema.user.disabledAt,
+							deletionRequestedAt: schema.user.deletionRequestedAt
+						})
+						.from(schema.user)
+						.where(eq(schema.user.email, ctx.body.email.trim().toLowerCase()))
+						.limit(1);
+					if (accountStatus?.disabledAt || accountStatus?.deletionRequestedAt) {
+						throw new APIError('FORBIDDEN', { message: 'Account access is disabled.' });
+					}
+				}
 				if (ctx.path !== '/update-user') return;
 				if ('image' in ctx.body) {
 					throw new APIError('BAD_REQUEST', {
@@ -131,6 +154,14 @@ export function createAuth(options: CreateAuthOptions) {
 							typeof input.username === 'string' ? input.username : ''
 						);
 						return { data: { ...user, name, username } };
+					},
+					async after(createdUser) {
+						if (administratorEmails.has(createdUser.email.toLowerCase())) {
+							await options.database
+								.update(schema.user)
+								.set({ isAdmin: true })
+								.where(eq(schema.user.id, createdUser.id));
+						}
 					}
 				},
 				update: {
@@ -172,6 +203,10 @@ export function createAuth(options: CreateAuthOptions) {
 		rateLimit: {
 			enabled: options.isProduction ?? false,
 			customRules: {
+				'/sign-up/email': { window: 3600, max: 5 },
+				'/sign-in/email': { window: 60, max: 10 },
+				'/request-password-reset': { window: 3600, max: 5 },
+				'/send-verification-email': { window: 3600, max: 5 },
 				'/update-user': { window: 60, max: 10 }
 			}
 		},
@@ -188,6 +223,26 @@ export function createAuth(options: CreateAuthOptions) {
 	const handler = auth.handler;
 
 	return Object.assign(auth, {
+		async accessStatus(userId: string) {
+			const [result] = await options.database
+				.select({
+					email: schema.user.email,
+					isAdmin: schema.user.isAdmin,
+					disabledAt: schema.user.disabledAt,
+					deletionRequestedAt: schema.user.deletionRequestedAt
+				})
+				.from(schema.user)
+				.where(eq(schema.user.id, userId))
+				.limit(1);
+			if (!result) return undefined;
+			const isAdmin = result.isAdmin || administratorEmails.has(result.email.toLowerCase());
+			if (isAdmin && !result.isAdmin)
+				await options.database
+					.update(schema.user)
+					.set({ isAdmin: true })
+					.where(eq(schema.user.id, userId));
+			return { ...result, isAdmin };
+		},
 		usernameAvailability,
 		async setProfileImage(userId: string, image: string | null) {
 			await options.database.update(schema.user).set({ image }).where(eq(schema.user.id, userId));

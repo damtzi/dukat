@@ -15,6 +15,7 @@ import { createOverviewRepository } from '@dukat/db/repositories/overview';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import { createWorkerEnv } from '@dukat/env/worker';
 
 import {
@@ -42,6 +43,7 @@ interface WorkerEnv {
 	TURSO_AUTH_TOKEN: string;
 	RESEND_API_KEY: string;
 	AUTH_EMAIL_FROM: string;
+	AUTH_ADMIN_EMAILS?: string;
 }
 
 interface ExecutionContext {
@@ -57,7 +59,8 @@ function variables(env: WorkerEnv) {
 		TURSO_DATABASE_URL: env.TURSO_DATABASE_URL,
 		TURSO_AUTH_TOKEN: env.TURSO_AUTH_TOKEN,
 		RESEND_API_KEY: env.RESEND_API_KEY,
-		AUTH_EMAIL_FROM: env.AUTH_EMAIL_FROM
+		AUTH_EMAIL_FROM: env.AUTH_EMAIL_FROM,
+		AUTH_ADMIN_EMAILS: env.AUTH_ADMIN_EMAILS
 	};
 }
 
@@ -128,12 +131,15 @@ function createRuntime(bindings: WorkerEnv) {
 	const db = connection.db;
 	const financialDb = financialConnection.db;
 	const emailSender = createResendEmailSender(env.RESEND_API_KEY, env.AUTH_EMAIL_FROM);
+	const administration = createAdministrationRepository(db);
 	const auth = createAuth({
 		database: db,
 		baseURL: env.BETTER_AUTH_URL,
 		secret: env.BETTER_AUTH_SECRET,
 		emailSender,
-		isProduction: true
+		isProduction: true,
+		registrationOpen: administration.registrationOpen,
+		administratorEmails: env.AUTH_ADMIN_EMAILS.split(',').filter(Boolean)
 	});
 	const workspaceRepository = createWorkspaceRepository(db);
 	const drainOutbox = createOutboxDrain(workspaceRepository, emailSender);
@@ -155,6 +161,7 @@ function createRuntime(bindings: WorkerEnv) {
 	});
 	const api = createAPI(
 		{
+			administration,
 			auth,
 			trustedOrigins: [],
 			favorites: createFavoriteRepository(db),
@@ -188,6 +195,8 @@ function createRuntime(bindings: WorkerEnv) {
 		api,
 		drainBackground: () => Promise.all([drainOutbox(), profileImageCleanup.drain()]),
 		async maintain() {
+			await workspaceRepository.purgeExpired();
+			await administration.purgeExpiredAccounts();
 			await exchangeRates.refreshLatest();
 			const failures = await history.recordAll();
 			if (failures.length) {

@@ -10,6 +10,7 @@ import { createBudgetRepository } from '@dukat/db/repositories/budgets';
 import { createOverviewRepository } from '@dukat/db/repositories/overview';
 import { createNetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import {
 	createExchangeRateRepository,
 	createNbpAdapter
@@ -23,6 +24,7 @@ import { normalizeProfileImage } from './profile-image-normalizer';
 import { createProfileImageStorage } from './profile-image-storage';
 
 const workspaceRepository = createWorkspaceRepository(db);
+const administrationRepository = createAdministrationRepository(db);
 type OutboxRepository = Pick<
 	typeof workspaceRepository,
 	'claimPendingOutbox' | 'isOutboxClaimActive' | 'markOutboxSent' | 'markOutboxFailed'
@@ -103,6 +105,7 @@ void workspaceService.deliverOutbox();
 export async function shutdownOutbox() {
 	clearInterval(outboxTimer);
 	clearInterval(exchangeRateTimer);
+	clearInterval(accountLifecycleTimer);
 	await outboxDelivery.waitForIdle(5_000);
 }
 
@@ -147,6 +150,25 @@ void refreshRatesAndRecordNetWorth().catch((error) =>
 		errorName: error instanceof Error ? error.name : 'UnknownError'
 	})
 );
+const maintainAccountLifecycle = async () => {
+	await workspaceRepository.purgeExpired();
+	await administrationRepository.purgeExpiredAccounts();
+};
+const accountLifecycleTimer = setInterval(
+	() =>
+		void maintainAccountLifecycle().catch((error) =>
+			logOutboxError('account_lifecycle.failed', {
+				errorName: error instanceof Error ? error.name : 'UnknownError'
+			})
+		),
+	24 * 60 * 60 * 1000
+);
+accountLifecycleTimer.unref();
+void maintainAccountLifecycle().catch((error) =>
+	logOutboxError('account_lifecycle.failed', {
+		errorName: error instanceof Error ? error.name : 'UnknownError'
+	})
+);
 const profileImageStorage = createProfileImageStorage({
 	nodeEnv: serverEnv.NODE_ENV,
 	localDirectory: resolve(serverEnv.PROFILE_IMAGE_DIRECTORY),
@@ -175,6 +197,7 @@ const drainProfileImages = () =>
 void drainProfileImages();
 const api = createAPI(
 	{
+		administration: administrationRepository,
 		auth,
 		trustedOrigins,
 		favorites: createFavoriteRepository(db),

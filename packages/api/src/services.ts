@@ -26,6 +26,14 @@ import type { ProfileImageCleanupService, ProfileImageService } from './profile-
 
 export interface AuthenticationService {
 	handler(request: Request): Promise<Response>;
+	accessStatus?(userId: string): Promise<
+		| {
+				isAdmin: boolean;
+				disabledAt: Date | null;
+				deletionRequestedAt: Date | null;
+		  }
+		| undefined
+	>;
 	setProfileImage?(userId: string, image: string | null): Promise<void>;
 	usernameAvailability(username: string): Promise<{
 		available: boolean;
@@ -45,6 +53,15 @@ export interface AuthenticationService {
 		} | null>;
 		verifyPassword(options: { body: { password: string }; headers: Headers }): Promise<unknown>;
 	};
+}
+
+export interface AdministrationService {
+	registrationOpen(): Promise<boolean>;
+	setRegistrationOpen(open: boolean): Promise<{ registrationOpen: boolean }>;
+	listUsers(): Promise<unknown[]>;
+	setUserDisabled(userId: string, disabled: boolean): Promise<unknown>;
+	restoreAccount(userId: string): Promise<unknown>;
+	purgeExpiredAccounts(): Promise<{ id: string }[]>;
 }
 
 export interface FavoriteSummary {
@@ -279,6 +296,7 @@ export interface LedgerService {
 }
 
 export interface APIServices {
+	administration?: AdministrationService;
 	auth: AuthenticationService;
 	trustedOrigins?: readonly string[];
 	favorites: FavoriteService;

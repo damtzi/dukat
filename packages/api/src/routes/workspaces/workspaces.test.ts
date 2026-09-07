@@ -303,10 +303,9 @@ test('restore returns JSON when the repository operation has no return value', a
 	});
 });
 
-test('account deletion requires server confirmation and deletes only after password verification', async () => {
+test('account deletion requires server confirmation and starts recovery after password verification', async () => {
 	let verified = 0,
-		deletedUserId: string | undefined,
-		cleanupDrains = 0;
+		deletedUserId: string | undefined;
 	const services = createServices({
 		verifyPassword: () => verified++,
 		workspace: {
@@ -315,13 +314,6 @@ test('account deletion requires server confirmation and deletes only after passw
 			}
 		}
 	});
-	services.profileImageCleanup = {
-		async enqueue() {},
-		async drain() {
-			cleanupDrains += 1;
-			throw new Error('storage unavailable');
-		}
-	};
 	const client = testClient(createAPI(services));
 	const headers = { authorization: 'Session test' };
 	const route = client.api.account.delete;
@@ -336,14 +328,14 @@ test('account deletion requires server confirmation and deletes only after passw
 	);
 	assert.equal(verified, 0);
 	assert.equal(deletedUserId, undefined);
-	assert.equal(
-		(await route.$post({ json: { password: 'secret', confirmation: 'DELETE' } }, { headers }))
-			.status,
-		200
+	const response = await route.$post(
+		{ json: { password: 'secret', confirmation: 'DELETE' } },
+		{ headers }
 	);
+	assert.equal(response.status, 200);
+	assert.deepEqual(await response.json(), { deletionRequested: true, recoveryDays: 30 });
 	assert.equal(verified, 1);
 	assert.equal(deletedUserId, 'user-1');
-	assert.equal(cleanupDrains, 1);
 });
 
 test('WorkspaceError codes map to 404, 409 and 400, and member action parameters are parsed', async () => {

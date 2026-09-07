@@ -10,6 +10,9 @@ export const user = sqliteTable(
 		email: text('email').notNull().unique(),
 		emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
 		image: text('image'),
+		isAdmin: integer('is_admin', { mode: 'boolean' }).default(false).notNull(),
+		disabledAt: integer('disabled_at', { mode: 'timestamp' }),
+		deletionRequestedAt: integer('deletion_requested_at', { mode: 'timestamp' }),
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.default(sql`(unixepoch())`)
 			.notNull(),
@@ -25,6 +28,15 @@ export const user = sqliteTable(
 		)
 	]
 );
+
+export const serviceSetting = sqliteTable('service_setting', {
+	id: integer('id').primaryKey(),
+	registrationOpen: integer('registration_open', { mode: 'boolean' }).default(true).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp' })
+		.default(sql`(unixepoch())`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull()
+});
 
 export const session = sqliteTable(
 	'session',

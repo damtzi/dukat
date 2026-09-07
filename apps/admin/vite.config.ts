@@ -4,4 +4,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
+  server: {
+    proxy: { '/api': process.env.DUKAT_API_ORIGIN ?? 'http://localhost:9999' },
+  },
 })

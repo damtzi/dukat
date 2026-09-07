@@ -15,6 +15,7 @@ import {
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createDatabase } from '@dukat/db/connection';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { profileImageCleanupJob, user } from '@dukat/db/schema/auth';
 import { eq } from 'drizzle-orm';
@@ -591,8 +592,14 @@ test('account deletion completes while object cleanup survives and succeeds afte
 		});
 		assert.equal(response.status, 200, await response.clone().text());
 		assert.equal(objects.has(publicUrl), true);
+		assert.deepEqual(await connection.db.select().from(profileImageCleanupJob), []);
+		await connection.db
+			.update(user)
+			.set({ deletionRequestedAt: new Date(Date.now() - 31 * 86400_000) })
+			.where(eq(user.id, 'account-user'));
+		await createAdministrationRepository(connection.db).purgeExpiredAccounts();
 		const [job] = await connection.db.select().from(profileImageCleanupJob);
-		assert.equal(job.attempts, 1);
+		assert.equal(job.attempts, 0);
 
 		storageAvailable = true;
 		await createProfileImageCleanup({

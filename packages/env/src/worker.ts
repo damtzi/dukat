@@ -28,7 +28,8 @@ export function createWorkerEnv(runtimeEnv: Record<string, string | undefined>) 
 				),
 			TURSO_AUTH_TOKEN: z.string().min(1),
 			RESEND_API_KEY: z.string().min(1),
-			AUTH_EMAIL_FROM: z.string().min(1)
+			AUTH_EMAIL_FROM: z.string().min(1),
+			AUTH_ADMIN_EMAILS: z.string().default('')
 		},
 		runtimeEnv,
 		emptyStringAsUndefined: true,

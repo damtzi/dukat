@@ -2,9 +2,11 @@ import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 
 import type { Database } from '../connection';
+import { OWNED_HOUSEHOLD_QUOTA, PENDING_INVITATION_QUOTA } from './administration';
 import {
 	emailOutbox,
 	mutationReceipt,
+	session,
 	user,
 	workspace,
 	workspaceAudit,
@@ -16,6 +18,7 @@ export interface WorkspaceAuthorizationContext {
 	userId: string;
 	workspaceId: string;
 }
+type QueryDatabase = Pick<Database, 'select'>;
 export class WorkspaceError extends Error {
 	constructor(
 		public readonly code: 'not_found' | 'conflict' | 'invalid',
@@ -84,7 +87,7 @@ export async function findAuthorizedWorkspace(
 	return row;
 }
 
-export function findSoleOwnerBlockers(database: Database, userId: string) {
+export function findSoleOwnerBlockers(database: QueryDatabase, userId: string) {
 	return database
 		.select({ id: workspace.id, name: workspace.name })
 		.from(workspaceMembership)
@@ -93,7 +96,8 @@ export function findSoleOwnerBlockers(database: Database, userId: string) {
 			and(
 				eq(workspaceMembership.userId, userId),
 				eq(workspaceMembership.role, 'owner'),
-				sql`EXISTS (SELECT 1 FROM workspace_membership m WHERE m.workspace_id = ${workspace.id} AND m.user_id <> ${userId})`,
+				eq(workspace.type, 'household'),
+				isNull(workspace.deletedAt),
 				sql`NOT EXISTS (SELECT 1 FROM workspace_membership o WHERE o.workspace_id = ${workspace.id} AND o.role = 'owner' AND o.user_id <> ${userId})`
 			)
 		);
@@ -159,6 +163,20 @@ export function createWorkspaceRepository(database: Database) {
 					'Reporting currency must be PLN or an NBP Table A currency'
 				);
 			return database.transaction(async (tx) => {
+				const [{ count }] = await tx
+					.select({ count: sql<number>`count(*)` })
+					.from(workspaceMembership)
+					.innerJoin(workspace, eq(workspace.id, workspaceMembership.workspaceId))
+					.where(
+						and(
+							eq(workspaceMembership.userId, userId),
+							eq(workspaceMembership.role, 'owner'),
+							eq(workspace.type, 'household'),
+							isNull(workspace.deletedAt)
+						)
+					);
+				if (Number(count) >= OWNED_HOUSEHOLD_QUOTA)
+					throw new WorkspaceError('conflict', 'Household quota reached');
 				const id = crypto.randomUUID();
 				await tx.insert(workspace).values({
 					id,
@@ -247,6 +265,19 @@ export function createWorkspaceRepository(database: Database) {
 		) {
 			return database.transaction(async (tx) => {
 				await owner(tx, context.userId, context.workspaceId);
+				const [{ count }] = await tx
+					.select({ count: sql<number>`count(*)` })
+					.from(workspaceInvitation)
+					.where(
+						and(
+							eq(workspaceInvitation.workspaceId, context.workspaceId),
+							isNull(workspaceInvitation.acceptedAt),
+							isNull(workspaceInvitation.revokedAt),
+							gt(workspaceInvitation.expiresAt, new Date())
+						)
+					);
+				if (Number(count) >= PENDING_INVITATION_QUOTA)
+					throw new WorkspaceError('conflict', 'Pending invitation quota reached');
 				const token = crypto.randomUUID() + crypto.randomUUID();
 				const id = crypto.randomUUID();
 				const email = normalizeEmail(input.email);
@@ -555,11 +586,22 @@ export function createWorkspaceRepository(database: Database) {
 		},
 		async deleteAccount(userId: string) {
 			try {
-				const deleted = await database
-					.delete(user)
-					.where(eq(user.id, userId))
-					.returning({ id: user.id });
-				if (!deleted.length) throw new WorkspaceError('not_found', 'Account not found');
+				const changed = await database.transaction(async (tx) => {
+					const blockers = await findSoleOwnerBlockers(tx, userId);
+					if (blockers.length)
+						throw new WorkspaceError(
+							'conflict',
+							'Transfer household ownership or delete the household before deleting your account'
+						);
+					const result = await tx
+						.update(user)
+						.set({ deletionRequestedAt: new Date() })
+						.where(and(eq(user.id, userId), isNull(user.deletionRequestedAt)))
+						.returning({ deletionRequestedAt: user.deletionRequestedAt });
+					await tx.delete(session).where(eq(session.userId, userId));
+					return result;
+				});
+				if (!changed.length) throw new WorkspaceError('conflict', 'Account deletion is pending');
 			} catch (error) {
 				if (error instanceof WorkspaceError) throw error;
 				let cause: unknown = error;

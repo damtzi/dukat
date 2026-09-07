@@ -169,6 +169,13 @@
 			"when": 1788639136057,
 			"tag": "0023_illegal_groot",
 			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "6",
+			"when": 1788813140912,
+			"tag": "0024_tense_molten_man",
+			"breakpoints": true
 		}
 	]
 }

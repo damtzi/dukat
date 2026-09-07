@@ -11,7 +11,8 @@ export const authEnv = createEnv({
 		BETTER_AUTH_URL: z.url(),
 		CORS_ORIGIN: z.url().optional(),
 		RESEND_API_KEY: z.string().min(1),
-		AUTH_EMAIL_FROM: z.string().min(1)
+		AUTH_EMAIL_FROM: z.string().min(1),
+		AUTH_ADMIN_EMAILS: z.string().default('')
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true

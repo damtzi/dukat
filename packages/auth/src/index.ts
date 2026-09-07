@@ -1,6 +1,7 @@
 import { db } from '@dukat/db';
 import { authEnv } from '@dukat/env/auth';
 import { serverEnv } from '@dukat/env/server';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 
 import { createAuth } from './create-auth';
 import { createResendEmailSender } from './email';
@@ -9,6 +10,7 @@ export { createAuth, type Auth } from './create-auth';
 export * from './email';
 
 export const emailSender = createResendEmailSender(authEnv.RESEND_API_KEY, authEnv.AUTH_EMAIL_FROM);
+const administration = createAdministrationRepository(db);
 export const trustedOrigins = [authEnv.CORS_ORIGIN].filter((origin): origin is string =>
 	Boolean(origin)
 );
@@ -18,5 +20,7 @@ export const auth = createAuth({
 	emailSender,
 	secret: authEnv.BETTER_AUTH_SECRET,
 	baseURL: authEnv.BETTER_AUTH_URL,
-	isProduction: serverEnv.NODE_ENV === 'production'
+	isProduction: serverEnv.NODE_ENV === 'production',
+	registrationOpen: administration.registrationOpen,
+	administratorEmails: authEnv.AUTH_ADMIN_EMAILS.split(',').filter(Boolean)
 });

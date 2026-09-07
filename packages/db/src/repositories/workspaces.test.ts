@@ -19,6 +19,11 @@ import {
 } from '../schema';
 import { createWorkspaceRepository, findSoleOwnerBlockers, WorkspaceError } from './workspaces';
 import { createLedgerRepository } from './ledger';
+import {
+	createAdministrationRepository,
+	OWNED_HOUSEHOLD_QUOTA,
+	PENDING_INVITATION_QUOTA
+} from './administration';
 import { assertDatabaseIntegrity } from '../recovery';
 
 const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
@@ -396,6 +401,51 @@ test('accepted workspace is the same shared workspace for owner and member', asy
 	}
 });
 
+test('household and pending invitation quotas are explicit', async () => {
+	const f = await fixture();
+	try {
+		const households = [];
+		for (let index = 0; index < OWNED_HOUSEHOLD_QUOTA; index += 1) {
+			households.push(
+				await f.repo.createHousehold('owner', {
+					name: `Home ${index}`,
+					reportingCurrency: 'EUR'
+				})
+			);
+		}
+		await assert.rejects(
+			() => f.repo.createHousehold('owner', { name: 'One too many', reportingCurrency: 'EUR' }),
+			/Household quota reached/
+		);
+
+		const household = households[0];
+		for (let index = 0; index < PENDING_INVITATION_QUOTA; index += 1) {
+			await f.repo.invite(
+				{ userId: 'owner', workspaceId: household.id },
+				{
+					email: `invite-${index}@example.com`,
+					version: index + 1,
+					invitationUrl: String
+				}
+			);
+		}
+		await assert.rejects(
+			() =>
+				f.repo.invite(
+					{ userId: 'owner', workspaceId: household.id },
+					{
+						email: 'one-too-many@example.com',
+						version: PENDING_INVITATION_QUOTA + 1,
+						invitationUrl: String
+					}
+				),
+			/Pending invitation quota reached/
+		);
+	} finally {
+		await f.close();
+	}
+});
+
 test('membership changes enforce sole-owner safety and remove access immediately', async () => {
 	const f = await fixture();
 	try {
@@ -434,7 +484,7 @@ test('membership changes enforce sole-owner safety and remove access immediately
 	}
 });
 
-test('soft deletion cancels invites, is owner-recoverable, purges at cutoff, and sole-owner blockers include deleted households', async () => {
+test('soft deletion cancels invites, is owner-recoverable, purges at cutoff, and satisfies account deletion ownership', async () => {
 	const f = await fixture();
 	try {
 		const w = await f.repo.createHousehold('owner', { name: 'Home', reportingCurrency: 'EUR' });
@@ -447,7 +497,7 @@ test('soft deletion cancels invites, is owner-recoverable, purges at cutoff, and
 		);
 		await f.repo.deleteHousehold({ userId: 'owner', workspaceId: w.id }, { version: 2 });
 		assert.equal(await f.repo.findAuthorized({ userId: 'owner', workspaceId: w.id }), undefined);
-		assert.ok((await findSoleOwnerBlockers(f.db, 'owner')).some((x) => x.id === w.id));
+		assert.ok(!(await findSoleOwnerBlockers(f.db, 'owner')).some((x) => x.id === w.id));
 		assert.equal((await f.repo.listRecoverable('owner')).length, 1);
 		assert.equal((await f.repo.listRecoverable('member')).length, 0);
 		assert.ok((await f.db.select().from(workspaceInvitation))[0].revokedAt);
@@ -464,7 +514,7 @@ test('soft deletion cancels invites, is owner-recoverable, purges at cutoff, and
 	}
 });
 
-test('database user deletion trigger permits another owner and deletes a sole-member household', async () => {
+test('database user deletion trigger permits another owner and requires sole owners to delete first', async () => {
 	const f = await fixture();
 	try {
 		const shared = await f.repo.createHousehold('owner', {
@@ -477,6 +527,13 @@ test('database user deletion trigger permits another owner and deletes a sole-me
 		const sole = await f.repo.createHousehold('other', { name: 'Sole', reportingCurrency: 'EUR' });
 		await f.db.delete(user).where(eq(user.id, 'owner'));
 		assert.ok((await f.db.select().from(workspace).where(eq(workspace.id, shared.id))).length);
+		await assert.rejects(
+			() => f.db.delete(user).where(eq(user.id, 'other')),
+			(error: Error & { cause?: Error }) =>
+				error.message.includes('account deletion blocked') ||
+				Boolean(error.cause?.message.includes('account deletion blocked'))
+		);
+		await f.repo.deleteHousehold({ userId: 'other', workspaceId: sole.id }, { version: 1 });
 		await f.db.delete(user).where(eq(user.id, 'other'));
 		assert.equal((await f.db.select().from(workspace).where(eq(workspace.id, sole.id))).length, 0);
 	} finally {
@@ -484,7 +541,7 @@ test('database user deletion trigger permits another owner and deletes a sole-me
 	}
 });
 
-test('account deletion is atomic when sole ownership blocks it', async () => {
+test('account deletion starts recovery, revokes access, then purges Personal data only', async () => {
 	const f = await fixture();
 	try {
 		const household = await f.repo.createHousehold('owner', {
@@ -522,9 +579,22 @@ test('account deletion is atomic when sole ownership blocks it', async () => {
 			version: 1
 		});
 		await f.repo.deleteAccount('owner');
-		assert.equal((await f.db.select().from(user).where(eq(user.id, 'owner'))).length, 0);
-		assert.equal((await f.db.select().from(account).where(eq(account.userId, 'owner'))).length, 0);
+		const [recoverable] = await f.db.select().from(user).where(eq(user.id, 'owner'));
+		assert.ok(recoverable.deletionRequestedAt);
+		assert.equal((await f.db.select().from(account).where(eq(account.userId, 'owner'))).length, 1);
 		assert.equal((await f.db.select().from(session).where(eq(session.userId, 'owner'))).length, 0);
+		assert.ok((await f.db.select().from(workspace).where(eq(workspace.id, household.id))).length);
+
+		await f.db
+			.update(user)
+			.set({ deletionRequestedAt: new Date(Date.now() - 31 * 86400_000) })
+			.where(eq(user.id, 'owner'));
+		assert.deepEqual(
+			(await createAdministrationRepository(f.db).purgeExpiredAccounts()).map(({ id }) => id),
+			['owner']
+		);
+		assert.equal((await f.db.select().from(user).where(eq(user.id, 'owner'))).length, 0);
+		assert.ok((await f.db.select().from(workspace).where(eq(workspace.id, household.id))).length);
 	} finally {
 		await f.close();
 	}
