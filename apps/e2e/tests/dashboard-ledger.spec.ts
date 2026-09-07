@@ -826,6 +826,7 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 		json(route, [personalAccount])
 	);
 	await page.route('**/api/favorites', (route) => json(route, []));
+	await page.route('**/api/overview', (route) => json(route, overviewResponse()));
 
 	await page.goto('/home');
 	await openSidebar(page);
