@@ -15,7 +15,8 @@ export function createRouter() {
 export default function createApp(services: APIServices, options: { logLevel?: LogLevel } = {}) {
 	const app = createRouter();
 
-	app.use(requestId());
+	// Caller-supplied identifiers can contain personal data. Generate our own log IDs.
+	app.use(requestId({ headerName: '' }));
 	app.use(createRequestLogger(options.logLevel));
 	app.use('*', async (c, next) => {
 		c.set('services', services);

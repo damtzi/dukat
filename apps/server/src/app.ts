@@ -101,7 +101,6 @@ const workspaceService = {
 
 const outboxTimer = setInterval(() => void workspaceService.deliverOutbox(), 60_000);
 outboxTimer.unref();
-void workspaceService.deliverOutbox();
 
 export async function shutdownOutbox() {
 	clearInterval(outboxTimer);
@@ -146,11 +145,6 @@ const exchangeRateTimer = setInterval(
 	60 * 60 * 1000
 );
 exchangeRateTimer.unref();
-void refreshRatesAndRecordNetWorth().catch((error) =>
-	logOutboxError('net_worth_snapshot.run_failed', {
-		errorName: error instanceof Error ? error.name : 'UnknownError'
-	})
-);
 const maintainAccountLifecycle = async () => {
 	await workspaceRepository.purgeExpired();
 	await administrationRepository.purgeExpiredAccounts();
@@ -165,11 +159,20 @@ const accountLifecycleTimer = setInterval(
 	24 * 60 * 60 * 1000
 );
 accountLifecycleTimer.unref();
-void maintainAccountLifecycle().catch((error) =>
-	logOutboxError('account_lifecycle.failed', {
-		errorName: error instanceof Error ? error.name : 'UnknownError'
-	})
-);
+// These initial writes share a local SQLite database. Starting them together can
+// fail on write locks before the server handles its first request.
+export const startupJobs = workspaceService.deliverOutbox().then(async () => {
+	await maintainAccountLifecycle().catch((error) =>
+		logOutboxError('account_lifecycle.failed', {
+			errorName: error instanceof Error ? error.name : 'UnknownError'
+		})
+	);
+	await refreshRatesAndRecordNetWorth().catch((error) =>
+		logOutboxError('net_worth_snapshot.run_failed', {
+			errorName: error instanceof Error ? error.name : 'UnknownError'
+		})
+	);
+});
 const profileImageStorage = createProfileImageStorage({
 	nodeEnv: serverEnv.NODE_ENV,
 	localDirectory: resolve(serverEnv.PROFILE_IMAGE_DIRECTORY),

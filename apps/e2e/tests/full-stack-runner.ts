@@ -21,6 +21,28 @@ const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const children: ChildProcess[] = [];
 const executable = (name: string) => resolve(repositoryRoot, 'node_modules/.bin', name);
 
+// Each browser gets a fresh database: these journeys intentionally change shared fixtures.
+if (!process.env.FULL_STACK_PROJECT) {
+	for (const browser of ['chromium', 'chrome', 'firefox', 'webkit', 'edge', 'phone']) {
+		const child = start(executable('tsx'), [fileURLToPath(import.meta.url)], {
+			...process.env,
+			FULL_STACK_PROJECT: `full-stack-${browser}`
+		});
+		const interrupt = () => stop(child, 'SIGINT');
+		const terminate = () => stop(child, 'SIGTERM');
+		process.once('SIGINT', interrupt);
+		process.once('SIGTERM', terminate);
+		try {
+			await waitForSuccess(child, `Full-stack ${browser}`);
+		} finally {
+			process.removeListener('SIGINT', interrupt);
+			process.removeListener('SIGTERM', terminate);
+			await stopChildren();
+		}
+	}
+	process.exit(0);
+}
+
 async function availablePorts(count: number) {
 	const servers = Array.from({ length: count }, () => createServer());
 	try {
@@ -57,12 +79,13 @@ function start(
 	command: string,
 	args: string[],
 	environment: NodeJS.ProcessEnv,
-	workingDirectory = repositoryRoot
+	workingDirectory = repositoryRoot,
+	captureStderr = false
 ) {
 	const child = spawn(command, args, {
 		cwd: workingDirectory,
 		env: environment,
-		stdio: 'inherit',
+		stdio: captureStderr ? ['inherit', 'inherit', 'pipe'] : 'inherit',
 		detached: process.platform !== 'win32'
 	});
 	children.push(child);
@@ -135,6 +158,7 @@ const dashboardOrigin = `http://127.0.0.1:${dashboardPort}`;
 const outputDirectory = join(repositoryRoot, 'apps/e2e/test-results', `full-stack-${randomUUID()}`);
 await mkdir(join(temporaryDirectory, 'dashboard'), { recursive: true });
 await mkdir(join(temporaryDirectory, 'profile-images'), { recursive: true });
+await mkdir(join(temporaryDirectory, 'mail'), { recursive: true });
 
 const environment = {
 	...process.env,
@@ -153,6 +177,7 @@ const environment = {
 	DUKAT_API_ORIGIN: apiOrigin,
 	FULL_STACK_BASE_URL: dashboardOrigin,
 	FULL_STACK_OUTPUT_DIR: outputDirectory,
+	FULL_STACK_MAIL_DIRECTORY: join(temporaryDirectory, 'mail'),
 	FULL_STACK_TEST_EMAIL: DEMO_CREDENTIALS.email,
 	FULL_STACK_TEST_PASSWORD: DEMO_CREDENTIALS.password,
 	FULL_STACK_TEST_WORKSPACE_ID: 'seed-demo-workspace',
@@ -301,10 +326,16 @@ try {
 	await waitForSuccess(build, 'SvelteKit production build');
 	const api = start(
 		executable('tsx'),
-		['src/index.ts'],
+		[join(repositoryRoot, 'apps/e2e/tests/full-stack-api.ts')],
 		environment,
-		join(repositoryRoot, 'apps/server')
+		join(repositoryRoot, 'apps/server'),
+		true
 	);
+	let apiErrors = '';
+	api.stderr!.on('data', (chunk: Buffer) => {
+		apiErrors += chunk.toString();
+		process.stderr.write(chunk);
+	});
 	await waitFor(`${apiOrigin}/api/health/ready`, api, 'Hono API');
 	const dashboard = start(
 		executable('vite'),
@@ -315,7 +346,13 @@ try {
 	await waitFor(`${dashboardOrigin}/api/health/ready`, dashboard, 'SvelteKit production preview');
 	const playwright = start(
 		executable('playwright'),
-		['test', '--config', 'playwright.full-stack.config.ts'],
+		[
+			'test',
+			'--config',
+			'playwright.full-stack.config.ts',
+			'--project',
+			process.env.FULL_STACK_PROJECT
+		],
 		environment,
 		join(repositoryRoot, 'apps/e2e')
 	);
@@ -323,6 +360,13 @@ try {
 		playwright.once('error', reject);
 		playwright.once('exit', (code) => resolveExit(code ?? 1));
 	});
+	if (
+		/account_lifecycle\.failed|outbox\.drain_failed|net_worth_snapshot\.(run_failed|users_failed)/.test(
+			apiErrors
+		)
+	) {
+		throw new Error('Full-stack API background jobs failed. Check the safe error events above.');
+	}
 } catch (error) {
 	failure = error;
 } finally {

@@ -744,6 +744,12 @@ test('loads, validates, and saves profile identity accessibly on desktop and mob
 		true
 	);
 
+	const saveProfile = page.getByRole('button', { name: 'Save profile' });
+	await expect(saveProfile).toBeEnabled();
+	// Check the enabled state, not the transition from disabled opacity after saving.
+	await saveProfile.evaluate(async (button) => {
+		await Promise.all(button.getAnimations().map((animation) => animation.finished));
+	});
 	const results = await new AxeBuilder({ page })
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
 		.analyze();
@@ -1546,14 +1552,17 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await page.getByRole('button', { name: 'Close' }).click();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
-	const today = await page.evaluate(() =>
-		new Intl.DateTimeFormat('en-CA', {
+	const today = await page.evaluate(() => {
+		const parts = new Intl.DateTimeFormat('en-CA', {
 			timeZone: 'Europe/Warsaw',
 			year: 'numeric',
 			month: '2-digit',
 			day: '2-digit'
-		}).format(new Date())
-	);
+		}).formatToParts(new Date());
+		return ['year', 'month', 'day']
+			.map((type) => parts.find((part) => part.type === type)!.value)
+			.join('-');
+	});
 	await expect(page.getByRole('dialog').getByLabel('Account')).toContainText('Everyday account');
 	await expect(page.getByRole('dialog').getByLabel('Date')).toHaveValue(today);
 	await page.getByLabel('Amount', { exact: true }).fill('1.001');
@@ -2141,6 +2150,8 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	).toBeVisible();
 	await transfer.getByRole('button', { name: 'Trash' }).click();
 	await transfer.getByRole('button', { name: 'Restore' }).click();
+	await expect(transfer.getByRole('button', { name: 'Restore' })).toBeHidden();
+	await expect(transfer.getByRole('button', { name: 'Trash' })).toBeVisible();
 	await transfer.getByRole('button', { name: 'History' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await page.getByRole('button', { name: 'Close' }).click();

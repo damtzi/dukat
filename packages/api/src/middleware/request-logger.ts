@@ -1,4 +1,6 @@
 import { structuredLogger } from '@hono/structured-logger';
+import type { Context } from 'hono';
+import { routePath } from 'hono/route';
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -42,25 +44,22 @@ const createLogger = (minimumLevel: LogLevel, requestId: string) => ({
 		write(minimumLevel, 'error', requestId, value, message, ...args)
 });
 
-export function sanitizeRequestPath(path: string) {
-	return path
-		.replace(/^(\/api\/auth\/reset-password)\/[^/]+/, '$1/:token')
-		.replace(/^(\/api\/workspace-invitations)\/[^/]+(\/accept)$/, '$1/:token$2')
-		.replace(/^(\/api\/admin\/users)\/[^/]+\//, '$1/:userId/')
-		.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, ':id');
-}
+const requestRoute = (c: Context) => {
+	const path = routePath(c, -1);
+	return path && path !== '*' && path !== '/*' ? path : 'unmatched';
+};
 
 export const createRequestLogger = (minimumLevel: LogLevel = 'info') =>
 	structuredLogger({
 		createLogger: (c) => createLogger(minimumLevel, c.var.requestId),
 		onRequest(logger, c) {
-			logger.info({ method: c.req.method, path: sanitizeRequestPath(c.req.path) }, 'request start');
+			logger.info({ method: c.req.method, path: requestRoute(c) }, 'request start');
 		},
 		onResponse(logger, c, elapsedMs) {
 			logger.info(
 				{
 					method: c.req.method,
-					path: sanitizeRequestPath(c.req.path),
+					path: requestRoute(c),
 					status: c.res.status,
 					elapsedMs
 				},
@@ -72,7 +71,7 @@ export const createRequestLogger = (minimumLevel: LogLevel = 'info') =>
 				{
 					errorName: error.name,
 					method: c.req.method,
-					path: sanitizeRequestPath(c.req.path),
+					path: requestRoute(c),
 					status: c.res.status
 				},
 				'request error'
