@@ -25,7 +25,18 @@
 
   type UserAction = 'disable' | 'restore-access' | 'restore-account'
 
+  type OperationalJob = {
+    name: string
+    scheduledFor: string
+    status: 'running' | 'succeeded' | 'failed'
+    attempts: number
+    startedAt: string
+    finishedAt: string | null
+    errorCode: string | null
+  }
+
   let users = $state.raw<OperationalUser[]>([])
+  let jobs = $state.raw<OperationalJob[]>([])
   let registrationOpen = $state(true)
   let viewState = $state<
     'loading' | 'ready' | 'signed-out' | 'forbidden' | 'error'
@@ -54,9 +65,11 @@
     try {
       const result = (await request('/admin/state')) as {
         users: OperationalUser[]
+        jobs: OperationalJob[]
         registrationOpen: boolean
       }
       users = result.users
+      jobs = result.jobs
       registrationOpen = result.registrationOpen
       viewState = 'ready'
     } catch (error) {
@@ -203,6 +216,59 @@
               ? 'Close registration'
               : 'Reopen registration'}</Button
           >
+        </Card.Content>
+      </Card.Root>
+
+      <Card.Root>
+        <Card.Header>
+          <Card.Title>Scheduled jobs</Card.Title>
+          <Card.Description>
+            Backup and maintenance status only. Errors contain no financial or
+            personal data.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          {#if jobs.length === 0}
+            <p class="text-sm text-muted-foreground">
+              No scheduled job runs recorded.
+            </p>
+          {:else}
+            <Table.Root>
+              <Table.Header>
+                <Table.Row>
+                  <Table.Head>Job</Table.Head>
+                  <Table.Head>Status</Table.Head>
+                  <Table.Head>Scheduled</Table.Head>
+                  <Table.Head class="text-right">Attempts</Table.Head>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {#each jobs as job (`${job.name}:${job.scheduledFor}`)}
+                  <Table.Row>
+                    <Table.Cell class="font-medium">{job.name}</Table.Cell>
+                    <Table.Cell>
+                      <Badge
+                        variant={job.status === 'failed'
+                          ? 'destructive'
+                          : job.status === 'succeeded'
+                            ? 'secondary'
+                            : 'outline'}>{job.status}</Badge
+                      >
+                      {#if job.errorCode}
+                        <span class="ml-2 text-xs text-muted-foreground"
+                          >{job.errorCode}</span
+                        >
+                      {/if}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {new Date(job.startedAt).toLocaleString()}
+                    </Table.Cell>
+                    <Table.Cell class="text-right">{job.attempts}</Table.Cell>
+                  </Table.Row>
+                {/each}
+              </Table.Body>
+            </Table.Root>
+          {/if}
         </Card.Content>
       </Card.Root>
 

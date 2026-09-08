@@ -17,6 +17,11 @@
 			"binding": "PROFILE_IMAGES",
 			"bucket_name": "dukat-profile-images",
 			"preview_bucket_name": "dukat-profile-images-preview"
+		},
+		{
+			"binding": "BACKUPS",
+			"bucket_name": "dukat-backups",
+			"preview_bucket_name": "dukat-backups-preview"
 		}
 	],
 	"images": {

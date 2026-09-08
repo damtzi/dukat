@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createDatabase } from '../connection';
 import { session, user } from '../schema';
+import { operationalJob } from '../schema/operations';
 import { createAdministrationRepository } from './administration';
 
 test('administrators manage registration and user access without financial data', async () => {
@@ -50,6 +51,24 @@ test('administrators manage registration and user access without financial data'
 			'isAdmin',
 			'name',
 			'username'
+		]);
+		await connection.db.insert(operationalJob).values({
+			id: 'job',
+			name: 'database-backup',
+			scheduledFor: '2026-09-08',
+			status: 'failed',
+			errorCode: 'BACKUP_FAILED'
+		});
+		const jobs = await repository.listOperationalJobs();
+		assert.equal(jobs.length, 1);
+		assert.deepEqual(Object.keys(jobs[0]!).sort(), [
+			'attempts',
+			'errorCode',
+			'finishedAt',
+			'name',
+			'scheduledFor',
+			'startedAt',
+			'status'
 		]);
 
 		const disabled = await repository.setUserDisabled('user', true);

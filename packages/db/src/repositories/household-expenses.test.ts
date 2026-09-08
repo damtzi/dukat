@@ -11,12 +11,14 @@ import { createDatabase, createFinancialDatabase } from '../connection';
 import {
 	financialAccount,
 	householdExpense,
+	householdExpenseAllocation,
 	ledgerCategory,
 	ledgerTransaction,
 	user,
 	workspace,
 	workspaceMembership
 } from '../schema';
+import { assertDatabaseIntegrity } from '../recovery';
 import { createInsightsRepository } from './insights';
 import { createLedgerRepository, LedgerError } from './ledger';
 
@@ -114,6 +116,26 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 		assert.deepEqual(replayed, created);
 		assert.equal((await financial.db.select().from(householdExpense)).length, 1);
 		assert.equal((await financial.db.select().from(ledgerTransaction)).length, 1);
+		await assertDatabaseIntegrity(financial.client);
+		await financial.db
+			.update(householdExpenseAllocation)
+			.set({ amountMinor: 1499n })
+			.where(
+				and(
+					eq(householdExpenseAllocation.expenseId, created.id),
+					eq(householdExpenseAllocation.memberUserId, 'member')
+				)
+			);
+		await assert.rejects(() => assertDatabaseIntegrity(financial.client), /financial integrity/i);
+		await financial.db
+			.update(householdExpenseAllocation)
+			.set({ amountMinor: 1500n })
+			.where(
+				and(
+					eq(householdExpenseAllocation.expenseId, created.id),
+					eq(householdExpenseAllocation.memberUserId, 'member')
+				)
+			);
 		assert.deepEqual(created.payer, {
 			userId: 'payer',
 			name: 'Pat Payer',

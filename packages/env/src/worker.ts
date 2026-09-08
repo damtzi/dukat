@@ -27,6 +27,9 @@ export function createWorkerEnv(runtimeEnv: Record<string, string | undefined>) 
 					'Must be a remote Turso URL'
 				),
 			TURSO_AUTH_TOKEN: z.string().min(1),
+			BACKUP_ENCRYPTION_KEY: z
+				.string()
+				.regex(/^[A-Za-z0-9+/]{43}=$/, 'Must be a base64-encoded 32-byte key'),
 			RESEND_API_KEY: z.string().min(1),
 			AUTH_EMAIL_FROM: z.string().min(1),
 			AUTH_ADMIN_EMAILS: z.string().default('')

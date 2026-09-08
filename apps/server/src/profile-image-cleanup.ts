@@ -11,10 +11,11 @@ export function createProfileImageCleanup(options: {
 	repository: ProfileImageCleanupRepository;
 	storage: ProfileImageStorage;
 }) {
-	let activeDrain: Promise<void> | undefined;
+	let activeDrain: Promise<number> | undefined;
 	let rerunRequested = false;
 
 	async function run() {
+		let failures = 0;
 		do {
 			rerunRequested = false;
 			const jobs = await options.repository.listPending();
@@ -27,24 +28,30 @@ export function createProfileImageCleanup(options: {
 						job.id,
 						error instanceof Error ? error.message : 'Unknown cleanup failure'
 					);
+					failures += 1;
 				}
 			}
 		} while (rerunRequested);
+		return failures;
 	}
+	const drainWithFailureCount = () => {
+		if (activeDrain) {
+			rerunRequested = true;
+			return activeDrain;
+		}
+		activeDrain = run().finally(() => {
+			activeDrain = undefined;
+		});
+		return activeDrain;
+	};
 
 	return {
 		enqueue(userId: string, publicUrl: string) {
 			return options.repository.enqueue(userId, publicUrl);
 		},
 		drain() {
-			if (activeDrain) {
-				rerunRequested = true;
-				return activeDrain;
-			}
-			activeDrain = run().finally(() => {
-				activeDrain = undefined;
-			});
-			return activeDrain;
-		}
+			return drainWithFailureCount().then(() => undefined);
+		},
+		drainWithFailureCount
 	};
 }

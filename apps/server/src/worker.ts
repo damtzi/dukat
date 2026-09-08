@@ -16,6 +16,7 @@ import { createPlanningRepository } from '@dukat/db/repositories/planning';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createAdministrationRepository } from '@dukat/db/repositories/administration';
+import { createOperationalJobRepository } from '@dukat/db/repositories/operational-jobs';
 import { createWorkerEnv } from '@dukat/env/worker';
 
 import {
@@ -24,6 +25,7 @@ import {
 	type ProfileImageBucket
 } from './cloudflare-profile-images';
 import { createProfileImageCleanup } from './profile-image-cleanup';
+import { runDailyBackup, runTrackedJob, type BackupBucket } from './scheduled-jobs';
 
 interface WorkerEnv {
 	ASSETS: { fetch(request: Request): Promise<Response> };
@@ -34,6 +36,7 @@ interface WorkerEnv {
 			httpMetadata?: { cacheControl?: string; contentType?: string };
 		} | null>;
 	};
+	BACKUPS: BackupBucket;
 	IMAGES: Parameters<typeof createCloudflareProfileImageNormalizer>[0];
 	NODE_ENV: 'production';
 	LOG_LEVEL: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -41,6 +44,7 @@ interface WorkerEnv {
 	BETTER_AUTH_URL: string;
 	TURSO_DATABASE_URL: string;
 	TURSO_AUTH_TOKEN: string;
+	BACKUP_ENCRYPTION_KEY: string;
 	RESEND_API_KEY: string;
 	AUTH_EMAIL_FROM: string;
 	AUTH_ADMIN_EMAILS?: string;
@@ -58,6 +62,7 @@ function variables(env: WorkerEnv) {
 		BETTER_AUTH_URL: env.BETTER_AUTH_URL,
 		TURSO_DATABASE_URL: env.TURSO_DATABASE_URL,
 		TURSO_AUTH_TOKEN: env.TURSO_AUTH_TOKEN,
+		BACKUP_ENCRYPTION_KEY: env.BACKUP_ENCRYPTION_KEY,
 		RESEND_API_KEY: env.RESEND_API_KEY,
 		AUTH_EMAIL_FROM: env.AUTH_EMAIL_FROM,
 		AUTH_ADMIN_EMAILS: env.AUTH_ADMIN_EMAILS
@@ -80,11 +85,12 @@ function createOutboxDrain(
 	repository: OutboxRepository,
 	sender: ReturnType<typeof createResendEmailSender>
 ) {
-	let active: Promise<void> | undefined;
+	let active: Promise<number> | undefined;
 	const run = async () => {
+		let failures = 0;
 		for (;;) {
 			const message = await repository.claimPendingOutbox();
-			if (!message?.body) return;
+			if (!message?.body) return failures;
 			const claim = await repository.isOutboxClaimActive(message.id, message.attempts);
 			if (!claim.active) continue;
 			try {
@@ -97,6 +103,7 @@ function createOutboxDrain(
 				await repository.markOutboxSent(message.id, message.attempts);
 			} catch {
 				await repository.markOutboxFailed(message.id, message.attempts);
+				failures += 1;
 			}
 		}
 	};
@@ -132,6 +139,7 @@ function createRuntime(bindings: WorkerEnv) {
 	const financialDb = financialConnection.db;
 	const emailSender = createResendEmailSender(env.RESEND_API_KEY, env.AUTH_EMAIL_FROM);
 	const administration = createAdministrationRepository(db);
+	const operationalJobs = createOperationalJobRepository(db);
 	const auth = createAuth({
 		database: db,
 		baseURL: env.BETTER_AUTH_URL,
@@ -143,7 +151,12 @@ function createRuntime(bindings: WorkerEnv) {
 	});
 	const workspaceRepository = createWorkspaceRepository(db);
 	const drainOutbox = createOutboxDrain(workspaceRepository, emailSender);
-	const workspaceService = { ...workspaceRepository, deliverOutbox: drainOutbox };
+	const workspaceService = {
+		...workspaceRepository,
+		async deliverOutbox() {
+			await drainOutbox();
+		}
+	};
 	const ledger = createLedgerRepository(financialDb);
 	const planning = createPlanningRepository(financialDb);
 	const insights = createInsightsRepository(financialDb);
@@ -191,24 +204,47 @@ function createRuntime(bindings: WorkerEnv) {
 		{ logLevel: env.LOG_LEVEL }
 	);
 
+	const maintain = async () => {
+		await workspaceRepository.purgeExpired();
+		await administration.purgeExpiredAccounts();
+		await exchangeRates.refreshLatest();
+		const failures = await history.recordAll();
+		if (failures.length) {
+			console.error(
+				JSON.stringify({
+					level: 'error',
+					event: 'net_worth_snapshot.users_failed',
+					count: failures.length
+				})
+			);
+		}
+		const [outboxFailures, imageCleanupFailures] = await Promise.all([
+			drainOutbox(),
+			profileImageCleanup.drainWithFailureCount()
+		]);
+		if (failures.length || outboxFailures || imageCleanupFailures) {
+			throw new Error('One or more maintenance tasks failed');
+		}
+	};
+
 	return {
 		api,
 		drainBackground: () => Promise.all([drainOutbox(), profileImageCleanup.drain()]),
-		async maintain() {
-			await workspaceRepository.purgeExpired();
-			await administration.purgeExpiredAccounts();
-			await exchangeRates.refreshLatest();
-			const failures = await history.recordAll();
-			if (failures.length) {
-				console.error(
-					JSON.stringify({
-						level: 'error',
-						event: 'net_worth_snapshot.users_failed',
-						count: failures.length
-					})
-				);
+		async runScheduled(now: Date) {
+			const hour = now.toISOString().slice(0, 13);
+			const results = await Promise.allSettled([
+				runDailyBackup({
+					client: financialConnection.client,
+					jobs: operationalJobs,
+					bucket: bindings.BACKUPS,
+					encryptionKey: env.BACKUP_ENCRYPTION_KEY,
+					now
+				}),
+				runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED')
+			]);
+			if (results.some((result) => result.status === 'rejected')) {
+				throw new Error('One or more scheduled jobs failed');
 			}
-			await Promise.all([drainOutbox(), profileImageCleanup.drain()]);
 		}
 	};
 }
@@ -258,8 +294,16 @@ export default {
 		}
 		return secure(response);
 	},
-	async scheduled(_controller: unknown, env: WorkerEnv, context: ExecutionContext) {
+	async scheduled(
+		controller: { scheduledTime: number },
+		env: WorkerEnv,
+		context: ExecutionContext
+	) {
 		runtime ??= createRuntime(env);
-		context.waitUntil(runtime.maintain().catch((error) => logError('maintenance.failed', error)));
+		context.waitUntil(
+			runtime
+				.runScheduled(new Date(controller.scheduledTime))
+				.catch((error) => logError('scheduled_jobs.failed', error))
+		);
 	}
 };
