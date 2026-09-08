@@ -125,14 +125,7 @@
 <main class="min-h-screen bg-background px-6 py-12 text-foreground">
   <div class="mx-auto flex max-w-6xl flex-col gap-6">
     <header>
-      <p
-        class="text-xs font-semibold tracking-[0.25em] text-muted-foreground uppercase"
-      >
-        Dukat operations
-      </p>
-      <h1 class="mt-2 text-3xl font-bold tracking-tight">
-        Service administration
-      </h1>
+      <h1 class="text-3xl font-bold tracking-tight">Service administration</h1>
       <p class="mt-2 text-sm text-muted-foreground">
         Identity and access status only. Financial records are not available
         here.
