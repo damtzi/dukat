@@ -208,18 +208,19 @@ Deleting a user starts a 30-day recovery period for Personal data. Household dat
 
 - One Cloudflare Worker serves the SvelteKit application and Hono API under one custom origin.
 - Turso stores application data with an EU primary database location.
-- Cloudflare R2 stores profile images and encrypted logical backups.
+- Cloudflare R2 stores profile images.
 - Better Auth provides email and password authentication with secure same-origin cookies.
 - Resend sends verification, reset, and invitation emails behind a provider boundary.
 - Scheduled jobs record daily net-worth snapshots and, in later phases, market prices.
 - A small admin area can inspect users and failed jobs, disable users, and close registration. It does not expose financial details.
 - Technical logs exclude amounts, descriptions, account names, holdings, and personal identifiers.
 - No product analytics are collected initially.
-- TLS, provider encryption, strict authorization, scoped secrets, and encrypted backups protect data. End-to-end field encryption is deferred because it conflicts with server-side sharing, search, reporting, and recovery.
+- TLS, provider encryption, strict authorization, scoped secrets, and point-in-time recovery protect data. End-to-end field encryption is deferred because it conflicts with server-side sharing, search, reporting, and recovery.
 
 ### Recovery
 
-Use Turso point-in-time recovery according to the selected plan. Create one encrypted logical backup each day, store it separately in R2 for 30 days, and keep its encryption key outside Turso and R2. Test restoration rather than treating backup creation as sufficient.
+Use Turso point-in-time recovery according to the selected plan. Before a risky migration or data
+operation, optionally create an encrypted logical export and keep its key separate from the export.
 
 ## Delivery after the core release
 

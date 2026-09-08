@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { runDailyBackup } from './scheduled-jobs';
+import { runTrackedJob } from './scheduled-jobs';
 
-test('daily backup encrypts one logical export and records only operational metadata', async () => {
+test('tracked jobs run once after success', async () => {
 	let status: 'missing' | 'running' | 'succeeded' | 'failed' = 'missing';
 	const records: unknown[][] = [];
 	const jobs = {
@@ -17,48 +17,18 @@ test('daily backup encrypts one logical export and records only operational meta
 			status = args[1] as 'succeeded' | 'failed';
 		}
 	};
-	const uploads: { key: string; value: string }[] = [];
-	const now = new Date('2026-09-08T02:17:00.000Z');
-	const client = {
-		async transaction() {
-			return {
-				closed: false,
-				async execute() {
-					return {
-						columns: ['type', 'name', 'sql'],
-						rows: [{ type: 'table', name: 'example', sql: 'CREATE TABLE example (id text)' }]
-					};
-				},
-				async batch() {
-					return [{ columns: ['id'], rows: [{ id: 'financial-value' }] }];
-				},
-				async commit() {},
-				async rollback() {},
-				close() {}
-			};
-		}
-	} as never;
-	const options = {
-		client,
-		jobs,
-		bucket: {
-			async put(key: string, value: string) {
-				uploads.push({ key, value });
-			}
-		},
-		encryptionKey: Buffer.alloc(32, 7).toString('base64'),
-		now
+	let runs = 0;
+	const task = async () => {
+		runs += 1;
 	};
 
-	assert.equal(await runDailyBackup(options), true);
-	assert.equal(await runDailyBackup(options), false);
-	assert.equal(uploads.length, 1);
-	assert.equal(uploads[0]?.key, 'daily/2026-09-08.backup.json');
-	assert.doesNotMatch(uploads[0]?.value ?? '', /financial-value/);
+	assert.equal(await runTrackedJob(jobs, 'maintenance', '2026-09-08T02', task, 'FAILED'), true);
+	assert.equal(await runTrackedJob(jobs, 'maintenance', '2026-09-08T02', task, 'FAILED'), false);
+	assert.equal(runs, 1);
 	assert.deepEqual(records, [['claim-1', 'succeeded']]);
 });
 
-test('failed backup is visible through a privacy-safe code and can retry', async () => {
+test('tracked job failure records only its safe code and can retry', async () => {
 	let status: 'missing' | 'running' | 'failed' = 'missing';
 	const records: unknown[][] = [];
 	const jobs = {
@@ -72,23 +42,19 @@ test('failed backup is visible through a privacy-safe code and can retry', async
 			status = args[1] as 'failed';
 		}
 	};
-	const options = {
-		client: {
-			async transaction() {
-				throw new Error('email@example.com 12345 secret');
-			}
-		} as never,
-		jobs,
-		bucket: { async put() {} },
-		encryptionKey: Buffer.alloc(32, 7).toString('base64'),
-		now: new Date('2026-09-08T02:17:00.000Z')
+	const task = async () => {
+		throw new Error('email@example.com 12345 secret');
 	};
 
-	await assert.rejects(() => runDailyBackup(options));
-	await assert.rejects(() => runDailyBackup(options));
+	await assert.rejects(() =>
+		runTrackedJob(jobs, 'maintenance', '2026-09-08T02', task, 'MAINTENANCE_FAILED')
+	);
+	await assert.rejects(() =>
+		runTrackedJob(jobs, 'maintenance', '2026-09-08T02', task, 'MAINTENANCE_FAILED')
+	);
 	assert.deepEqual(records, [
-		['claim-1', 'failed', 'BACKUP_FAILED'],
-		['claim-1', 'failed', 'BACKUP_FAILED']
+		['claim-1', 'failed', 'MAINTENANCE_FAILED'],
+		['claim-1', 'failed', 'MAINTENANCE_FAILED']
 	]);
 	assert.doesNotMatch(JSON.stringify(records), /email|12345|secret/);
 });

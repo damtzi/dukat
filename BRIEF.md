@@ -52,8 +52,8 @@ Property valuation, receipt storage, notifications, split transaction categories
 
 ## Platform
 
-Dukat is a responsive web application hosted on Cloudflare under one custom origin. A Cloudflare Worker serves the SvelteKit application and Hono API. Turso stores application data with an EU primary location. Cloudflare R2 stores profile images and encrypted backups.
+Dukat is a responsive web application hosted on Cloudflare under one custom origin. A Cloudflare Worker serves the SvelteKit application and Hono API. Turso stores application data with an EU primary location. Cloudflare R2 stores profile images.
 
 Registration is open, although the product is initially operated for two users rather than designed for mass adoption. Better Auth provides email and password authentication. Resend sends verification, reset, and invitation emails.
 
-The application provides complete user exports, privacy-safe technical logs, point-in-time database recovery, and daily encrypted backups retained for 30 days.
+The application provides complete user exports, privacy-safe technical logs, Turso point-in-time recovery, and optional encrypted exports before risky operations.

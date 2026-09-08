@@ -25,7 +25,7 @@ import {
 	type ProfileImageBucket
 } from './cloudflare-profile-images';
 import { createProfileImageCleanup } from './profile-image-cleanup';
-import { runDailyBackup, runTrackedJob, type BackupBucket } from './scheduled-jobs';
+import { runTrackedJob } from './scheduled-jobs';
 
 interface WorkerEnv {
 	ASSETS: { fetch(request: Request): Promise<Response> };
@@ -36,7 +36,6 @@ interface WorkerEnv {
 			httpMetadata?: { cacheControl?: string; contentType?: string };
 		} | null>;
 	};
-	BACKUPS: BackupBucket;
 	IMAGES: Parameters<typeof createCloudflareProfileImageNormalizer>[0];
 	NODE_ENV: 'production';
 	LOG_LEVEL: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -44,7 +43,6 @@ interface WorkerEnv {
 	BETTER_AUTH_URL: string;
 	TURSO_DATABASE_URL: string;
 	TURSO_AUTH_TOKEN: string;
-	BACKUP_ENCRYPTION_KEY: string;
 	RESEND_API_KEY: string;
 	AUTH_EMAIL_FROM: string;
 	AUTH_ADMIN_EMAILS?: string;
@@ -62,7 +60,6 @@ function variables(env: WorkerEnv) {
 		BETTER_AUTH_URL: env.BETTER_AUTH_URL,
 		TURSO_DATABASE_URL: env.TURSO_DATABASE_URL,
 		TURSO_AUTH_TOKEN: env.TURSO_AUTH_TOKEN,
-		BACKUP_ENCRYPTION_KEY: env.BACKUP_ENCRYPTION_KEY,
 		RESEND_API_KEY: env.RESEND_API_KEY,
 		AUTH_EMAIL_FROM: env.AUTH_EMAIL_FROM,
 		AUTH_ADMIN_EMAILS: env.AUTH_ADMIN_EMAILS
@@ -232,19 +229,7 @@ function createRuntime(bindings: WorkerEnv) {
 		drainBackground: () => Promise.all([drainOutbox(), profileImageCleanup.drain()]),
 		async runScheduled(now: Date) {
 			const hour = now.toISOString().slice(0, 13);
-			const results = await Promise.allSettled([
-				runDailyBackup({
-					client: financialConnection.client,
-					jobs: operationalJobs,
-					bucket: bindings.BACKUPS,
-					encryptionKey: env.BACKUP_ENCRYPTION_KEY,
-					now
-				}),
-				runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED')
-			]);
-			if (results.some((result) => result.status === 'rejected')) {
-				throw new Error('One or more scheduled jobs failed');
-			}
+			await runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED');
 		}
 	};
 }

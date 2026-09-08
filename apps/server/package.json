@@ -7,8 +7,7 @@
 		"build": "tsc",
 		"build:assets": "pnpm --filter @dukat/dashboard build && pnpm --filter @dukat/admin build && rm -rf ../dashboard/build/admin && cp -R ../admin/build ../dashboard/build/admin",
 		"build:worker": "pnpm build:assets && wrangler deploy --dry-run",
-		"configure:backups": "wrangler r2 bucket lifecycle set dukat-backups --file r2-backup-lifecycle.json --force",
-		"deploy": "pnpm configure:backups && pnpm build:assets && wrangler deploy",
+		"deploy": "pnpm build:assets && wrangler deploy",
 		"start": "tsx src/index.ts",
 		"lint": "eslint",
 		"test": "tsx --test src/*.test.ts"

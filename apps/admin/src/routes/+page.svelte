@@ -223,8 +223,8 @@
         <Card.Header>
           <Card.Title>Scheduled jobs</Card.Title>
           <Card.Description>
-            Backup and maintenance status only. Errors contain no financial or
-            personal data.
+            Maintenance status only. Errors contain no financial or personal
+            data.
           </Card.Description>
         </Card.Header>
         <Card.Content>

@@ -22,4 +22,4 @@ storage configuration is missing or malformed, or if the built dashboard has a d
 origin in its CSP. Startup does not contact the bucket; connectivity errors affect profile-image
 operations without taking down the rest of the app. For Cloudflare R2, use the account S3 endpoint,
 region `auto`, a bucket-scoped Object Read & Write token, and a production custom domain as the public
-origin. Do not use the encrypted database-backup bucket or its credentials.
+origin.

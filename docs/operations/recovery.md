@@ -2,10 +2,9 @@
 
 ## Recovery objectives
 
-- Keep one AES-256-GCM encrypted logical export in storage outside Turso every day.
-- Retain daily exports for 30 days and alert when the newest successful export is over 24 hours old.
-- Target a recovery point of at most 24 hours from logical backup and recovery within four hours.
-- Use Turso point-in-time recovery first when it provides a smaller loss window, while retaining the independent export path.
+- Use Turso point-in-time recovery for routine recovery.
+- On the selected Free plan, target a recovery point within the previous 24 hours and recovery within four hours.
+- Create an optional encrypted logical export before a risky migration or data operation.
 
 The commands write structured success events only. They do not log database contents, credentials, encryption keys, or output paths.
 
@@ -19,49 +18,33 @@ TURSO_AUTH_TOKEN=... \
 pnpm --filter @dukat/db db:migrate:release
 ```
 
-Before a production migration, confirm a current recoverable backup exists. Apply expand/migrate/contract changes over separate releases when a schema change is destructive.
+Before a risky production migration, confirm that the Turso recovery window includes the current
+state or create the manual export below. Apply expand/migrate/contract changes over separate releases
+when a schema change is destructive.
 
-## Daily encrypted backup
+## Optional manual encrypted export
 
-The Worker Cron Trigger creates `daily/YYYY-MM-DD.backup.json` once per UTC day in the private
-`dukat-backups` R2 bucket. It exports through a consistent read transaction with 64-bit integer mode,
-encrypts the logical SQL with AES-256-GCM, then uploads it. A failed run is retried by the next hourly
-trigger. The `/admin` job table shows success, failure code, and attempt count without backup contents.
+Turso already creates automatic recovery points. For extra protection before a risky operation,
+create one logical export. The command reads through a consistent transaction with 64-bit integer
+mode and encrypts the SQL with AES-256-GCM.
 
-Generate the encryption key in the deployment secret store once and keep it separately from both Turso and R2:
+Generate an encryption key and keep it in a password manager, separate from Turso and the export:
 
 ```sh
 openssl rand -base64 32
 ```
 
-Store it as the `BACKUP_ENCRYPTION_KEY` Worker secret and the same-named GitHub Actions secret. Do not
-put it in Turso, R2 object metadata, source control, or logs. Apply R2 expiry once during setup:
+Load the saved key into `BACKUP_ENCRYPTION_KEY` through the password manager's shell integration,
+then run:
 
 ```sh
-pnpm --filter @dukat/server configure:backups
+TURSO_DATABASE_URL=libsql://... \
+TURSO_AUTH_TOKEN=... \
+pnpm --filter @dukat/db db:backup -- /restricted/dukat-$(date -u +%F).backup.json
 ```
 
-Confirm it with `wrangler r2 bucket lifecycle list dukat-backups`. The R2 binding grants the Worker
-access only to this bucket. The Worker Turso token has data read/add/update/delete access only; it has
-no schema or platform management access.
-
-## Automated daily restore check
-
-`.github/workflows/recovery-check.yml` downloads that day's encrypted object into a temporary runner,
-restores it into a new empty local database, and runs SQLite integrity, foreign-key, Personal workspace,
-transfer-shape, and Household expense source and allocation checks. The runner is destroyed after the
-job. GitHub Actions reports a missing, undecryptable, unrestorable, or inconsistent backup as a failed
-scheduled run.
-
-Configure these GitHub Actions secrets:
-
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_BACKUP_READ_TOKEN`: account-scoped Cloudflare API token with only R2 read access
-- `BACKUP_ENCRYPTION_KEY`: the independently stored key
-
-The check runs at 03:47 UTC, after the 00:17 Worker trigger. It can also be dispatched for a specific
-UTC date. Inspect `/admin` daily for failed Worker backup or maintenance runs, and configure
-notifications for failed `Recovery check` workflow runs.
+Store the export in a restricted local or offline location. Do not put the key in source control,
+command history, Turso, or beside the export. Delete the export when it is no longer needed.
 
 ## Turso point-in-time recovery
 
@@ -88,12 +71,11 @@ steps below. Keep the source until review and revoke its old token after traffic
 ## Restore drill or incident recovery
 
 1. Put the application in maintenance mode and stop all writers.
-2. Select the recovery point. For Turso PITR, use the command above and issue a new data-only token. For a logical backup, create a new empty database; never restore over the source.
-3. Download the selected encrypted export to a restricted temporary path.
-4. Restore it into the **new empty database**:
+2. Select the recovery point. For Turso PITR, use the command above and issue a new data-only token.
+3. For a manual logical export, copy it to a restricted temporary path and create a new empty database. Never restore over the source.
+4. Restore a manual export into the **new empty database**:
 
    ```sh
-   BACKUP_ENCRYPTION_KEY=... \
    TURSO_DATABASE_URL=libsql://new-database... \
    TURSO_AUTH_TOKEN=new-token... \
    pnpm --filter @dukat/db db:restore -- /restricted/dukat-YYYY-MM-DD.backup.json
@@ -109,8 +91,9 @@ steps below. Keep the source until review and revoke its old token after traffic
    pnpm --filter @dukat/db db:integrity
    ```
 
-6. The automated checks verify transfer pairs. Additionally compare representative account balance
-   recalculations and expected record counts before switching traffic.
+6. The integrity command verifies transfer pairs and Household expense source and allocation data.
+   Additionally compare representative account balance recalculations and expected record counts
+   before switching traffic.
 7. Update the application secret to the new URL and newly issued token, deploy/restart, and wait for `/api/health/ready` to succeed.
 8. Reopen traffic, monitor errors and write success, revoke the old token, and securely remove the downloaded backup.
 9. Record elapsed recovery time, selected recovery point, checks performed, and any follow-up actions. Perform this drill before launch and at least quarterly.
