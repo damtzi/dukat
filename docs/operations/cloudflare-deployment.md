@@ -136,8 +136,9 @@ pnpm run deploy
 ```
 
 Wrangler builds both static SvelteKit dashboards and deploys them with the Hono API as one Worker.
-The hourly Cron Trigger drains durable email/profile-image jobs, refreshes exchange rates, records
-net worth history, and records its technical status at `/admin` without financial contents.
+The hourly Cron Trigger drains durable email/profile-image jobs and records net worth history. After
+13:00 UTC, it also performs at most one exchange-rate refresh per UTC day. It records technical job
+status at `/admin` without financial contents.
 
 Technical logs may contain only event names, request methods, route paths, response status, duration,
 counts, and error class names. Never log request/response bodies, amounts, descriptions, account or

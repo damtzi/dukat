@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { runTrackedJob } from './scheduled-jobs';
+import { dailyScheduleDate, runTrackedJob } from './scheduled-jobs';
+
+test('daily jobs wait until their UTC start hour', () => {
+	assert.equal(dailyScheduleDate(new Date('2026-09-08T12:59:59Z'), 13), null);
+	assert.equal(dailyScheduleDate(new Date('2026-09-08T13:00:00Z'), 13), '2026-09-08');
+});
 
 test('tracked jobs run once after success', async () => {
 	let status: 'missing' | 'running' | 'succeeded' | 'failed' = 'missing';
