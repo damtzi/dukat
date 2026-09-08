@@ -34,34 +34,6 @@ function encryptionKey(encodedKey: string) {
 	return key;
 }
 
-export function encryptLogicalBackup(sql: string, encodedKey: string) {
-	const iv = randomBytes(12);
-	const cipher = createCipheriv('aes-256-gcm', encryptionKey(encodedKey), iv);
-	const ciphertext = Buffer.concat([cipher.update(sql, 'utf8'), cipher.final()]);
-	const backup: EncryptedBackup = {
-		format: backupFormat,
-		iv: iv.toString('base64'),
-		tag: cipher.getAuthTag().toString('base64'),
-		ciphertext: ciphertext.toString('base64')
-	};
-	return `${JSON.stringify(backup)}\n`;
-}
-
-export function decryptLogicalBackup(contents: string, encodedKey: string) {
-	const backup = JSON.parse(contents) as EncryptedBackup;
-	if (backup.format !== backupFormat) throw new Error('Unsupported backup format');
-	const decipher = createDecipheriv(
-		'aes-256-gcm',
-		encryptionKey(encodedKey),
-		Buffer.from(backup.iv, 'base64')
-	);
-	decipher.setAuthTag(Buffer.from(backup.tag, 'base64'));
-	return Buffer.concat([
-		decipher.update(Buffer.from(backup.ciphertext, 'base64')),
-		decipher.final()
-	]).toString('utf8');
-}
-
 export async function createLogicalBackup(client: Client) {
 	const transaction = await client.transaction('read');
 	let schemaResult: ResultSet;
@@ -109,11 +81,31 @@ export async function createLogicalBackup(client: Client) {
 }
 
 export async function writeEncryptedBackup(sql: string, outputPath: string, encodedKey: string) {
-	await writeFile(outputPath, encryptLogicalBackup(sql, encodedKey), { mode: 0o600 });
+	const iv = randomBytes(12);
+	const cipher = createCipheriv('aes-256-gcm', encryptionKey(encodedKey), iv);
+	const ciphertext = Buffer.concat([cipher.update(sql, 'utf8'), cipher.final()]);
+	const backup: EncryptedBackup = {
+		format: backupFormat,
+		iv: iv.toString('base64'),
+		tag: cipher.getAuthTag().toString('base64'),
+		ciphertext: ciphertext.toString('base64')
+	};
+	await writeFile(outputPath, `${JSON.stringify(backup)}\n`, { mode: 0o600 });
 }
 
 export async function readEncryptedBackup(inputPath: string, encodedKey: string) {
-	return decryptLogicalBackup(await readFile(inputPath, 'utf8'), encodedKey);
+	const backup = JSON.parse(await readFile(inputPath, 'utf8')) as EncryptedBackup;
+	if (backup.format !== backupFormat) throw new Error('Unsupported backup format');
+	const decipher = createDecipheriv(
+		'aes-256-gcm',
+		encryptionKey(encodedKey),
+		Buffer.from(backup.iv, 'base64')
+	);
+	decipher.setAuthTag(Buffer.from(backup.tag, 'base64'));
+	return Buffer.concat([
+		decipher.update(Buffer.from(backup.ciphertext, 'base64')),
+		decipher.final()
+	]).toString('utf8');
 }
 
 export async function assertDatabaseIntegrity(client: Client) {

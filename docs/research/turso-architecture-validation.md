@@ -119,7 +119,11 @@ Drizzle supports the Turso dialect and checked-in generated migrations through `
 
 Turso supports point-in-time recovery by creating a new database at the selected time. Recovery requires changing the application connection string and creating a new token.[^8]
 
-Before launch:
+The current small side-project deployment relies on Turso point-in-time recovery. The independent
+daily backup recommendations below are deferred until the data value or deployment scale justifies
+the additional operations. A manual encrypted export remains available before risky operations.
+
+Future hardening if the recovery requirements increase:
 
 - Choose a Turso plan whose point-in-time recovery window meets the product's needs.
 - Keep a daily encrypted logical export in separate object storage for 30 days so recovery does not depend on one provider or account.
@@ -137,9 +141,8 @@ Required production components:
 1. One Node/Hono application service in an EU region, serving API and dashboard assets.
 2. One Turso production database and separate staging database.
 3. Transactional email credentials.
-4. S3-compatible encrypted backup storage.
-5. A daily scheduler for exchange rates, permanent deletion, and backup export.
-6. Central structured logs, error reporting, uptime checks, and alerts for failed migrations, stale exchange rates, failed backups, and repeated database conflicts.
+4. A scheduler for exchange rates and permanent deletion.
+5. Central structured logs, error reporting, uptime checks, and alerts for failed migrations, stale exchange rates, and repeated database conflicts.
 
 Keep production database and email credentials only in the server secret store. Use separate tokens per environment, rotate them after staff or infrastructure changes, and redact tokens, cookies, CSV contents, descriptions, and amounts from logs.
 
