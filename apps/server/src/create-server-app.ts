@@ -99,6 +99,8 @@ export function createServerApp({
 		);
 		app.get('/profile-images/*', (c) => c.notFound());
 	}
+	app.get('/admin', serveStatic({ path: join(dashboardDirectory, 'admin', 'index.html') }));
+	app.get('/admin/', serveStatic({ path: join(dashboardDirectory, 'admin', 'index.html') }));
 	app.use('*', serveStatic({ root: dashboardDirectory }));
 	app.get('*', serveStatic({ path: join(dashboardDirectory, 'index.html') }));
 

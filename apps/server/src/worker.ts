@@ -250,7 +250,11 @@ export default {
 		} else if (pathname.startsWith('/profile-images/')) {
 			response = await profileImageResponse(request, env);
 		} else {
-			response = await env.ASSETS.fetch(request);
+			const assetRequest =
+				pathname === '/admin' || pathname === '/admin/'
+					? new Request(new URL('/admin/index.html', request.url), request)
+					: request;
+			response = await env.ASSETS.fetch(assetRequest);
 		}
 		return secure(response);
 	},

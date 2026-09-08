@@ -1,6 +1,8 @@
 # Cloudflare deployment
 
-The dashboard, Hono API, Better Auth routes, and R2 profile images use one Cloudflare Worker origin.
+The dashboard, admin dashboard, Hono API, Better Auth routes, and R2 profile images use one
+Cloudflare Worker origin. The app is served at `/`, and service administration is served at
+`/admin`.
 The initial origin can be `https://dukat.<account-subdomain>.workers.dev`; a paid domain is not
 required. Keep the R2 buckets private. The Worker serves their objects at `/profile-images/*`.
 
@@ -97,6 +99,7 @@ pnpm --filter @dukat/server exec wrangler secret put TURSO_DATABASE_URL
 pnpm --filter @dukat/server exec wrangler secret put TURSO_AUTH_TOKEN
 pnpm --filter @dukat/server exec wrangler secret put RESEND_API_KEY
 pnpm --filter @dukat/server exec wrangler secret put AUTH_EMAIL_FROM
+pnpm --filter @dukat/server exec wrangler secret put AUTH_ADMIN_EMAILS
 ```
 
 Use these values:
@@ -108,6 +111,7 @@ Use these values:
 - `TURSO_AUTH_TOKEN`: the data-only Worker token.
 - `RESEND_API_KEY`: the Resend API key.
 - `AUTH_EMAIL_FROM`: `Dukat <onboarding@resend.dev>` until a sending domain exists.
+- `AUTH_ADMIN_EMAILS`: comma-separated email addresses that receive administrator access.
 
 Worker startup validates all values without printing them. Requests to an origin different from
 `BETTER_AUTH_URL` fail closed. Better Auth therefore emits secure, HTTP-only, same-site cookies and
@@ -130,9 +134,9 @@ Deploy only after migration succeeds:
 pnpm run deploy
 ```
 
-Wrangler builds the static SvelteKit dashboard and deploys it with the Hono API as one Worker. The
-hourly Cron Trigger drains durable email/profile-image jobs, refreshes exchange rates, and records net
-worth history.
+Wrangler builds both static SvelteKit dashboards and deploys them with the Hono API as one Worker.
+The hourly Cron Trigger drains durable email/profile-image jobs, refreshes exchange rates, and
+records net worth history.
 
 ## Smoke check
 

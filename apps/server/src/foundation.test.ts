@@ -109,8 +109,14 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		);
 		await source.db.delete(user).where(eq(user.id, 'migration-trigger-user'));
 		await writeFile(join(directory, 'unused'), '');
-		await import('node:fs/promises').then(({ mkdir }) => mkdir(dashboardDirectory));
+		await import('node:fs/promises').then(({ mkdir }) =>
+			mkdir(join(dashboardDirectory, 'admin'), { recursive: true })
+		);
 		await writeFile(join(dashboardDirectory, 'index.html'), '<h1>Dukat dashboard</h1>');
+		await writeFile(
+			join(dashboardDirectory, 'admin', 'index.html'),
+			'<h1>Dukat administration</h1>'
+		);
 
 		const administration = createAdministrationRepository(source.db);
 		const auth = createAuth({
@@ -169,6 +175,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			/frame-ancestors 'none'/
 		);
 		assert.equal(dashboardResponse.headers.get('strict-transport-security'), null);
+		const adminResponse = await app.request(`${origin}/admin`);
+		assert.match(await adminResponse.text(), /Dukat administration/);
 
 		async function signup(name: string, username: string, email: string, password: string) {
 			const beforeEmailCount = emails.length;
