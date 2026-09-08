@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 
 const proxy = {
   '/api': process.env.DUKAT_API_ORIGIN ?? 'http://localhost:9999',
+  '/profile-images': process.env.DUKAT_API_ORIGIN ?? 'http://localhost:9999',
 }
 
 export default defineConfig({

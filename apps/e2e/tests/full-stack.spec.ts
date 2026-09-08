@@ -1,4 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 function requiredEnvironment(name: string) {
 	const value = process.env[name];
@@ -28,7 +31,8 @@ async function apiMutation<T>(
 				body: JSON.stringify(requestBody)
 			});
 			if (!response.ok) throw new Error(`API request failed (${response.status}).`);
-			return response.json();
+			const text = await response.text();
+			return text ? JSON.parse(text) : undefined;
 		},
 		{ requestPath: path, requestMethod: method, requestBody: body }
 	) as Promise<T>;
@@ -46,6 +50,158 @@ async function signIn(page: Page, email: string, password: string) {
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page).toHaveURL('/home');
 }
+
+async function emailLink(to: string, subject: string) {
+	const directory = requiredEnvironment('FULL_STACK_MAIL_DIRECTORY');
+	let link: string | undefined;
+	await expect
+		.poll(async () => {
+			for (const file of await readdir(directory)) {
+				if (!file.endsWith('.json')) continue;
+				const message = JSON.parse(await readFile(join(directory, file), 'utf8'));
+				if (message.to === to && message.subject.includes(subject)) {
+					link = message.text.match(/https?:\/\/\S+/)?.[0];
+				}
+			}
+			return Boolean(link);
+		})
+		.toBe(true);
+	return link!;
+}
+
+test('registers, verifies and saves a profile through the real stack', async ({
+	page
+}, testInfo) => {
+	const email = 'release-new-user@example.com';
+	const password = 'Release-trial-password-123';
+	await page.goto('/sign-up');
+	await page.getByLabel('Name', { exact: true }).fill('Release User');
+	await page.getByLabel('Username').fill('release_user');
+	await expect(page.getByText('Username is available.')).toBeVisible();
+	await page.getByLabel('Email').fill(email);
+	await page.getByLabel('Password').fill(password);
+	await page.getByRole('button', { name: 'Create account', exact: true }).click();
+	await page.goto(await emailLink(email, 'Verify'));
+	await signIn(page, email, password);
+	const workspaces = await apiJson<Array<{ type: string }>>(page, '/workspaces');
+	expect(workspaces).toHaveLength(1);
+	expect(workspaces[0].type).toBe('personal');
+	await page.goto('/profile');
+	await page.getByLabel('Name', { exact: true }).focus();
+	await page.keyboard.press('Tab');
+	await expect(page.getByLabel('Username')).toBeFocused();
+	await page.getByLabel('Username').fill('admin');
+	await expect(page.getByText('That username is reserved.')).toBeVisible();
+	await page.getByLabel('Username').fill('release_reviewed');
+	await expect(page.getByText('Username is available.')).toBeVisible();
+	await page.getByLabel('Name', { exact: true }).fill('Reviewed User');
+	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Your profile was updated.' })
+	).toBeVisible();
+	await page.reload();
+	await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Reviewed User');
+	await expect(page.getByLabel('Username')).toHaveValue('release_reviewed');
+	const image = {
+		name: 'profile.png',
+		mimeType: 'image/png',
+		buffer: Buffer.from(
+			'iVBORw0KGgoAAAANSUhEUgAAAJYAAADIAQMAAAAwS4omAAAAA1BMVEUAB/vCVICJAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAG0lEQVRIie3BMQEAAADCoPVPbQwfoAAAAIC3AQ+gAAEq5xQCAAAAAElFTkSuQmCC',
+			'base64'
+		)
+	};
+	await page.getByLabel('Choose profile image').setInputFiles(image);
+	await page.getByRole('button', { name: 'Save profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was saved');
+	await page.reload();
+	const profileImage = page.getByRole('main').getByRole('img', { name: "Reviewed User's profile" });
+	await expect(profileImage).toBeVisible();
+	await expect
+		.poll(() => profileImage.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+		.toBeGreaterThan(0);
+	if (testInfo.project.name === 'full-stack-chromium') {
+		await page
+			.getByRole('main')
+			.screenshot({ path: '../../.amp/in/artifacts/release-profile.png' });
+	}
+	const firstImage = await profileImage.getAttribute('src');
+	await page.getByLabel('Choose replacement').setInputFiles(image);
+	await page.getByRole('button', { name: 'Save profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was replaced');
+	await expect(profileImage).not.toHaveAttribute('src', firstImage!);
+	await page.getByRole('button', { name: 'Remove profile image' }).click();
+	await expect(page.getByRole('status')).toContainText('profile image was removed');
+	await page.reload();
+	await expect(
+		page.getByRole('main').getByRole('img', { name: 'Profile initials: RU' })
+	).toBeVisible();
+	expect(
+		(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+			.violations
+	).toEqual([]);
+});
+
+test('accepts an invitation, transfers ownership and revokes Household access', async ({
+	page,
+	browser
+}) => {
+	await signIn(
+		page,
+		requiredEnvironment('FULL_STACK_TEST_EMAIL'),
+		requiredEnvironment('FULL_STACK_TEST_PASSWORD')
+	);
+	const household = await apiMutation<{ id: string; version: number }>(
+		page,
+		'/workspaces',
+		'POST',
+		{
+			name: 'Release membership',
+			reportingCurrency: 'PLN'
+		}
+	);
+	const path = `/workspaces/${household.id}`;
+	const memberEmail = requiredEnvironment('FULL_STACK_MEMBER_EMAIL');
+	await apiMutation(page, `${path}/invitations`, 'POST', {
+		email: memberEmail,
+		version: household.version
+	});
+	const link = await emailLink(memberEmail, 'Invitation');
+	const token = new URL(link).pathname.split('/').at(-1)!;
+	const context = await browser.newContext();
+	try {
+		const memberPage = await context.newPage();
+		await signIn(memberPage, memberEmail, requiredEnvironment('FULL_STACK_MEMBER_PASSWORD'));
+		await apiMutation(memberPage, `/workspace-invitations/${token}/accept`, 'POST', {});
+		const members = await apiJson<Array<{ userId: string; role: string }>>(page, `${path}/members`);
+		expect(members).toHaveLength(2);
+		expect(members.find(({ userId }) => userId === 'full-stack-member')?.role).toBe('member');
+		let state = await apiJson<{ version: number }>(page, path);
+		await apiMutation(page, `${path}/members/full-stack-member/promote`, 'POST', {
+			version: state.version
+		});
+		state = await apiJson<{ version: number }>(memberPage, path);
+		await apiMutation(memberPage, `${path}/members/seed-demo-user/remove`, 'POST', {
+			version: state.version
+		});
+		expect(
+			await page.evaluate(
+				async (requestPath) => (await fetch(`/api${requestPath}/accounts`)).status,
+				path
+			)
+		).toBe(404);
+		expect(
+			await apiJson<Array<{ userId: string; role: string }>>(memberPage, `${path}/members`)
+		).toEqual([expect.objectContaining({ userId: 'full-stack-member', role: 'owner' })]);
+		await page.goto('/home');
+		expect(
+			(await apiJson<Array<{ id: string }>>(page, '/workspaces')).some(
+				({ id }) => id === household.id
+			)
+		).toBe(false);
+	} finally {
+		await context.close();
+	}
+});
 
 test('downloads authorized complete and focused exports through the real stack', async ({
 	page,
@@ -136,6 +292,7 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByRole('button', { name: 'Add transaction' }).click();
 	const transactionDialog = page.getByRole('dialog');
 	await transactionDialog.getByLabel('Amount', { exact: true }).fill('25.00');
+	await transactionDialog.getByLabel('Date', { exact: true }).fill('2026-08-01');
 	await chooseSelect(page, 'Category', 'Groceries');
 	await transactionDialog.getByLabel('Merchant').fill('Corner Market');
 	await transactionDialog.getByLabel('Description').fill('Full-stack expense');
@@ -199,9 +356,33 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByRole('button', { name: 'Search', exact: true }).click();
 	await expect(page).toHaveURL(/transactions\?query=corner/);
 	await expect(
-		page.getByRole('cell', { name: 'Corner Market', exact: true }).first()
+		page.getByText('Corner Market', { exact: true }).filter({ visible: true }).first()
 	).toBeVisible();
-	await expect(page.getByRole('cell', { name: 'Full-stack expense', exact: true })).toBeVisible();
+	await expect(
+		page.getByText('Full-stack expense', { exact: true }).filter({ visible: true })
+	).toBeVisible();
+	await page.getByLabel('Search').fill('Full-stack expense');
+	await chooseSelect(page, 'Account', `${accountName} · USD`);
+	await chooseSelect(page, 'Category', 'Groceries');
+	await page.getByLabel('Minimum amount').fill('25.00');
+	await page.getByLabel('Maximum amount').fill('25.00');
+	await page.getByLabel('From date').fill('2026-08-01');
+	await page.getByLabel('To date').fill('2026-08-01');
+	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	await expect(
+		page.getByText('Full-stack expense', { exact: true }).filter({ visible: true })
+	).toBeVisible();
+	await expect(page.getByText('Full-stack partial refund', { exact: true })).toHaveCount(0);
+	await page.getByLabel('Minimum amount').fill('26.00');
+	await page.getByLabel('Maximum amount').fill('26.00');
+	const emptySearch = page.waitForResponse(
+		(response) =>
+			response.url().includes(`/api/workspaces/${workspaceId}/transactions?`) &&
+			response.url().includes('amountMinMinor=2600')
+	);
+	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	expect(await (await emptySearch).json()).toEqual([]);
+	await expect(page.getByText('Full-stack expense', { exact: true })).toHaveCount(0);
 });
 
 test('moves a category budget from available to forecast overspend through the real stack', async ({
@@ -713,6 +894,109 @@ test('My overview combines Personal and Household values once without exposing P
 	} finally {
 		await memberContext.close();
 	}
+});
+
+test('forecasts expected cash and matches a completed expense once, rejecting stale edits', async ({
+	page
+}) => {
+	await signIn(
+		page,
+		requiredEnvironment('FULL_STACK_TEST_EMAIL'),
+		requiredEnvironment('FULL_STACK_TEST_PASSWORD')
+	);
+	const workspaceId = requiredEnvironment('FULL_STACK_TEST_WORKSPACE_ID');
+	const path = `/workspaces/${workspaceId}`;
+	const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw' }).format(new Date());
+	const opening = new Date(`${date}T12:00:00Z`);
+	opening.setUTCDate(opening.getUTCDate() - 1);
+	const account = await apiMutation<{ id: string }>(page, `${path}/accounts`, 'POST', {
+		name: 'Release forecast',
+		type: 'current',
+		currency: 'PLN',
+		openingDate: opening.toISOString().slice(0, 10),
+		openingBalanceMinor: '10000',
+		idempotencyKey: crypto.randomUUID()
+	});
+	const plan = await apiMutation<{ id: string; version: number }>(page, `${path}/plans`, 'POST', {
+		accountId: account.id,
+		kind: 'expense',
+		amountMinor: '2500',
+		date,
+		status: 'expected',
+		description: 'Release expected expense',
+		idempotencyKey: crypto.randomUUID()
+	});
+	await apiMutation(page, `${path}/plans`, 'POST', {
+		accountId: account.id,
+		kind: 'expense',
+		amountMinor: '500',
+		date,
+		status: 'tentative',
+		description: 'Release possible expense',
+		idempotencyKey: crypto.randomUUID()
+	});
+	type Forecast = {
+		endingBalanceMinor: string;
+		occurrences: Array<{ planId: string }>;
+		matchedOccurrences: unknown[];
+	};
+	const forecastPath = `${path}/forecast?accountId=${account.id}`;
+	expect((await apiJson<Forecast>(page, forecastPath)).endingBalanceMinor).toBe('7500');
+	expect(
+		(await apiJson<Forecast>(page, `${forecastPath}&includeTentative=true`)).endingBalanceMinor
+	).toBe('7000');
+	const { transaction } = await apiMutation<{ transaction: { id: string; version: number } }>(
+		page,
+		`${path}/accounts/${account.id}/transactions`,
+		'POST',
+		{
+			kind: 'expense',
+			amountMinor: '2500',
+			date,
+			description: 'Release completed expense',
+			idempotencyKey: crypto.randomUUID()
+		}
+	);
+	await apiMutation(page, `${path}/plans/${plan.id}/occurrences/${date}/match`, 'POST', {
+		transactionId: transaction.id,
+		version: plan.version,
+		idempotencyKey: crypto.randomUUID()
+	});
+	const forecast = await apiJson<Forecast>(page, forecastPath);
+	expect(forecast.endingBalanceMinor).toBe('7500');
+	expect(forecast.occurrences).toEqual([]);
+	expect(forecast.matchedOccurrences).toHaveLength(1);
+	await apiMutation(page, `${path}/transactions/${transaction.id}`, 'PUT', {
+		version: transaction.version,
+		kind: 'expense',
+		amountMinor: '2500',
+		date,
+		description: 'Reviewed expense',
+		idempotencyKey: crypto.randomUUID()
+	});
+	const conflict = await page.evaluate(
+		async ({ path, transaction, date }) => {
+			const response = await fetch(`/api${path}/transactions/${transaction.id}`, {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					version: transaction.version,
+					kind: 'expense',
+					date,
+					amountMinor: '9999',
+					idempotencyKey: crypto.randomUUID()
+				})
+			});
+			return { status: response.status, body: await response.json() };
+		},
+		{ path, transaction, date }
+	);
+	expect(conflict.status).toBe(409);
+	expect(conflict.body.message).toMatch(/stale|changed|reload|refresh/i);
+	expect((await apiJson<Forecast>(page, forecastPath)).endingBalanceMinor).toBe('7500');
+	await page.goto(`${path}/forecast`);
+	await expect(page.getByRole('heading', { name: 'Forecast', level: 1 })).toBeVisible();
+	await expect(page.getByText('Projected balance', { exact: true }).first()).toBeVisible();
 });
 
 function assertAccountBalance(
