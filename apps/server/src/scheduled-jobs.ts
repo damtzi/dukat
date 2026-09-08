@@ -2,6 +2,10 @@ import type { OperationalJobRepository } from '@dukat/db/repositories/operationa
 
 type JobRecorder = Pick<OperationalJobRepository, 'claim' | 'finish'>;
 
+export function dailyScheduleDate(now: Date, notBeforeHourUtc: number) {
+	return now.getUTCHours() >= notBeforeHourUtc ? now.toISOString().slice(0, 10) : null;
+}
+
 export async function runTrackedJob(
 	jobs: JobRecorder,
 	name: string,

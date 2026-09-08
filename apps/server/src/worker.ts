@@ -25,7 +25,9 @@ import {
 	type ProfileImageBucket
 } from './cloudflare-profile-images';
 import { createProfileImageCleanup } from './profile-image-cleanup';
-import { runTrackedJob } from './scheduled-jobs';
+import { dailyScheduleDate, runTrackedJob } from './scheduled-jobs';
+
+const EXCHANGE_RATE_START_HOUR_UTC = 13;
 
 interface WorkerEnv {
 	ASSETS: { fetch(request: Request): Promise<Response> };
@@ -204,7 +206,6 @@ function createRuntime(bindings: WorkerEnv) {
 	const maintain = async () => {
 		await workspaceRepository.purgeExpired();
 		await administration.purgeExpiredAccounts();
-		await exchangeRates.refreshLatest();
 		const failures = await history.recordAll();
 		if (failures.length) {
 			console.error(
@@ -229,7 +230,27 @@ function createRuntime(bindings: WorkerEnv) {
 		drainBackground: () => Promise.all([drainOutbox(), profileImageCleanup.drain()]),
 		async runScheduled(now: Date) {
 			const hour = now.toISOString().slice(0, 13);
-			await runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED');
+			const exchangeRateDate = dailyScheduleDate(now, EXCHANGE_RATE_START_HOUR_UTC);
+			const jobs = [
+				runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED')
+			];
+			if (exchangeRateDate) {
+				jobs.push(
+					runTrackedJob(
+						operationalJobs,
+						'exchange-rates',
+						exchangeRateDate,
+						async () => {
+							await exchangeRates.refreshLatest();
+						},
+						'EXCHANGE_RATE_REFRESH_FAILED'
+					)
+				);
+			}
+			const results = await Promise.allSettled(jobs);
+			if (results.some((result) => result.status === 'rejected')) {
+				throw new Error('One or more scheduled jobs failed');
+			}
 		}
 	};
 }
