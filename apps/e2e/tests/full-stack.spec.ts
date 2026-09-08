@@ -47,6 +47,65 @@ async function signIn(page: Page, email: string, password: string) {
 	await expect(page).toHaveURL('/home');
 }
 
+test('downloads authorized complete and focused exports through the real stack', async ({
+	page,
+	browser
+}) => {
+	const email = requiredEnvironment('FULL_STACK_TEST_EMAIL');
+	const password = requiredEnvironment('FULL_STACK_TEST_PASSWORD');
+	const workspaceId = requiredEnvironment('FULL_STACK_TEST_WORKSPACE_ID');
+	await signIn(page, email, password);
+
+	const complete = await page.evaluate(async () => {
+		const response = await fetch('/api/exports/complete.json');
+		return {
+			status: response.status,
+			disposition: response.headers.get('content-disposition'),
+			body: await response.json()
+		};
+	});
+	expect(complete.status).toBe(200);
+	expect(complete.disposition).toContain('attachment; filename="dukat-complete-');
+	expect(complete.body).toMatchObject({
+		contract: 'dukat.user-export',
+		version: 1,
+		owner: { email }
+	});
+	expect(complete.body.data.workspaces).toContainEqual(
+		expect.objectContaining({ id: workspaceId, type: 'personal' })
+	);
+	expect(complete.body.data.accounts.length).toBeGreaterThan(0);
+
+	const transactions = await page.evaluate(async () => {
+		const response = await fetch('/api/exports/transactions.csv');
+		return { status: response.status, body: await response.text() };
+	});
+	expect(transactions.status).toBe(200);
+	expect(transactions.body).toMatch(/^contract_version,workspace_scope/);
+	expect(transactions.body).toContain(`1,personal,${workspaceId}`);
+	for (const name of ['balances', 'budgets', 'future-holdings']) {
+		const focused = await page.evaluate(async (exportName) => {
+			const response = await fetch(`/api/exports/${exportName}.csv`);
+			return { status: response.status, body: await response.text() };
+		}, name);
+		expect(focused.status).toBe(200);
+		expect(focused.body).toMatch(/^contract_version,workspace_scope/);
+	}
+
+	const anonymous = await browser.newContext();
+	try {
+		const anonymousPage = await anonymous.newPage();
+		await anonymousPage.goto('/sign-in');
+		expect(
+			await anonymousPage.evaluate(() =>
+				fetch('/api/exports/complete.json').then((response) => response.status)
+			)
+		).toBe(401);
+	} finally {
+		await anonymous.close();
+	}
+});
+
 test('persists a dated account, backdated snapshot and confirmed correction', async ({ page }) => {
 	const email = requiredEnvironment('FULL_STACK_TEST_EMAIL');
 	const password = requiredEnvironment('FULL_STACK_TEST_PASSWORD');

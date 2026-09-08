@@ -20,6 +20,7 @@ import type { InsightsRepository } from '@dukat/db/repositories/insights';
 import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import type { PlanningRepository } from '@dukat/db/repositories/planning';
 import type { BudgetRepository } from '@dukat/db/repositories/budgets';
+import type { ExportRepository } from '@dukat/db/repositories/exports';
 import type { MyOverview } from '@dukat/core/overview';
 
 import type { ProfileImageCleanupService, ProfileImageService } from './profile-images';
@@ -299,6 +300,7 @@ export interface LedgerService {
 export interface APIServices {
 	administration?: AdministrationService;
 	auth: AuthenticationService;
+	exports?: ExportRepository;
 	trustedOrigins?: readonly string[];
 	favorites: FavoriteService;
 	profileImageCleanup?: ProfileImageCleanupService;

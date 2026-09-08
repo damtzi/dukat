@@ -11,6 +11,7 @@ import { createOverviewRepository } from '@dukat/db/repositories/overview';
 import { createNetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
 import { createAdministrationRepository } from '@dukat/db/repositories/administration';
+import { createExportRepository } from '@dukat/db/repositories/exports';
 import {
 	createExchangeRateRepository,
 	createNbpAdapter
@@ -200,6 +201,7 @@ const api = createAPI(
 		administration: administrationRepository,
 		auth,
 		trustedOrigins,
+		exports: createExportRepository(db, financialDb),
 		favorites: createFavoriteRepository(db),
 		profileImageCleanup,
 		profileImages: createProfileImageService({

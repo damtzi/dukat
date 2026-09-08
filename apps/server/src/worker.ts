@@ -10,6 +10,7 @@ import {
 import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
+import { createExportRepository } from '@dukat/db/repositories/exports';
 import { createNetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import { createOverviewRepository } from '@dukat/db/repositories/overview';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
@@ -176,6 +177,7 @@ function createRuntime(bindings: WorkerEnv) {
 			administration,
 			auth,
 			trustedOrigins: [],
+			exports: createExportRepository(db, financialDb),
 			favorites: createFavoriteRepository(db),
 			profileImageCleanup,
 			profileImages: createProfileImageService({

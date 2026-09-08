@@ -14,6 +14,7 @@ import { budgetsRouter } from './routes/budgets/budgets.index';
 import { overviewRouter } from './routes/overview/overview.index';
 import type { LogLevel } from './middleware';
 import { administrationRouter } from './routes/administration/administration.index';
+import { exportsRouter } from './routes/exports/exports.index';
 
 export function createAPI(services: APIServices, options: { logLevel?: LogLevel } = {}) {
 	const app = createApp(services, options);
@@ -22,6 +23,7 @@ export function createAPI(services: APIServices, options: { logLevel?: LogLevel 
 	return app
 		.route('/api', administrationRouter)
 		.route('/api', authRouter)
+		.route('/api', exportsRouter)
 		.route('/api', profileImagesRouter)
 		.route('/api', favoritesRouter)
 		.route('/api', healthRouter)
