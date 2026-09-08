@@ -47,6 +47,19 @@ function services(): APIServices {
 			async listUsers() {
 				return [{ id: 'user', name: 'User', email: 'user@example.com', disabledAt: null }];
 			},
+			async listOperationalJobs() {
+				return [
+					{
+						name: 'database-backup',
+						scheduledFor: '2026-09-08',
+						status: 'failed',
+						attempts: 1,
+						startedAt: '2026-09-08T02:17:00.000Z',
+						finishedAt: '2026-09-08T02:17:01.000Z',
+						errorCode: 'BACKUP_FAILED'
+					}
+				];
+			},
 			async setUserDisabled(userId, disabled) {
 				return { id: userId, disabledAt: disabled ? new Date() : null };
 			},
@@ -80,9 +93,20 @@ test('administration routes require an administrator and expose operational data
 	const body = await response.json();
 	assert.deepEqual(body, {
 		registrationOpen: true,
-		users: [{ id: 'user', name: 'User', email: 'user@example.com', disabledAt: null }]
+		users: [{ id: 'user', name: 'User', email: 'user@example.com', disabledAt: null }],
+		jobs: [
+			{
+				name: 'database-backup',
+				scheduledFor: '2026-09-08',
+				status: 'failed',
+				attempts: 1,
+				startedAt: '2026-09-08T02:17:00.000Z',
+				finishedAt: '2026-09-08T02:17:01.000Z',
+				errorCode: 'BACKUP_FAILED'
+			}
+		]
 	});
-	assert.ok(!JSON.stringify(body).match(/balance|transaction|workspace/i));
+	assert.ok(!JSON.stringify(body).match(/balance|transaction|workspace|amount|description/i));
 
 	const closed = await app.request('/api/admin/registration', {
 		method: 'PATCH',

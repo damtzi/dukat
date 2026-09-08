@@ -1,0 +1,12 @@
+{
+	"rules": [
+		{
+			"id": "expire-daily-backups",
+			"enabled": true,
+			"conditions": { "prefix": "daily/" },
+			"deleteObjectsTransition": {
+				"condition": { "type": "Age", "maxAge": 2592000 }
+			}
+		}
+	]
+}

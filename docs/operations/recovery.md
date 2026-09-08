@@ -23,27 +23,72 @@ Before a production migration, confirm a current recoverable backup exists. Appl
 
 ## Daily encrypted backup
 
-Generate the encryption key in the deployment secret store once and keep it separately from both Turso and backup storage:
+The Worker Cron Trigger creates `daily/YYYY-MM-DD.backup.json` once per UTC day in the private
+`dukat-backups` R2 bucket. It exports through a consistent read transaction with 64-bit integer mode,
+encrypts the logical SQL with AES-256-GCM, then uploads it. A failed run is retried by the next hourly
+trigger. The `/admin` job table shows success, failure code, and attempt count without backup contents.
+
+Generate the encryption key in the deployment secret store once and keep it separately from both Turso and R2:
 
 ```sh
 openssl rand -base64 32
 ```
 
-The daily scheduler runs the export and uploads the resulting file to encrypted, versioned S3-compatible object storage:
+Store it as the `BACKUP_ENCRYPTION_KEY` Worker secret and the same-named GitHub Actions secret. Do not
+put it in Turso, R2 object metadata, source control, or logs. Apply R2 expiry once during setup:
 
 ```sh
-BACKUP_ENCRYPTION_KEY=... \
-TURSO_DATABASE_URL=libsql://... \
-TURSO_AUTH_TOKEN=... \
-pnpm --filter @dukat/db db:backup -- /secure-staging/dukat-$(date -u +%F).backup.json
+pnpm --filter @dukat/server configure:backups
 ```
 
-Upload only after the command succeeds, remove the staging copy after a verified upload, enforce 30-day object retention, and alert on command/upload failure or stale backup age. Never pass the key as a command-line argument or store it beside the export.
+Confirm it with `wrangler r2 bucket lifecycle list dukat-backups`. The R2 binding grants the Worker
+access only to this bucket. The Worker Turso token has data read/add/update/delete access only; it has
+no schema or platform management access.
+
+## Automated daily restore check
+
+`.github/workflows/recovery-check.yml` downloads that day's encrypted object into a temporary runner,
+restores it into a new empty local database, and runs SQLite integrity, foreign-key, Personal workspace,
+transfer-shape, and Household expense source and allocation checks. The runner is destroyed after the
+job. GitHub Actions reports a missing, undecryptable, unrestorable, or inconsistent backup as a failed
+scheduled run.
+
+Configure these GitHub Actions secrets:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_BACKUP_READ_TOKEN`: account-scoped Cloudflare API token with only R2 read access
+- `BACKUP_ENCRYPTION_KEY`: the independently stored key
+
+The check runs at 03:47 UTC, after the 00:17 Worker trigger. It can also be dispatched for a specific
+UTC date. Inspect `/admin` daily for failed Worker backup or maintenance runs, and configure
+notifications for failed `Recovery check` workflow runs.
+
+## Turso point-in-time recovery
+
+The selected Turso Free plan supports recovery to any commit in the previous 24 hours. Turso creates
+backups automatically at commit. Developer, Scaler, and Pro extend the window to 10, 30, and 90 days.
+PITR creates a new database and counts against the plan's database quota; it never overwrites the
+source. Confirm current terms in the [Turso PITR documentation](https://docs.turso.tech/features/point-in-time-recovery).
+
+For a timestamp inside the selected plan window:
+
+```sh
+turso db create dukat-recovery-YYYYMMDDHHMM \
+  --from-db dukat-production \
+  --timestamp 2026-09-08T02:00:00Z \
+  --wait
+turso db tokens create dukat-recovery-YYYYMMDDHHMM \
+  -p all:data_read,data_add,data_update,data_delete \
+  --expiration never
+```
+
+Run `db:integrity` against the new URL and token before changing Worker secrets. Follow the incident
+steps below. Keep the source until review and revoke its old token after traffic moves.
 
 ## Restore drill or incident recovery
 
 1. Put the application in maintenance mode and stop all writers.
-2. Select the recovery point. For Turso PITR, create a new database at that point and issue a new token. For a logical backup, create a new empty database; never restore over the source.
+2. Select the recovery point. For Turso PITR, use the command above and issue a new data-only token. For a logical backup, create a new empty database; never restore over the source.
 3. Download the selected encrypted export to a restricted temporary path.
 4. Restore it into the **new empty database**:
 
@@ -64,7 +109,8 @@ Upload only after the command succeeds, remove the staging copy after a verified
    pnpm --filter @dukat/db db:integrity
    ```
 
-6. When financial tables exist, additionally verify transfer pairs, import-batch counts, and representative account balance recalculations as required by ADR-0001.
+6. The automated checks verify transfer pairs. Additionally compare representative account balance
+   recalculations and expected record counts before switching traffic.
 7. Update the application secret to the new URL and newly issued token, deploy/restart, and wait for `/api/health/ready` to succeed.
 8. Reopen traffic, monitor errors and write success, revoke the old token, and securely remove the downloaded backup.
 9. Record elapsed recovery time, selected recovery point, checks performed, and any follow-up actions. Perform this drill before launch and at least quarterly.

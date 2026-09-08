@@ -59,6 +59,7 @@ export interface AdministrationService {
 	registrationOpen(): Promise<boolean>;
 	setRegistrationOpen(open: boolean): Promise<{ registrationOpen: boolean }>;
 	listUsers(): Promise<unknown[]>;
+	listOperationalJobs(): Promise<unknown[]>;
 	setUserDisabled(userId: string, disabled: boolean): Promise<unknown>;
 	restoreAccount(userId: string): Promise<unknown>;
 	purgeExpiredAccounts(): Promise<{ id: string }[]>;

@@ -43,7 +43,11 @@ const createLogger = (minimumLevel: LogLevel, requestId: string) => ({
 });
 
 export function sanitizeRequestPath(path: string) {
-	return path.replace(/^(\/api\/auth\/reset-password)\/[^/]+/, '$1/:token');
+	return path
+		.replace(/^(\/api\/auth\/reset-password)\/[^/]+/, '$1/:token')
+		.replace(/^(\/api\/workspace-invitations)\/[^/]+(\/accept)$/, '$1/:token$2')
+		.replace(/^(\/api\/admin\/users)\/[^/]+\//, '$1/:userId/')
+		.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, ':id');
 }
 
 export const createRequestLogger = (minimumLevel: LogLevel = 'info') =>

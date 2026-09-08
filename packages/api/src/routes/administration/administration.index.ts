@@ -14,11 +14,12 @@ router.use('/admin/*', rateLimit('admin', 30, 60));
 router.get('/admin/state', async (c) => {
 	const administration = c.var.services.administration;
 	if (!administration) return c.json({ message: 'Administration unavailable' }, 503);
-	const [registrationOpen, users] = await Promise.all([
+	const [registrationOpen, users, jobs] = await Promise.all([
 		administration.registrationOpen(),
-		administration.listUsers()
+		administration.listUsers(),
+		administration.listOperationalJobs()
 	]);
-	return c.json({ registrationOpen, users });
+	return c.json({ registrationOpen, users, jobs });
 });
 
 router.patch('/admin/registration', async (c) => {

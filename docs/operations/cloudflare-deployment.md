@@ -28,7 +28,10 @@ Cloudflare recommends a custom domain for business-critical production use.
 1. Open **R2 Object Storage** and enable R2 if asked.
 2. Create a Standard bucket named `dukat-profile-images`.
 3. Create a Standard bucket named `dukat-profile-images-preview`.
-4. Do not enable `r2.dev` access or connect a public domain.
+4. Create private Standard buckets named `dukat-backups` and `dukat-backups-preview`.
+5. Add a lifecycle rule that expires `daily/` objects after 30 days, as specified in
+   `docs/operations/recovery.md`.
+6. Do not enable `r2.dev` access or connect a public domain for any bucket.
 
 The checked-in Wrangler bindings grant only this Worker direct bucket access. No R2 API token is
 needed at runtime.
@@ -97,6 +100,7 @@ pnpm --filter @dukat/server exec wrangler secret put BETTER_AUTH_URL
 pnpm --filter @dukat/server exec wrangler secret put BETTER_AUTH_SECRET
 pnpm --filter @dukat/server exec wrangler secret put TURSO_DATABASE_URL
 pnpm --filter @dukat/server exec wrangler secret put TURSO_AUTH_TOKEN
+pnpm --filter @dukat/server exec wrangler secret put BACKUP_ENCRYPTION_KEY
 pnpm --filter @dukat/server exec wrangler secret put RESEND_API_KEY
 pnpm --filter @dukat/server exec wrangler secret put AUTH_EMAIL_FROM
 pnpm --filter @dukat/server exec wrangler secret put AUTH_ADMIN_EMAILS
@@ -109,6 +113,8 @@ Use these values:
 - `BETTER_AUTH_SECRET`: output of `openssl rand -base64 32`.
 - `TURSO_DATABASE_URL`: output of `turso db show dukat-production --url`.
 - `TURSO_AUTH_TOKEN`: the data-only Worker token.
+- `BACKUP_ENCRYPTION_KEY`: a base64-encoded 32-byte key kept outside Turso and R2. GitHub Actions
+  needs the same value for restore checks.
 - `RESEND_API_KEY`: the Resend API key.
 - `AUTH_EMAIL_FROM`: `Dukat <onboarding@resend.dev>` until a sending domain exists.
 - `AUTH_ADMIN_EMAILS`: comma-separated email addresses that receive administrator access.
@@ -135,8 +141,13 @@ pnpm run deploy
 ```
 
 Wrangler builds both static SvelteKit dashboards and deploys them with the Hono API as one Worker.
-The hourly Cron Trigger drains durable email/profile-image jobs, refreshes exchange rates, and
-records net worth history.
+The hourly Cron Trigger drains durable email/profile-image jobs, refreshes exchange rates, records
+net worth history, and creates at most one encrypted database backup per UTC day. Its technical
+status is visible at `/admin` without financial contents.
+
+Technical logs may contain only event names, request methods, route paths, response status, duration,
+counts, and error class names. Never log request/response bodies, amounts, descriptions, account or
+holding names, email addresses, tokens, keys, or third-party error messages.
 
 ## Smoke check
 

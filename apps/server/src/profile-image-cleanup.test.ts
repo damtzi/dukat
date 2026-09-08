@@ -63,12 +63,13 @@ test('profile-image cleanup retries durable jobs after a new drain', async () =>
 		}
 	};
 
-	await createProfileImageCleanup({ repository, storage }).drain();
+	const cleanup = createProfileImageCleanup({ repository, storage });
+	assert.equal(await cleanup.drainWithFailureCount(), 1);
 	assert.equal(jobs[0].attempts, 1);
 	assert.equal(jobs[0].lastError, 'storage unavailable');
 
 	available = true;
-	await createProfileImageCleanup({ repository, storage }).drain();
+	assert.equal(await cleanup.drainWithFailureCount(), 0);
 	assert.deepEqual(removed, ['/profile-images/users/scope/image.webp']);
 	assert.deepEqual(jobs, []);
 });

@@ -2,6 +2,7 @@ import { and, eq, isNotNull, lte } from 'drizzle-orm';
 
 import type { Database } from '../connection';
 import { serviceSetting, session, user } from '../schema';
+import { createOperationalJobRepository } from './operational-jobs';
 
 export const ACCOUNT_RECOVERY_DAYS = 30;
 export const OWNED_HOUSEHOLD_QUOTA = 10;
@@ -29,6 +30,7 @@ const operationalUser = {
 };
 
 export function createAdministrationRepository(database: Database) {
+	const operationalJobs = createOperationalJobRepository(database);
 	return {
 		async accessStatus(userId: string) {
 			const [result] = await database
@@ -63,6 +65,7 @@ export function createAdministrationRepository(database: Database) {
 		listUsers() {
 			return database.select(operationalUser).from(user).orderBy(user.createdAt);
 		},
+		listOperationalJobs: operationalJobs.listRecent,
 		async setUserDisabled(userId: string, disabled: boolean) {
 			const changed = await database.transaction(async (tx) => {
 				const result = await tx
