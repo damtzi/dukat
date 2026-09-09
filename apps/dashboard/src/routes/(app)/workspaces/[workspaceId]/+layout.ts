@@ -1,8 +1,8 @@
 import { redirect } from '@sveltejs/kit'
 import { resolve } from '$app/paths'
-import type { Account } from '@dukat/core/ledger'
+import { accountSchema, type Account } from '@dukat/core/ledger'
 import type { Category } from '@dukat/core/csv-import'
-import { loadApi, workspaceDataDependency } from '$lib/api'
+import { loadApi, loadApiJson, workspaceDataDependency } from '$lib/api'
 import type {
   ConvertedBalances,
   HouseholdMember,
@@ -11,6 +11,7 @@ import type {
   WorkspaceRouteData,
 } from '$lib/controllers/workspace-controller.svelte'
 import type { LayoutLoad } from './$types'
+import { z } from 'zod'
 
 function failed(workspaceId: string, message: string): WorkspaceRouteData {
   return {
@@ -51,9 +52,11 @@ export const load: LayoutLoad = async ({ depends, fetch, params, parent }) => {
     ;[accounts, categories, members] = await Promise.all([
       workspace.type === 'personal'
         ? Promise.resolve(personalAccounts)
-        : (loadApi(fetch, `/workspaces/${workspaceId}/accounts`) as Promise<
-            Account[]
-          >),
+        : loadApiJson(
+            fetch,
+            `/workspaces/${workspaceId}/accounts`,
+            z.array(accountSchema),
+          ),
       loadApi(fetch, `/workspaces/${workspaceId}/categories`) as Promise<
         Category[]
       >,

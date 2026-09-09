@@ -1,4 +1,4 @@
-import { OpenAPIHono, RouteConfig, RouteHandler } from '@hono/zod-openapi';
+import type { OpenAPIHono, RouteConfig, RouteHandler } from '@hono/zod-openapi';
 import type { BaseLogger } from '@hono/structured-logger';
 
 import type { APIServices } from '../services';

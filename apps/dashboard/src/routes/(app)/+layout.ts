@@ -1,6 +1,8 @@
-import type { Account } from '@dukat/core/ledger'
+import { accountSchema, type Account } from '@dukat/core/ledger'
+import { z } from 'zod'
 import {
   loadApi,
+  loadApiJson,
   workspaceDataDependency,
   workspacesDataDependency,
 } from '$lib/api'
@@ -27,10 +29,11 @@ export const load: LayoutLoad = async ({ depends, fetch }) => {
     )
     if (personalWorkspace) {
       try {
-        personalAccounts = (await loadApi(
+        personalAccounts = await loadApiJson(
           fetch,
           `/workspaces/${personalWorkspace.id}/accounts`,
-        )) as Account[]
+          z.array(accountSchema),
+        )
       } catch (error) {
         personalAccountsError = (error as Error).message
       }

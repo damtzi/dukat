@@ -44,7 +44,7 @@ const transactionMutationSchema = z.object({
 	negativeBalance: z.boolean()
 });
 const messageSchema = z.object({ message: z.string() });
-const responses = (schema: z.ZodType, description: string) => ({
+const responses = <T extends z.ZodType>(schema: T, description: string) => ({
 	200: jsonContent(schema, description),
 	400: jsonContent(messageSchema, 'Invalid request'),
 	401: jsonContent(messageSchema, 'Authentication required'),

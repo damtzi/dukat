@@ -5,6 +5,7 @@ const workspaceId = 'forecast-workspace';
 const accountId = 'forecast-account';
 const account = {
 	id: accountId,
+	workspaceId,
 	name: 'Everyday account',
 	type: 'current',
 	currency: 'PLN',

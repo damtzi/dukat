@@ -1,6 +1,12 @@
-import type { Transaction, Transfer } from '@dukat/core/ledger'
-import { loadApi, workspaceDataDependency } from '$lib/api'
+import {
+  transactionSchema,
+  transferSchema,
+  type Transaction,
+  type Transfer,
+} from '@dukat/core/ledger'
+import { loadApiJson, workspaceDataDependency } from '$lib/api'
 import type { PageLoad } from './$types'
+import { z } from 'zod'
 
 export const load: PageLoad = async ({ depends, fetch, params, parent }) => {
   depends(workspaceDataDependency)
@@ -14,12 +20,16 @@ export const load: PageLoad = async ({ depends, fetch, params, parent }) => {
   const base = `/workspaces/${params.workspaceId}/accounts/${params.accountId}`
   try {
     const [transactions, transfers] = await Promise.all([
-      loadApi(fetch, `${base}/transactions?includeTrashed=true`) as Promise<
-        Transaction[]
-      >,
-      loadApi(fetch, `${base}/transfers?includeTrashed=true`) as Promise<
-        Transfer[]
-      >,
+      loadApiJson(
+        fetch,
+        `${base}/transactions?includeTrashed=true`,
+        z.array(transactionSchema),
+      ),
+      loadApiJson(
+        fetch,
+        `${base}/transfers?includeTrashed=true`,
+        z.array(transferSchema),
+      ),
     ])
     return { activityError: '', transactions, transfers }
   } catch (error) {

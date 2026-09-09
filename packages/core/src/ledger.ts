@@ -372,7 +372,8 @@ export const correctionSchema = z.object({
 export const historyEntrySchema = z.object({
 	id: z.string(),
 	workspaceId: z.string(),
-	actorUserId: z.string(),
+	actorUserId: z.string().nullable(),
+	actorDisplay: z.string(),
 	entityType: z.enum([
 		'transaction',
 		'household_expense',

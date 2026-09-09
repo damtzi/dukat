@@ -1,6 +1,10 @@
 import type {
+	Account,
+	AccountArchiveImpact,
 	CreateAccount,
 	ArchiveAccount,
+	BalanceCheck,
+	Correction,
 	CreateBalanceCheck,
 	CreateBalanceCorrection,
 	CreateHouseholdExpense,
@@ -8,7 +12,13 @@ import type {
 	CreateRefund,
 	CreateTransfer,
 	CreateTransaction,
+	HistoryEntry,
+	HouseholdExpense,
+	SettlementBalance,
+	SettlementPayment,
+	Transaction,
 	TransactionSearch,
+	Transfer,
 	UpdateAccount,
 	UpdateHouseholdExpense,
 	UpdateTransaction,
@@ -149,152 +159,147 @@ export interface OverviewService {
 	get(userId: string): Promise<MyOverview>;
 }
 
+type LedgerContext = { userId: string; workspaceId: string };
+type TransactionMutationResult = {
+	transaction: Transaction;
+	balanceMinor: string;
+	negativeBalance: boolean;
+};
+type AccountActionResult =
+	| { deleted: true; negativeBalance: false }
+	| Account
+	| (Account & {
+			planningImpact: { stoppedRecurring: number; cancelledOneTime: number };
+	  });
+
 export interface LedgerService {
-	listAccounts(context: { userId: string; workspaceId: string }): Promise<unknown>;
-	createAccount(
-		context: { userId: string; workspaceId: string },
-		input: CreateAccount
-	): Promise<unknown>;
-	updateAccount(
-		context: { userId: string; workspaceId: string },
-		accountId: string,
-		input: UpdateAccount
-	): Promise<unknown>;
-	accountArchiveImpact(
-		context: { userId: string; workspaceId: string },
-		accountId: string
-	): Promise<unknown>;
+	listAccounts(context: LedgerContext): Promise<Account[]>;
+	createAccount(context: LedgerContext, input: CreateAccount): Promise<Account>;
+	updateAccount(context: LedgerContext, accountId: string, input: UpdateAccount): Promise<Account>;
+	accountArchiveImpact(context: LedgerContext, accountId: string): Promise<AccountArchiveImpact>;
 	accountAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		action: 'delete' | 'archive' | 'restore',
 		input: VersionedMutation | ArchiveAccount
-	): Promise<unknown>;
+	): Promise<AccountActionResult>;
 	listTransactions(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		includeTrashed?: boolean
-	): Promise<unknown>;
-	searchTransactions(
-		context: { userId: string; workspaceId: string },
-		filters: TransactionSearch
-	): Promise<unknown>;
+	): Promise<Transaction[]>;
+	searchTransactions(context: LedgerContext, filters: TransactionSearch): Promise<Transaction[]>;
 	listHouseholdExpenses(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		includeTrashed?: boolean
-	): Promise<unknown>;
+	): Promise<HouseholdExpense[]>;
 	createHouseholdExpense(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		input: CreateHouseholdExpense
-	): Promise<unknown>;
+	): Promise<HouseholdExpense>;
 	updateHouseholdExpense(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		expenseId: string,
 		input: UpdateHouseholdExpense
-	): Promise<unknown>;
+	): Promise<HouseholdExpense>;
 	householdExpenseAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		expenseId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
-	): Promise<unknown>;
+	): Promise<HouseholdExpense>;
 	listSettlementPayments(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		includeTrashed?: boolean
-	): Promise<unknown>;
-	listSettlementBalances(context: { userId: string; workspaceId: string }): Promise<unknown>;
+	): Promise<SettlementPayment[]>;
+	listSettlementBalances(context: LedgerContext): Promise<SettlementBalance[]>;
 	createSettlementPayment(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		input: CreateSettlementPayment
-	): Promise<unknown>;
+	): Promise<SettlementPayment>;
 	settlementPaymentAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		paymentId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
-	): Promise<unknown>;
+	): Promise<SettlementPayment>;
 	createTransaction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		input: CreateTransaction
-	): Promise<unknown>;
+	): Promise<TransactionMutationResult>;
 	createRefund(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		expenseId: string,
 		input: CreateRefund
-	): Promise<unknown>;
+	): Promise<TransactionMutationResult>;
 	updateTransaction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		transactionId: string,
 		input: UpdateTransaction
-	): Promise<unknown>;
+	): Promise<TransactionMutationResult>;
 	transactionAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		transactionId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
-	): Promise<unknown>;
-	createTransfer(
-		context: { userId: string; workspaceId: string },
-		input: CreateTransfer
-	): Promise<unknown>;
+	): Promise<TransactionMutationResult>;
+	createTransfer(context: LedgerContext, input: CreateTransfer): Promise<Transfer>;
 	listTransfers(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		includeTrashed?: boolean
-	): Promise<unknown>;
+	): Promise<Transfer[]>;
 	updateTransfer(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		transferId: string,
 		input: UpdateTransfer
-	): Promise<unknown>;
+	): Promise<Transfer>;
 	transferAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		transferId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
-	): Promise<unknown>;
-	createBalanceCheck(
-		context: { userId: string; workspaceId: string },
-		input: CreateBalanceCheck
-	): Promise<unknown>;
+	): Promise<Transfer>;
+	createBalanceCheck(context: LedgerContext, input: CreateBalanceCheck): Promise<BalanceCheck>;
 	listBalanceChecks(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		includeTrashed?: boolean
-	): Promise<unknown>;
+	): Promise<BalanceCheck[]>;
 	listBalanceCorrections(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		accountId: string,
 		includeTrashed?: boolean
-	): Promise<unknown>;
+	): Promise<Correction[]>;
 	updateBalanceCheck(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		checkId: string,
 		input: UpdateBalanceCheck
-	): Promise<unknown>;
+	): Promise<BalanceCheck>;
 	createBalanceCorrection(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		input: CreateBalanceCorrection
-	): Promise<unknown>;
+	): Promise<Correction>;
 	reconciliationAction(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		entityType: 'balance_check' | 'correction',
 		entityId: string,
 		action: 'trash' | 'restore',
 		input: VersionedMutation
-	): Promise<unknown>;
+	): Promise<BalanceCheck | Correction>;
 	history(
-		context: { userId: string; workspaceId: string },
+		context: LedgerContext,
 		entityType:
 			| 'account'
 			| 'transaction'
 			| 'household_expense'
+			| 'settlement_payment'
 			| 'transfer'
 			| 'balance_check'
 			| 'correction',
 		entityId: string
-	): Promise<unknown>;
+	): Promise<HistoryEntry[]>;
 }
 
 export interface APIServices {

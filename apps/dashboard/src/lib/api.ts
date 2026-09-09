@@ -1,34 +1,56 @@
+import {
+  requestJson,
+  type InferResponse,
+  type ResponseSchema,
+} from '@dukat/api-client'
+
 type Fetch = typeof globalThis.fetch
 
 export const workspacesDataDependency = 'dukat:workspaces'
 export const workspaceDataDependency = 'dukat:workspace'
 export const overviewDataDependency = 'dukat:overview'
 
-async function request(fetcher: Fetch, path: string, options?: RequestInit) {
-  const headers = new Headers(options?.headers)
-  if (typeof options?.body === 'string' && !headers.has('content-type'))
-    headers.set('content-type', 'application/json')
-
-  const response = await fetcher(`/api${path}`, {
-    ...options,
-    headers,
-  })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(
-      body.message ||
-        (response.status === 409
-          ? 'This item changed elsewhere. Refresh and try again.'
-          : `Request failed (${response.status}).`),
-    )
-  }
-  return response.status === 204 ? null : response.json()
-}
-
+export function api<Response = unknown>(
+  path: string,
+  options?: RequestInit,
+): Promise<Response>
 export function api(path: string, options?: RequestInit) {
-  return request(globalThis.fetch, path, options)
+  return requestJson(globalThis.fetch, `/api${path}`, options)
 }
 
+export function apiJson<T extends ResponseSchema>(
+  path: string,
+  schema: T,
+  options?: RequestInit,
+): Promise<InferResponse<T>>
+export function apiJson(
+  path: string,
+  schema: ResponseSchema,
+  options?: RequestInit,
+) {
+  return requestJson(globalThis.fetch, `/api${path}`, schema, options)
+}
+
+export function loadApi<Response = unknown>(
+  fetcher: Fetch,
+  path: string,
+  options?: RequestInit,
+): Promise<Response>
 export function loadApi(fetcher: Fetch, path: string, options?: RequestInit) {
-  return request(fetcher, path, options)
+  return requestJson(fetcher, `/api${path}`, options)
+}
+
+export function loadApiJson<T extends ResponseSchema>(
+  fetcher: Fetch,
+  path: string,
+  schema: T,
+  options?: RequestInit,
+): Promise<InferResponse<T>>
+export function loadApiJson(
+  fetcher: Fetch,
+  path: string,
+  schema: ResponseSchema,
+  options?: RequestInit,
+) {
+  return requestJson(fetcher, `/api${path}`, schema, options)
 }

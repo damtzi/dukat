@@ -1,4 +1,6 @@
+import type { Context } from 'hono';
 import { createRouter } from '../../lib/create-app';
+import type { AppBindings } from '../../lib/types';
 import { authenticated } from '../../middleware/authenticated';
 import * as routes from './ledger.routes';
 
@@ -8,7 +10,7 @@ const context = (c: {
 	var: { userId: string };
 	req: { valid(target: 'param'): { workspaceId: string } };
 }) => ({ userId: c.var.userId, workspaceId: c.req.valid('param').workspaceId });
-const success = async (c: any, operation: () => Promise<unknown>) => {
+const success = async <T>(c: Context<AppBindings>, operation: () => Promise<T>) => {
 	try {
 		return c.json(await operation(), 200);
 	} catch (error) {

@@ -6,10 +6,17 @@ import type {
   Transaction,
   Transfer,
 } from '@dukat/core/ledger'
+import {
+  accountArchiveImpactSchema,
+  historyEntrySchema,
+  transactionSchema,
+} from '@dukat/core/ledger'
+import { z } from 'zod'
 import { minorToDecimal, parseAmount } from '$lib/money'
 import { todayInWarsaw } from '$lib/date'
 import {
   api,
+  apiJson,
   type HouseholdMember,
   type PickerAccount,
   type WorkspaceRouteData,
@@ -26,17 +33,6 @@ export type LedgerCallbacks = {
 }
 
 export function createLedgerController(callbacks: LedgerCallbacks) {
-  type ArchiveImpact = {
-    accountVersion: number
-    date: string
-    impactToken: string
-    plans: Array<{
-      id: string
-      action: 'stop' | 'cancel'
-      description?: string | null
-      date: string
-    }>
-  }
   const currencies = [
     { code: 'PLN', name: 'Polish złoty' },
     { code: 'EUR', name: 'Euro' },
@@ -242,11 +238,12 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     if (actionIntent?.name !== name) actionIntent = { name, key: key() }
     try {
       if (!actionIntent.body) {
-        let impact: ArchiveImpact | null = null
+        let impact = null
         if (action === 'archive') {
-          impact = (await api(
+          impact = await apiJson(
             `/workspaces/${workspaceId}/accounts/${account.id}/archive-impact`,
-          )) as ArchiveImpact
+            accountArchiveImpactSchema,
+          )
           const details = impact.plans.length
             ? `\n\nAffected plans:\n${impact.plans
                 .map(
@@ -287,9 +284,10 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
   }
   async function loadTransactionSuggestions(workspaceId: string) {
     try {
-      const transactions = (await api(
+      const transactions = await apiJson(
         `/workspaces/${workspaceId}/transactions?limit=50`,
-      )) as Transaction[]
+        z.array(transactionSchema),
+      )
       if (callbacks.getWorkspaceId() !== workspaceId) return
       const merchantKeys: string[] = []
       recentMerchants = transactions
@@ -1015,8 +1013,9 @@ export function createLedgerController(callbacks: LedgerCallbacks) {
     history = []
     historyOpen = true
     try {
-      history = await api(
+      history = await apiJson(
         `/workspaces/${callbacks.getWorkspaceId()}/${entity}/${id}/history`,
+        z.array(historyEntrySchema),
       )
     } catch (error) {
       message = (error as Error).message

@@ -4,6 +4,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 const workspaceId = 'cash-flow-workspace';
 const account = {
 	id: 'cash-account',
+	workspaceId,
 	name: 'Main account',
 	type: 'current',
 	currency: 'PLN',

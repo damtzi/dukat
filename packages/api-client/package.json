@@ -4,7 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsc",
-		"check-types": "tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"test": "tsx --test src/*.test.ts"
 	},
 	"exports": {
 		".": {
@@ -16,10 +17,12 @@
 	},
 	"devDependencies": {
 		"@dukat/typescript-config": "workspace:*",
+		"tsx": "^4.7.1",
 		"typescript": "catalog:"
 	},
 	"dependencies": {
 		"@dukat/api": "workspace:*",
-		"hono": "^4.12.23"
+		"hono": "^4.12.23",
+		"zod": "^4.4.3"
 	}
 }

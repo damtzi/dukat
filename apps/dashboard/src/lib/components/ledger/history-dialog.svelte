@@ -37,7 +37,7 @@
           ><Table.Body
             >{#each history as entry (entry.id)}<Table.Row
                 ><Table.Cell class="capitalize">{entry.action}</Table.Cell
-                ><Table.Cell>{entry.actorUserId}</Table.Cell><Table.Cell
+                ><Table.Cell>{entry.actorDisplay}</Table.Cell><Table.Cell
                   >{entry.createdAt}</Table.Cell
                 ><Table.Cell class="max-w-sm whitespace-normal"
                   >{changed(entry)}</Table.Cell

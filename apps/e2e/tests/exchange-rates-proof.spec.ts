@@ -5,6 +5,7 @@ const now = '2026-08-06T12:00:00.000Z';
 const accounts = [
 	{
 		id: 'eur-proof',
+		workspaceId,
 		name: 'Euro wallet',
 		type: 'cash',
 		currency: 'EUR',
@@ -23,6 +24,7 @@ const accounts = [
 	},
 	{
 		id: 'usd-proof',
+		workspaceId,
 		name: 'Dollar account',
 		type: 'current',
 		currency: 'USD',

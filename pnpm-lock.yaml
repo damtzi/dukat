@@ -138,6 +138,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@dukat/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@dukat/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -147,6 +150,9 @@ importers:
       phosphor-svelte:
         specifier: ^3.1.0
         version: 3.1.0(svelte@5.56.10(@typescript-eslint/types@8.61.1))(vite@7.3.5(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@dukat/eslint-config':
         specifier: workspace:*
@@ -325,10 +331,16 @@ importers:
       hono:
         specifier: ^4.12.23
         version: 4.12.26
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@dukat/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      tsx:
+        specifier: ^4.7.1
+        version: 4.22.4
       typescript:
         specifier: 'catalog:'
         version: 5.9.2

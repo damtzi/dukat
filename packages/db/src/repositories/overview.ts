@@ -91,7 +91,7 @@ export function createOverviewRepository(dependencies: {
 						currency: account.currency,
 						balanceMinor: account.balanceMinor,
 						convertedBalanceMinor: account.convertedBalanceMinor,
-						archivedAt: account.archivedAt?.toISOString() ?? null
+						archivedAt: account.archivedAt
 					}))
 				);
 

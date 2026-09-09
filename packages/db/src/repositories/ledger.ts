@@ -188,7 +188,11 @@ const checkedBalance = (value: bigint) => {
 };
 const publicTransaction = (row: typeof ledgerTransaction.$inferSelect) => ({
 	...row,
-	amountMinor: row.amountMinor.toString()
+	source: 'manual' as const,
+	amountMinor: row.amountMinor.toString(),
+	trashedAt: row.trashedAt?.toISOString() ?? null,
+	createdAt: row.createdAt.toISOString(),
+	updatedAt: row.updatedAt.toISOString()
 });
 const householdPayerSelection = {
 	id: user.id,
@@ -257,17 +261,40 @@ const publicSettlementPayment = (
 });
 const publicCorrection = (row: typeof ledgerBalanceCorrection.$inferSelect) => ({
 	...row,
-	amountMinor: row.amountMinor
+	amountMinor: row.amountMinor,
+	trashedAt: row.trashedAt?.toISOString() ?? null,
+	createdAt: row.createdAt.toISOString(),
+	updatedAt: row.updatedAt.toISOString()
 });
 const viewAccount = (account: typeof financialAccount.$inferSelect, balanceMinor: bigint) => ({
 	...account,
 	openingBalanceMinor: account.openingBalanceMinor.toString(),
+	activityStartedAt: account.activityStartedAt?.toISOString() ?? null,
+	archivedAt: account.archivedAt?.toISOString() ?? null,
+	createdAt: account.createdAt.toISOString(),
+	updatedAt: account.updatedAt.toISOString(),
 	balanceMinor: balanceMinor.toString(),
 	negativeBalance: balanceMinor < 0n,
 	canDelete: account.archivedAt === null && account.activityStartedAt === null,
 	canArchive:
 		account.archivedAt === null && account.activityStartedAt !== null && balanceMinor === 0n,
 	canRestore: account.archivedAt !== null
+});
+const publicBalanceSnapshot = (
+	row: typeof ledgerBalanceCheck.$inferSelect,
+	calculatedBalanceMinor?: bigint
+) => ({
+	...row,
+	observedBalanceMinor: row.observedBalanceMinor.toString(),
+	...(calculatedBalanceMinor === undefined
+		? {}
+		: {
+				calculatedBalanceMinor: calculatedBalanceMinor.toString(),
+				differenceMinor: (row.observedBalanceMinor - calculatedBalanceMinor).toString()
+			}),
+	trashedAt: row.trashedAt?.toISOString() ?? null,
+	createdAt: row.createdAt.toISOString(),
+	updatedAt: row.updatedAt.toISOString()
 });
 
 export function createLedgerRepository(rawDatabase: FinancialDatabase) {
@@ -1076,7 +1103,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							if (deleted.length !== 1)
 								throw new LedgerError('conflict', 'Account changed concurrently');
 							await audit(tx, context, 'account', accountId, 'deleted', row, null);
-							return { deleted: true, negativeBalance: false };
+							return { deleted: true as const, negativeBalance: false as const };
 						}
 						const currentBalance = checkedBalance(
 							row.openingBalanceMinor +
@@ -2453,12 +2480,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							.from(ledgerBalanceCheck)
 							.where(eq(ledgerBalanceCheck.id, id));
 						await audit(tx, context, 'balance_check', id, 'created', null, row);
-						return {
-							...row,
-							observedBalanceMinor: observed.toString(),
-							calculatedBalanceMinor: calculated.toString(),
-							differenceMinor: (observed - calculated).toString()
-						};
+						return publicBalanceSnapshot(row, calculated);
 					}
 				);
 			});
@@ -2492,12 +2514,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							account.openingBalanceMinor +
 								(await balance(context.workspaceId, accountId, account.openingDate, tx, row.date))
 						);
-						return {
-							...row,
-							observedBalanceMinor: row.observedBalanceMinor.toString(),
-							calculatedBalanceMinor: calculated.toString(),
-							differenceMinor: (row.observedBalanceMinor - calculated).toString()
-						};
+						return publicBalanceSnapshot(row, calculated);
 					})
 				);
 			});
@@ -2602,12 +2619,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								))
 						);
 						await audit(tx, context, 'balance_check', checkId, 'updated', before, after);
-						return {
-							...after,
-							observedBalanceMinor: observed.toString(),
-							calculatedBalanceMinor: calculated.toString(),
-							differenceMinor: (observed - calculated).toString()
-						};
+						return publicBalanceSnapshot(after, calculated);
 					}
 				);
 			});
@@ -2733,18 +2745,9 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (entityType === 'correction')
 							await assertBalances(tx, context.workspaceId, [before.accountId]);
 						await audit(tx, context, entityType, entityId, action, before, after);
-						return {
-							...after,
-							...(entityType === 'balance_check'
-								? {
-										observedBalanceMinor: (
-											after as typeof ledgerBalanceCheck.$inferSelect
-										).observedBalanceMinor.toString()
-									}
-								: {
-										amountMinor: (after as typeof ledgerBalanceCorrection.$inferSelect).amountMinor
-									})
-						};
+						return entityType === 'balance_check'
+							? publicBalanceSnapshot(after as typeof ledgerBalanceCheck.$inferSelect)
+							: publicCorrection(after as typeof ledgerBalanceCorrection.$inferSelect);
 					}
 				);
 			});
@@ -3112,7 +3115,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		) {
 			return database.transaction(async (tx) => {
 				await authorizedPersonal(tx, context);
-				return tx
+				const rows = await tx
 					.select()
 					.from(ledgerAudit)
 					.where(
@@ -3123,6 +3126,20 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						)
 					)
 					.orderBy(desc(ledgerAudit.createdAt), desc(ledgerAudit.id));
+				return rows.map((row) => {
+					return {
+						id: row.id,
+						workspaceId: row.workspaceId,
+						actorUserId: row.actorUserId,
+						actorDisplay: row.actorDisplay,
+						entityType,
+						entityId: row.entityId,
+						action: row.action,
+						beforeJson: row.beforeJson,
+						afterJson: row.afterJson,
+						createdAt: row.createdAt.toISOString()
+					};
+				});
 			});
 		},
 		async purgeTrashed(before = new Date(Date.now() - 30 * 86_400_000)) {

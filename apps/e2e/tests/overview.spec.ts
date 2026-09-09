@@ -19,6 +19,7 @@ function account(
 ) {
 	return {
 		id,
+		workspaceId,
 		name,
 		type: 'current',
 		currency,

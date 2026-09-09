@@ -1,8 +1,9 @@
-import type { Account } from '@dukat/core/ledger'
+import { accountSchema, type Account } from '@dukat/core/ledger'
+import { z } from 'zod'
 import type { Category } from '@dukat/core/csv-import'
-import { api } from '$lib/api'
+import { apiJson } from '$lib/api'
 
-export { api } from '$lib/api'
+export { api, apiJson } from '$lib/api'
 
 export type Workspace = {
   id: string
@@ -168,7 +169,10 @@ export class WorkspaceController {
       await Promise.all(
         this.workspaces.map(async (workspace) =>
           (
-            (await api(`/workspaces/${workspace.id}/accounts`)) as Account[]
+            await apiJson(
+              `/workspaces/${workspace.id}/accounts`,
+              z.array(accountSchema),
+            )
           ).map((account) => ({
             ...account,
             workspaceId: workspace.id,

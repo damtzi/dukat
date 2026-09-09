@@ -70,7 +70,51 @@ function overviewResponse(
 }
 
 function json(route: Route, body: unknown, status = 200) {
-	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+	const completeLedgerResponse = (value: unknown): unknown => {
+		if (Array.isArray(value)) return value.map(completeLedgerResponse);
+		if (!value || typeof value !== 'object') return value;
+		const item = value as Record<string, unknown>;
+		const timestamps =
+			'id' in item && 'version' in item
+				? {
+						workspaceId,
+						createdAt: '2026-08-01T00:00:00.000Z',
+						updatedAt: '2026-08-01T00:00:00.000Z'
+					}
+				: {};
+		const account =
+			'openingBalanceMinor' in item ? { activityStartedAt: null, archivedAt: null } : {};
+		const transaction =
+			'kind' in item && 'amountMinor' in item && !('currency' in item)
+				? {
+						accountId,
+						merchant: null,
+						description: null,
+						categoryId: null,
+						refundOfTransactionId: null,
+						source: 'manual',
+						trashedAt: null
+					}
+				: {};
+		const transfer =
+			'localSide' in item
+				? {
+						accountId,
+						sentAmountMinor: null,
+						receivedAmountMinor: null,
+						description: null,
+						trashedAt: null,
+						detachedAt: null,
+						canManage: false
+					}
+				: {};
+		return { ...timestamps, ...account, ...transaction, ...transfer, ...item };
+	};
+	return route.fulfill({
+		status,
+		contentType: 'application/json',
+		body: JSON.stringify(completeLedgerResponse(body))
+	});
 }
 
 async function chooseSelect(page: Page, label: string, option: string) {
@@ -216,8 +260,12 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			return json(route, [
 				{
 					id: 'audit-e2e',
+					workspaceId,
+					entityType: 'account',
+					entityId: accountId,
 					action: 'updated',
 					actorUserId: 'user-e2e',
+					actorDisplay: 'user-e2e',
 					createdAt: '2026-07-31T12:00:00.000Z',
 					beforeJson: JSON.stringify({ description: 'Rent' }),
 					afterJson: JSON.stringify({ description: 'Rent corrected' })
@@ -2046,7 +2094,12 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 				date: body.date,
 				description: body.description,
 				localSide: 'from',
-				counterparty: { visibility: 'full', accountId: 'savings', name: 'Savings' },
+				counterparty: {
+					visibility: 'full',
+					workspaceId,
+					accountId: 'savings',
+					name: 'Savings'
+				},
 				canManage: true,
 				detachedAt: null,
 				version: 1,
@@ -2110,8 +2163,12 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 			return json(route, [
 				{
 					id: 'audit-transfer',
+					workspaceId,
+					entityType: 'transfer',
+					entityId: 'transfer-e2e',
 					action: 'created',
 					actorUserId: 'user-e2e',
+					actorDisplay: 'user-e2e',
 					createdAt: '2026-08-01T00:00:00Z',
 					beforeJson: null,
 					afterJson: JSON.stringify({ amountMinor: '2000' })

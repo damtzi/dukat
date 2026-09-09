@@ -1,12 +1,17 @@
-import type {
-  HouseholdExpense,
-  SettlementBalance,
-  SettlementPayment,
-  Transaction,
+import {
+  householdExpenseSchema,
+  settlementBalanceSchema,
+  settlementPaymentSchema,
+  transactionSchema,
+  type HouseholdExpense,
+  type SettlementBalance,
+  type SettlementPayment,
+  type Transaction,
 } from '@dukat/core/ledger'
-import { loadApi, workspaceDataDependency } from '$lib/api'
+import { loadApiJson, workspaceDataDependency } from '$lib/api'
 import { parseAmount } from '$lib/money'
 import type { PageLoad } from './$types'
+import { z } from 'zod'
 
 export const load: PageLoad = async ({
   depends,
@@ -74,27 +79,31 @@ export const load: PageLoad = async ({
       settlementBalances,
       settlementPayments,
     ] = await Promise.all([
-      loadApi(
+      loadApiJson(
         fetch,
         `/workspaces/${params.workspaceId}/transactions?${query}`,
-      ) as Promise<Transaction[]>,
+        z.array(transactionSchema),
+      ),
       isHousehold
-        ? (loadApi(
+        ? loadApiJson(
             fetch,
             `/workspaces/${params.workspaceId}/household-expenses${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
-          ) as Promise<HouseholdExpense[]>)
+            z.array(householdExpenseSchema),
+          )
         : Promise.resolve([]),
       isHousehold
-        ? (loadApi(
+        ? loadApiJson(
             fetch,
             `/workspaces/${params.workspaceId}/settlement-balances`,
-          ) as Promise<SettlementBalance[]>)
+            z.array(settlementBalanceSchema),
+          )
         : Promise.resolve([]),
       isHousehold
-        ? (loadApi(
+        ? loadApiJson(
             fetch,
             `/workspaces/${params.workspaceId}/settlement-payments${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
-          ) as Promise<SettlementPayment[]>)
+            z.array(settlementPaymentSchema),
+          )
         : Promise.resolve([]),
     ])
     return {

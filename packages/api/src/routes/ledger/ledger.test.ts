@@ -45,7 +45,7 @@ function createServices(): APIServices {
 			async listAccounts() {
 				return [];
 			},
-			async createAccount(_context, input) {
+			async createAccount(_context: unknown, input: unknown) {
 				return input;
 			},
 			async updateAccount() {
@@ -58,13 +58,13 @@ function createServices(): APIServices {
 			async listTransactions() {
 				return [];
 			},
-			async searchTransactions(_context, filters) {
+			async searchTransactions(_context: unknown, filters: unknown) {
 				return [filters];
 			},
 			async listHouseholdExpenses() {
 				return [];
 			},
-			async createHouseholdExpense(_context, input) {
+			async createHouseholdExpense(_context: unknown, input: unknown) {
 				return input;
 			},
 			async updateHouseholdExpense() {},
@@ -75,19 +75,19 @@ function createServices(): APIServices {
 			async listSettlementBalances() {
 				return [];
 			},
-			async createSettlementPayment(_context, input) {
+			async createSettlementPayment(_context: unknown, input: unknown) {
 				return input;
 			},
 			async settlementPaymentAction() {},
-			async createTransaction(_context, _accountId, input) {
+			async createTransaction(_context: unknown, _accountId: unknown, input: unknown) {
 				return input;
 			},
-			async createRefund(_context, _expenseId, input) {
+			async createRefund(_context: unknown, _expenseId: unknown, input: unknown) {
 				return input;
 			},
 			async updateTransaction() {},
 			async transactionAction() {},
-			async createTransfer(_context, input) {
+			async createTransfer(_context: unknown, input: unknown) {
 				return input;
 			},
 			async listTransfers() {
@@ -95,7 +95,7 @@ function createServices(): APIServices {
 			},
 			async updateTransfer() {},
 			async transferAction() {},
-			async createBalanceCheck(_context, input) {
+			async createBalanceCheck(_context: unknown, input: unknown) {
 				return input;
 			},
 			async listBalanceChecks() {
@@ -105,14 +105,14 @@ function createServices(): APIServices {
 				return [];
 			},
 			async updateBalanceCheck() {},
-			async createBalanceCorrection(_context, input) {
+			async createBalanceCorrection(_context: unknown, input: unknown) {
 				return input;
 			},
 			async reconciliationAction() {},
 			async history() {
 				return [];
 			}
-		},
+		} as unknown as APIServices['ledger'],
 		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],
 		workspaces: {
