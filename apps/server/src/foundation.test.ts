@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -9,17 +9,17 @@ import { createAPI, createProfileImageService } from '@dukat/api';
 import { createAuth } from '@dukat/auth/create-auth';
 import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/email';
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
+import { createAdministrationRepository } from '@dukat/db/repositories/administration';
+import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
+import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
+import { createInsightsRepository } from '@dukat/db/repositories/insights';
+import { createLedgerRepository } from '@dukat/db/repositories/ledger';
+import { createPlanningRepository } from '@dukat/db/repositories/planning';
+import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
+import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { backupDatabase, restoreDatabase } from '@dukat/db/recovery';
 import { profileImageCleanupJob, session, user } from '@dukat/db/schema/auth';
 import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
-import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
-import { createLedgerRepository } from '@dukat/db/repositories/ledger';
-import { createInsightsRepository } from '@dukat/db/repositories/insights';
-import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
-import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
-import { createPlanningRepository } from '@dukat/db/repositories/planning';
-import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
-import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import sharp from 'sharp';
@@ -46,14 +46,11 @@ async function postJson(app: ReturnType<typeof createServerApp>, path: string, b
 	});
 }
 
-test('migration chain, auth lifecycle, workspace isolation, and encrypted restore', async () => {
+async function createFoundationFixture() {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-foundation-'));
 	const sourceUrl = `file:${join(directory, 'source.db')}`;
-	const restoredUrl = `file:${join(directory, 'restored.db')}`;
 	const dashboardDirectory = join(directory, 'dashboard');
 	const profileImagesDirectory = join(directory, 'profile-images');
-	const backupPath = join(directory, 'backup.json');
-	const key = Buffer.alloc(32, 7).toString('base64');
 	const source = createDatabase({ url: sourceUrl });
 	const sourceFinancial = createFinancialDatabase({ url: sourceUrl });
 	const emails: TransactionalEmail[] = [];
@@ -64,6 +61,152 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				new URL('../../../packages/db/src/migrations', import.meta.url)
 			)
 		});
+		await mkdir(join(dashboardDirectory, 'admin'), { recursive: true });
+		await writeFile(join(dashboardDirectory, 'index.html'), '<h1>Dukat dashboard</h1>');
+		await writeFile(
+			join(dashboardDirectory, 'admin', 'index.html'),
+			'<h1>Dukat administration</h1>'
+		);
+
+		const administration = createAdministrationRepository(source.db);
+		const auth = createAuth({
+			database: source.db,
+			baseURL: origin,
+			secret,
+			trustedOrigins: [origin],
+			registrationOpen: administration.registrationOpen,
+			emailSender: {
+				async send(message) {
+					emails.push(message);
+				}
+			}
+		});
+		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
+		const profileImageStorage = createLocalProfileImageStorage(profileImagesDirectory);
+		const profileImageCleanup = createProfileImageCleanup({
+			repository: createProfileImageCleanupRepository(source.db),
+			storage: profileImageStorage
+		});
+		const app = createServerApp({
+			api: createAPI({
+				administration,
+				auth,
+				favorites: createFavoriteRepository(source.db),
+				profileImageCleanup,
+				profileImages: createProfileImageService({
+					auth,
+					storage: profileImageStorage,
+					cleanup: profileImageCleanup,
+					normalize: normalizeProfileImage
+				}),
+				readiness: () => source.db.run('select 1'),
+				ledger: createLedgerRepository(sourceFinancial.db),
+				planning: createPlanningRepository(sourceFinancial.db),
+				insights: createInsightsRepository(sourceFinancial.db),
+				exchangeRates,
+				workspaces: createWorkspaceRepository(source.db)
+			}),
+			dashboardDirectory,
+			profileImagesDirectory
+		});
+
+		async function signup(name: string, username: string, email: string, password: string) {
+			const beforeEmailCount = emails.length;
+			const response = await postJson(app, '/api/auth/sign-up/email', {
+				name,
+				username,
+				email,
+				password,
+				callbackURL: '/'
+			});
+			assert.equal(response.status, 200, await response.text());
+			assert.equal(emails.length, beforeEmailCount + 1);
+			return response;
+		}
+
+		async function verifyLatestEmail() {
+			const verificationUrl = emails.at(-1)!.text.match(/https?:\/\/\S+/)?.[0];
+			assert.ok(verificationUrl);
+			const verification = await app.request(verificationUrl, { headers: { origin } });
+			assert.ok([200, 302].includes(verification.status));
+		}
+
+		async function signupAndVerify(
+			name: string,
+			username: string,
+			email: string,
+			password: string
+		) {
+			await signup(name, username, email, password);
+			await verifyLatestEmail();
+		}
+
+		async function signIn(email: string, password: string) {
+			const response = await postJson(app, '/api/auth/sign-in/email', { email, password });
+			assert.equal(response.status, 200, await response.text());
+			return cookieFrom(response);
+		}
+
+		return {
+			administration,
+			app,
+			dashboardDirectory,
+			directory,
+			emails,
+			exchangeRates,
+			profileImageCleanup,
+			signIn,
+			signup,
+			signupAndVerify,
+			source,
+			sourceFinancial,
+			sourceUrl,
+			verifyLatestEmail
+		};
+	} catch (error) {
+		sourceFinancial.client.close();
+		source.client.close();
+		await rm(directory, { recursive: true, force: true });
+		throw error;
+	}
+}
+
+type FoundationFixture = Awaited<ReturnType<typeof createFoundationFixture>>;
+
+async function withFoundationFixture(run: (fixture: FoundationFixture) => Promise<void>) {
+	const fixture = await createFoundationFixture();
+	try {
+		await run(fixture);
+	} finally {
+		fixture.sourceFinancial.client.close();
+		fixture.source.client.close();
+		await rm(fixture.directory, { recursive: true, force: true });
+	}
+}
+
+async function getSession(fixture: FoundationFixture, cookie: string) {
+	const response = await fixture.app.request(`${origin}/api/auth/get-session`, {
+		headers: { cookie }
+	});
+	assert.equal(response.status, 200);
+	return (await response.json()) as {
+		user: { id: string; name: string; username: string; email: string; image: string | null };
+		session: { id: string };
+	};
+}
+
+async function getOnlyWorkspaceId(fixture: FoundationFixture, cookie: string) {
+	const response = await fixture.app.request(`${origin}/api/workspaces`, {
+		headers: { cookie }
+	});
+	assert.equal(response.status, 200);
+	const workspaces = (await response.json()) as Array<{ id: string }>;
+	assert.equal(workspaces.length, 1);
+	return workspaces[0].id;
+}
+
+test('migration chain creates the foundation schema and server', async () => {
+	await withFoundationFixture(async ({ app, source }) => {
 		const userColumns = await source.client.execute('PRAGMA table_info(user)');
 		const usernameColumn = userColumns.rows.find((column) => column.name === 'username');
 		assert.equal(usernameColumn?.notnull, 1);
@@ -107,59 +250,6 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).length,
 			1
 		);
-		await source.db.delete(user).where(eq(user.id, 'migration-trigger-user'));
-		await writeFile(join(directory, 'unused'), '');
-		await import('node:fs/promises').then(({ mkdir }) =>
-			mkdir(join(dashboardDirectory, 'admin'), { recursive: true })
-		);
-		await writeFile(join(dashboardDirectory, 'index.html'), '<h1>Dukat dashboard</h1>');
-		await writeFile(
-			join(dashboardDirectory, 'admin', 'index.html'),
-			'<h1>Dukat administration</h1>'
-		);
-
-		const administration = createAdministrationRepository(source.db);
-		const auth = createAuth({
-			database: source.db,
-			baseURL: origin,
-			secret,
-			trustedOrigins: [origin],
-			registrationOpen: administration.registrationOpen,
-			emailSender: {
-				async send(message) {
-					emails.push(message);
-				}
-			}
-		});
-		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
-		const profileImageStorage = createLocalProfileImageStorage(profileImagesDirectory);
-		const profileImageCleanup = createProfileImageCleanup({
-			repository: createProfileImageCleanupRepository(source.db),
-			storage: profileImageStorage
-		});
-		const profileImages = createProfileImageService({
-			auth,
-			storage: profileImageStorage,
-			cleanup: profileImageCleanup,
-			normalize: normalizeProfileImage
-		});
-		const app = createServerApp({
-			api: createAPI({
-				administration,
-				auth,
-				favorites: createFavoriteRepository(source.db),
-				profileImageCleanup,
-				profileImages,
-				readiness: () => source.db.run('select 1'),
-				ledger: createLedgerRepository(sourceFinancial.db),
-				planning: createPlanningRepository(sourceFinancial.db),
-				insights: createInsightsRepository(sourceFinancial.db),
-				exchangeRates,
-				workspaces: createWorkspaceRepository(source.db)
-			}),
-			dashboardDirectory,
-			profileImagesDirectory
-		});
 
 		assert.equal((await app.request(`${origin}/api/health/live`)).status, 200);
 		const readyResponse = await app.request(`${origin}/api/health/ready`);
@@ -175,51 +265,13 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			/frame-ancestors 'none'/
 		);
 		assert.equal(dashboardResponse.headers.get('strict-transport-security'), null);
-		const adminResponse = await app.request(`${origin}/admin`);
-		assert.match(await adminResponse.text(), /Dukat administration/);
+		assert.match(await (await app.request(`${origin}/admin`)).text(), /Dukat administration/);
+	});
+});
 
-		async function signup(name: string, username: string, email: string, password: string) {
-			const beforeEmailCount = emails.length;
-			const response = await postJson(app, '/api/auth/sign-up/email', {
-				name,
-				username,
-				email,
-				password,
-				callbackURL: '/'
-			});
-			assert.equal(response.status, 200, await response.text());
-			assert.equal(emails.length, beforeEmailCount + 1);
-			return response;
-		}
-
-		async function verifyLatestEmail() {
-			const verificationUrl = emails.at(-1)!.text.match(/https?:\/\/\S+/)?.[0];
-			assert.ok(verificationUrl);
-			const verification = await app.request(verificationUrl, {
-				headers: { origin }
-			});
-			assert.ok([200, 302].includes(verification.status));
-		}
-
-		async function signupAndVerify(
-			name: string,
-			username: string,
-			email: string,
-			password: string
-		) {
-			await signup(name, username, email, password);
-			await verifyLatestEmail();
-		}
-
-		async function signIn(email: string, password: string) {
-			const response = await postJson(app, '/api/auth/sign-in/email', {
-				email,
-				password
-			});
-			assert.equal(response.status, 200, await response.text());
-			return cookieFrom(response);
-		}
-
+test('authentication lifecycle validates identity and session security', async () => {
+	await withFoundationFixture(async (fixture) => {
+		const { administration, app, dashboardDirectory, emails, signIn, signup, source } = fixture;
 		await administration.setRegistrationOpen(false);
 		assert.equal(
 			(
@@ -234,20 +286,16 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		);
 		await administration.setRegistrationOpen(true);
 
-		const available = await app.request(
-			`${origin}/api/auth/username-availability?username=%20First_User%20`
+		assert.deepEqual(
+			await (
+				await app.request(`${origin}/api/auth/username-availability?username=%20First_User%20`)
+			).json(),
+			{ available: true, username: 'first_user', message: 'Username is available.' }
 		);
-		assert.deepEqual(await available.json(), {
-			available: true,
-			username: 'first_user',
-			message: 'Username is available.'
-		});
-		const reserved = await app.request(`${origin}/api/auth/username-availability?username=Support`);
-		assert.deepEqual(await reserved.json(), {
-			available: false,
-			username: 'support',
-			message: 'That username is reserved.'
-		});
+		assert.deepEqual(
+			await (await app.request(`${origin}/api/auth/username-availability?username=Support`)).json(),
+			{ available: false, username: 'support', message: 'That username is reserved.' }
+		);
 		for (const [name, username, message] of [
 			['Valid Name', 'ab', 'Username must be 3–30 characters long.'],
 			['Valid Name', `a${'b'.repeat(30)}`, 'Username must be 3–30 characters long.'],
@@ -296,9 +344,10 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			})
 			.from(user)
 			.where(eq(user.email, 'first@example.com'));
-		assert.equal(unverified.name, 'First  User!');
-		assert.equal(unverified.username, 'first_user');
-		assert.equal(unverified.verified, false);
+		assert.deepEqual(
+			{ name: unverified.name, username: unverified.username, verified: unverified.verified },
+			{ name: 'First  User!', username: 'first_user', verified: false }
+		);
 		assert.equal(
 			(
 				await source.db
@@ -308,7 +357,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).length,
 			1
 		);
-		await verifyLatestEmail();
+		await fixture.verifyLatestEmail();
+
 		const raceResponses = await Promise.all([
 			postJson(app, '/api/auth/sign-up/email', {
 				name: 'Race One',
@@ -337,15 +387,9 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).length,
 			1
 		);
+
 		const firstCookie = await signIn('first@example.com', 'initial-password-1');
-		const firstSessionResponse = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: firstCookie }
-		});
-		assert.equal(firstSessionResponse.status, 200);
-		const firstSession = (await firstSessionResponse.json()) as {
-			user: { id: string; name: string; username: string; email: string; image: string | null };
-			session: { id: string };
-		};
+		const firstSession = await getSession(fixture, firstCookie);
 		assert.equal(firstSession.user.name, 'First  User!');
 		assert.equal(firstSession.user.username, 'first_user');
 		assert.equal(firstSession.user.email, 'first@example.com');
@@ -359,32 +403,40 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).status,
 			404
 		);
-		const unauthorizedUpdate = await postJson(app, '/api/auth/update-user', {
-			name: 'Unauthorized User',
-			username: 'unauthorized_user'
-		});
-		assert.equal(unauthorizedUpdate.status, 401);
-		const crossOriginUpdate = await app.request(`${origin}/api/auth/update-user`, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-				cookie: firstCookie,
-				origin: 'https://attacker.example'
-			},
-			body: JSON.stringify({ name: 'Cross Origin', username: 'cross_origin' })
-		});
-		assert.equal(crossOriginUpdate.status, 403);
+		assert.equal(
+			(
+				await postJson(app, '/api/auth/update-user', {
+					name: 'Unauthorized User',
+					username: 'unauthorized_user'
+				})
+			).status,
+			401
+		);
+		assert.equal(
+			(
+				await app.request(`${origin}/api/auth/update-user`, {
+					method: 'POST',
+					headers: {
+						'content-type': 'application/json',
+						cookie: firstCookie,
+						origin: 'https://attacker.example'
+					},
+					body: JSON.stringify({ name: 'Cross Origin', username: 'cross_origin' })
+				})
+			).status,
+			403
+		);
 		for (const [body, message] of [
 			[{ name: ' ', username: 'valid_update' }, 'Name must be 1–100 characters long.'],
 			[{ name: 'Valid Update', username: 'admin' }, 'That username is reserved.']
 		] as const) {
-			const invalidUpdate = await app.request(`${origin}/api/auth/update-user`, {
+			const response = await app.request(`${origin}/api/auth/update-user`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
 				body: JSON.stringify(body)
 			});
-			assert.equal(invalidUpdate.status, 400);
-			assert.match((await invalidUpdate.json()).message, new RegExp(message));
+			assert.equal(response.status, 400);
+			assert.match((await response.json()).message, new RegExp(message));
 		}
 		const conflictUpdate = await app.request(`${origin}/api/auth/update-user`, {
 			method: 'POST',
@@ -394,17 +446,14 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		assert.equal(conflictUpdate.status, 409);
 		assert.equal((await conflictUpdate.json()).message, 'That username is already taken.');
 		await source.db.delete(user).where(eq(user.id, raceUser.id));
+
 		const profileUpdate = await app.request(`${origin}/api/auth/update-user`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
 			body: JSON.stringify({ name: '  Updated  User  ', username: ' Updated_User ' })
 		});
 		assert.equal(profileUpdate.status, 200, await profileUpdate.clone().text());
-		const refreshedIdentity = (await (
-			await app.request(`${origin}/api/auth/get-session`, {
-				headers: { cookie: firstCookie }
-			})
-		).json()) as { user: { name: string; username: string; email: string; image: string | null } };
+		const refreshedIdentity = await getSession(fixture, firstCookie);
 		assert.deepEqual(refreshedIdentity.user, {
 			...refreshedIdentity.user,
 			name: 'Updated  User',
@@ -412,68 +461,33 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			email: 'first@example.com',
 			image: null
 		});
-		const currentUsername = await app.request(
-			`${origin}/api/auth/username-availability?username=updated_user`,
-			{ headers: { cookie: firstCookie } }
-		);
-		assert.equal(((await currentUsername.json()) as { available: boolean }).available, true);
-		const oldUsername = await app.request(
-			`${origin}/api/auth/username-availability?username=first_user`
-		);
-		assert.equal(((await oldUsername.json()) as { available: boolean }).available, true);
-		const genericImageUpdate = await app.request(`${origin}/api/auth/update-user`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
-			body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
-		});
-		assert.equal(genericImageUpdate.status, 400);
-		const profileImageForm = new FormData();
-		const profileImageSource = await sharp({
-			create: { width: 2, height: 2, channels: 3, background: 'red' }
-		})
-			.png()
-			.toBuffer();
-		const profileImageBytes = profileImageSource.buffer.slice(
-			profileImageSource.byteOffset,
-			profileImageSource.byteOffset + profileImageSource.byteLength
-		) as ArrayBuffer;
-		profileImageForm.set(
-			'image',
-			new File([profileImageBytes], 'profile.png', { type: 'image/png' })
-		);
-		profileImageForm.set('x', '0.5');
-		profileImageForm.set('y', '0.5');
-		profileImageForm.set('zoom', '1');
-		const profileImageUpload = await app.request(`${origin}/api/profile/image`, {
-			method: 'POST',
-			headers: { cookie: firstCookie, origin },
-			body: profileImageForm
-		});
-		assert.equal(profileImageUpload.status, 200, await profileImageUpload.clone().text());
-		const profileImageUrl = ((await profileImageUpload.json()) as { image: string }).image;
-		const imageSession = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: firstCookie }
-		});
-		assert.equal(
-			((await imageSession.json()) as { user: { image: string } }).user.image,
-			profileImageUrl
-		);
-		assert.equal((await app.request(`${origin}${profileImageUrl}`)).status, 200);
 		assert.equal(
 			(
-				await app.request(`${origin}/api/profile/image`, {
-					method: 'DELETE',
-					headers: { cookie: firstCookie, origin }
+				(await (
+					await app.request(`${origin}/api/auth/username-availability?username=updated_user`, {
+						headers: { cookie: firstCookie }
+					})
+				).json()) as { available: boolean }
+			).available,
+			true
+		);
+		assert.equal(
+			(
+				(await (
+					await app.request(`${origin}/api/auth/username-availability?username=first_user`)
+				).json()) as { available: boolean }
+			).available,
+			true
+		);
+		assert.equal(
+			(
+				await app.request(`${origin}/api/auth/update-user`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
+					body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
 				})
 			).status,
-			204
-		);
-		const removedImageSession = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: firstCookie }
-		});
-		assert.equal(
-			((await removedImageSession.json()) as { user: { image: string | null } }).user.image,
-			null
+			400
 		);
 		await signup('Username Reuser', 'first_user', 'reuser@example.com', 'initial-password-reuser');
 		const [reuser] = await source.db
@@ -483,153 +497,15 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 		assert.ok(reuser);
 		await source.db.delete(user).where(eq(user.id, reuser.id));
 
-		const firstWorkspacesResponse = await app.request(`${origin}/api/workspaces`, {
-			headers: { cookie: firstCookie }
-		});
-		assert.equal(firstWorkspacesResponse.status, 200);
-		const firstWorkspaces = (await firstWorkspacesResponse.json()) as Array<{ id: string }>;
-		assert.equal(firstWorkspaces.length, 1);
-		const firstWorkspaceId = firstWorkspaces[0].id;
-		await exchangeRates.cacheTables([
-			{
-				table: 'A',
-				no: '151/A/NBP/2026',
-				effectiveDate: '2026-08-05',
-				rates: [
-					{ code: 'EUR', mid: '4.3' },
-					{ code: 'USD', mid: '4' }
-				]
-			}
-		]);
-		const quote = await app.request(`${origin}/api/workspaces/${firstWorkspaceId}/rates/quote`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie: firstCookie },
-			body: JSON.stringify({
-				fromCurrency: 'EUR',
-				toCurrency: 'USD',
-				date: '2026-08-05',
-				amountMinor: '100'
-			})
-		});
-		assert.equal(quote.status, 200, await quote.clone().text());
-		assert.equal(
-			((await quote.json()) as { suggestedAmountMinor: string }).suggestedAmountMinor,
-			'108'
-		);
-		const manualRate = await app.request(
-			`${origin}/api/workspaces/${firstWorkspaceId}/rates/manual`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie: firstCookie },
-				body: JSON.stringify({
-					currency: 'EUR',
-					rateToPln: '4.4',
-					effectiveDate: '2026-08-05',
-					reason: 'Foundation settlement proof'
-				})
-			}
-		);
-		assert.equal(manualRate.status, 200, await manualRate.clone().text());
-		const manualQuote = await app.request(
-			`${origin}/api/workspaces/${firstWorkspaceId}/rates/quote`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie: firstCookie },
-				body: JSON.stringify({
-					fromCurrency: 'EUR',
-					toCurrency: 'USD',
-					date: '2026-08-05',
-					amountMinor: '100'
-				})
-			}
-		);
-		const manualQuoteBody = (await manualQuote.json()) as {
-			suggestedAmountMinor: string;
-			rates: Array<{ currency: string; source: string }>;
-		};
-		assert.equal(manualQuoteBody.suggestedAmountMinor, '110');
-		assert.deepEqual(
-			manualQuoteBody.rates.map((rate) => [rate.currency, rate.source]),
-			[
-				['EUR', 'manual'],
-				['USD', 'NBP']
-			]
-		);
 		assert.equal(
 			(
-				await source.db
-					.select()
-					.from(workspace)
-					.where(eq(workspace.personalOwnerUserId, firstSession.user.id))
-			).length,
-			1
-		);
-		const boundaryAccountResponse = await app.request(
-			`${origin}/api/workspaces/${firstWorkspaceId}/accounts`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie: firstCookie },
-				body: JSON.stringify({
-					name: 'Boundary account',
-					type: 'cash',
-					currency: 'USD',
-					openingDate: '2026-07-30',
-					openingBalanceMinor: '9223372036854775807',
-					idempotencyKey: 'foundation-boundary-account'
-				})
-			}
-		);
-		assert.equal(boundaryAccountResponse.status, 200);
-		const boundaryAccount = (await boundaryAccountResponse.json()) as { id: string };
-		const boundaryTransactionResponse = await app.request(
-			`${origin}/api/workspaces/${firstWorkspaceId}/accounts/${boundaryAccount.id}/transactions`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie: firstCookie },
-				body: JSON.stringify({
-					kind: 'expense',
-					amountMinor: '9223372036854775807',
-					date: '2026-07-31',
-					idempotencyKey: 'foundation-boundary-transaction'
-				})
-			}
-		);
-		assert.equal(boundaryTransactionResponse.status, 200);
-		assert.equal(
-			((await boundaryTransactionResponse.json()) as { balanceMinor: string }).balanceMinor,
-			'0'
-		);
-
-		await signupAndVerify('Second User', 'second_user', 'second@example.com', 'initial-password-2');
-		const secondCookie = await signIn('second@example.com', 'initial-password-2');
-		const secondSession = (await (
-			await app.request(`${origin}/api/auth/get-session`, {
-				headers: { cookie: secondCookie }
-			})
-		).json()) as { user: { id: string } };
-		await source.db.insert(workspaceMembership).values({
-			workspaceId: firstWorkspaceId,
-			userId: secondSession.user.id,
-			role: 'member'
-		});
-		const secondWorkspaces = await app.request(`${origin}/api/workspaces`, {
-			headers: { cookie: secondCookie }
-		});
-		assert.equal(((await secondWorkspaces.json()) as Array<unknown>).length, 1);
-		assert.equal(
-			(
-				await app.request(`${origin}/api/workspaces/${firstWorkspaceId}`, {
-					headers: { cookie: secondCookie }
+				await postJson(app, '/api/auth/request-password-reset', {
+					email: 'first@example.com',
+					redirectTo: '/reset-password'
 				})
 			).status,
-			404
+			200
 		);
-
-		const resetRequest = await postJson(app, '/api/auth/request-password-reset', {
-			email: 'first@example.com',
-			redirectTo: '/reset-password'
-		});
-		assert.equal(resetRequest.status, 200);
 		const resetToken = emails.at(-1)!.text.match(/reset-password\/([^?\s]+)/)?.[1];
 		assert.ok(resetToken);
 		assert.equal(
@@ -641,10 +517,12 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).status,
 			200
 		);
-		const resetSession = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: firstCookie }
-		});
-		assert.equal(await resetSession.text(), 'null');
+		assert.equal(
+			await (
+				await app.request(`${origin}/api/auth/get-session`, { headers: { cookie: firstCookie } })
+			).text(),
+			'null'
+		);
 		assert.equal(
 			(
 				await postJson(app, '/api/auth/sign-in/email', {
@@ -655,11 +533,8 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			401
 		);
 		const replacementCookie = await signIn('first@example.com', 'replacement-password-1');
-		const replacementSession = (await (
-			await app.request(`${origin}/api/auth/get-session`, {
-				headers: { cookie: replacementCookie }
-			})
-		).json()) as { session: { id: string } };
+		const replacementSession = await getSession(fixture, replacementCookie);
+
 		const productionOrigin = 'https://dukat.example';
 		const productionAuth = createAuth({
 			database: source.db,
@@ -674,9 +549,9 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 				auth: productionAuth,
 				favorites: createFavoriteRepository(source.db),
 				readiness: () => source.db.run('select 1'),
-				ledger: createLedgerRepository(sourceFinancial.db),
-				planning: createPlanningRepository(sourceFinancial.db),
-				insights: createInsightsRepository(sourceFinancial.db),
+				ledger: createLedgerRepository(fixture.sourceFinancial.db),
+				planning: createPlanningRepository(fixture.sourceFinancial.db),
+				insights: createInsightsRepository(fixture.sourceFinancial.db),
 				workspaces: createWorkspaceRepository(source.db)
 			}),
 			dashboardDirectory,
@@ -735,22 +610,32 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			.update(session)
 			.set({ expiresAt: new Date(0) })
 			.where(eq(session.id, replacementSession.session.id));
-		const expiredSession = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: replacementCookie }
-		});
-		assert.equal(await expiredSession.text(), 'null');
-
+		assert.equal(
+			await (
+				await app.request(`${origin}/api/auth/get-session`, {
+					headers: { cookie: replacementCookie }
+				})
+			).text(),
+			'null'
+		);
 		const signOutCookie = await signIn('first@example.com', 'replacement-password-1');
-		const signedOut = await app.request(`${origin}/api/auth/sign-out`, {
-			method: 'POST',
-			headers: { origin, cookie: signOutCookie }
-		});
-		assert.equal(signedOut.status, 200);
-		const signedOutSession = await app.request(`${origin}/api/auth/get-session`, {
-			headers: { cookie: signOutCookie }
-		});
-		assert.equal(await signedOutSession.text(), 'null');
-
+		assert.equal(
+			(
+				await app.request(`${origin}/api/auth/sign-out`, {
+					method: 'POST',
+					headers: { origin, cookie: signOutCookie }
+				})
+			).status,
+			200
+		);
+		assert.equal(
+			await (
+				await app.request(`${origin}/api/auth/get-session`, {
+					headers: { cookie: signOutCookie }
+				})
+			).text(),
+			'null'
+		);
 		const disabledCookie = await signIn('first@example.com', 'replacement-password-1');
 		await administration.setUserDisabled(firstSession.user.id, true);
 		assert.equal(
@@ -767,63 +652,279 @@ test('migration chain, auth lifecycle, workspace isolation, and encrypted restor
 			).status,
 			403
 		);
-		await administration.setUserDisabled(firstSession.user.id, false);
-		const deletionCookie = await signIn('first@example.com', 'replacement-password-1');
-		const deletion = await app.request(`${origin}/api/account/delete`, {
+	});
+});
+
+test('profile images upload, serve, and delete independently', async () => {
+	await withFoundationFixture(async (fixture) => {
+		await fixture.signupAndVerify(
+			'Image User',
+			'image_user',
+			'image@example.com',
+			'image-password'
+		);
+		const cookie = await fixture.signIn('image@example.com', 'image-password');
+		const genericImageUpdate = await fixture.app.request(`${origin}/api/auth/update-user`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie: deletionCookie, origin },
-			body: JSON.stringify({ password: 'replacement-password-1', confirmation: 'DELETE' })
+			headers: { 'content-type': 'application/json', cookie, origin },
+			body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
+		});
+		assert.equal(genericImageUpdate.status, 400);
+
+		const source = await sharp({
+			create: { width: 2, height: 2, channels: 3, background: 'red' }
+		})
+			.png()
+			.toBuffer();
+		const bytes = source.buffer.slice(
+			source.byteOffset,
+			source.byteOffset + source.byteLength
+		) as ArrayBuffer;
+		const form = new FormData();
+		form.set('image', new File([bytes], 'profile.png', { type: 'image/png' }));
+		form.set('x', '0.5');
+		form.set('y', '0.5');
+		form.set('zoom', '1');
+		const upload = await fixture.app.request(`${origin}/api/profile/image`, {
+			method: 'POST',
+			headers: { cookie, origin },
+			body: form
+		});
+		assert.equal(upload.status, 200, await upload.clone().text());
+		const imageUrl = ((await upload.json()) as { image: string }).image;
+		assert.equal((await getSession(fixture, cookie)).user.image, imageUrl);
+		assert.equal((await fixture.app.request(`${origin}${imageUrl}`)).status, 200);
+		assert.equal(
+			(
+				await fixture.app.request(`${origin}/api/profile/image`, {
+					method: 'DELETE',
+					headers: { cookie, origin }
+				})
+			).status,
+			204
+		);
+		assert.equal((await getSession(fixture, cookie)).user.image, null);
+	});
+});
+
+test('exchange rates prefer workspace manual rates over NBP rates', async () => {
+	await withFoundationFixture(async (fixture) => {
+		await fixture.signupAndVerify('Rate User', 'rate_user', 'rate@example.com', 'rate-password');
+		const cookie = await fixture.signIn('rate@example.com', 'rate-password');
+		const workspaceId = await getOnlyWorkspaceId(fixture, cookie);
+		await fixture.exchangeRates.cacheTables([
+			{
+				table: 'A',
+				no: '151/A/NBP/2026',
+				effectiveDate: '2026-08-05',
+				rates: [
+					{ code: 'EUR', mid: '4.3' },
+					{ code: 'USD', mid: '4' }
+				]
+			}
+		]);
+		const quote = await fixture.app.request(`${origin}/api/workspaces/${workspaceId}/rates/quote`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie },
+			body: JSON.stringify({
+				fromCurrency: 'EUR',
+				toCurrency: 'USD',
+				date: '2026-08-05',
+				amountMinor: '100'
+			})
+		});
+		assert.equal(quote.status, 200, await quote.clone().text());
+		assert.equal(
+			((await quote.json()) as { suggestedAmountMinor: string }).suggestedAmountMinor,
+			'108'
+		);
+
+		const manualRate = await fixture.app.request(
+			`${origin}/api/workspaces/${workspaceId}/rates/manual`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie },
+				body: JSON.stringify({
+					currency: 'EUR',
+					rateToPln: '4.4',
+					effectiveDate: '2026-08-05',
+					reason: 'Foundation settlement proof'
+				})
+			}
+		);
+		assert.equal(manualRate.status, 200, await manualRate.clone().text());
+		const manualQuote = await fixture.app.request(
+			`${origin}/api/workspaces/${workspaceId}/rates/quote`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie },
+				body: JSON.stringify({
+					fromCurrency: 'EUR',
+					toCurrency: 'USD',
+					date: '2026-08-05',
+					amountMinor: '100'
+				})
+			}
+		);
+		const body = (await manualQuote.json()) as {
+			suggestedAmountMinor: string;
+			rates: Array<{ currency: string; source: string }>;
+		};
+		assert.equal(body.suggestedAmountMinor, '110');
+		assert.deepEqual(
+			body.rates.map((rate) => [rate.currency, rate.source]),
+			[
+				['EUR', 'manual'],
+				['USD', 'NBP']
+			]
+		);
+	});
+});
+
+test('workspace authorization isolates personal workspaces', async () => {
+	await withFoundationFixture(async (fixture) => {
+		await fixture.signupAndVerify('First User', 'first_user', 'first@example.com', 'password-1');
+		const firstCookie = await fixture.signIn('first@example.com', 'password-1');
+		const firstWorkspaceId = await getOnlyWorkspaceId(fixture, firstCookie);
+		await fixture.signupAndVerify('Second User', 'second_user', 'second@example.com', 'password-2');
+		const secondCookie = await fixture.signIn('second@example.com', 'password-2');
+		const secondSession = await getSession(fixture, secondCookie);
+		await fixture.source.db.insert(workspaceMembership).values({
+			workspaceId: firstWorkspaceId,
+			userId: secondSession.user.id,
+			role: 'member'
+		});
+		assert.equal(
+			(
+				(await (
+					await fixture.app.request(`${origin}/api/workspaces`, {
+						headers: { cookie: secondCookie }
+					})
+				).json()) as Array<unknown>
+			).length,
+			1
+		);
+		assert.equal(
+			(
+				await fixture.app.request(`${origin}/api/workspaces/${firstWorkspaceId}`, {
+					headers: { cookie: secondCookie }
+				})
+			).status,
+			404
+		);
+	});
+});
+
+test('account deletion blocks access until administration restores the account', async () => {
+	await withFoundationFixture(async (fixture) => {
+		await fixture.signupAndVerify(
+			'Deletion User',
+			'deletion_user',
+			'deletion@example.com',
+			'deletion-password'
+		);
+		const cookie = await fixture.signIn('deletion@example.com', 'deletion-password');
+		const identity = await getSession(fixture, cookie);
+		const deletion = await fixture.app.request(`${origin}/api/account/delete`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', cookie, origin },
+			body: JSON.stringify({ password: 'deletion-password', confirmation: 'DELETE' })
 		});
 		assert.equal(deletion.status, 200, await deletion.clone().text());
 		assert.equal(
-			(await app.request(`${origin}/api/workspaces`, { headers: { cookie: deletionCookie } }))
-				.status,
+			(await fixture.app.request(`${origin}/api/workspaces`, { headers: { cookie } })).status,
 			401
 		);
 		assert.equal(
 			(
-				await postJson(app, '/api/auth/sign-in/email', {
-					email: 'first@example.com',
-					password: 'replacement-password-1'
+				await postJson(fixture.app, '/api/auth/sign-in/email', {
+					email: 'deletion@example.com',
+					password: 'deletion-password'
 				})
 			).status,
 			403
 		);
-		await administration.restoreAccount(firstSession.user.id);
-		await signIn('first@example.com', 'replacement-password-1');
+		await fixture.administration.restoreAccount(identity.user.id);
+		await fixture.signIn('deletion@example.com', 'deletion-password');
+	});
+});
 
-		await profileImageCleanup.enqueue(
-			firstSession.user.id,
+test('encrypted recovery preserves integer precision and cleanup jobs', async () => {
+	await withFoundationFixture(async (fixture) => {
+		await fixture.signupAndVerify(
+			'Recovery User',
+			'recovery_user',
+			'recovery@example.com',
+			'recovery-password'
+		);
+		const cookie = await fixture.signIn('recovery@example.com', 'recovery-password');
+		const identity = await getSession(fixture, cookie);
+		const workspaceId = await getOnlyWorkspaceId(fixture, cookie);
+		const accountResponse = await fixture.app.request(
+			`${origin}/api/workspaces/${workspaceId}/accounts`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie },
+				body: JSON.stringify({
+					name: 'Boundary account',
+					type: 'cash',
+					currency: 'USD',
+					openingDate: '2026-07-30',
+					openingBalanceMinor: '9223372036854775807',
+					idempotencyKey: 'foundation-boundary-account'
+				})
+			}
+		);
+		assert.equal(accountResponse.status, 200);
+		const account = (await accountResponse.json()) as { id: string };
+		const transactionResponse = await fixture.app.request(
+			`${origin}/api/workspaces/${workspaceId}/accounts/${account.id}/transactions`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/json', cookie },
+				body: JSON.stringify({
+					kind: 'expense',
+					amountMinor: '9223372036854775807',
+					date: '2026-07-31',
+					idempotencyKey: 'foundation-boundary-transaction'
+				})
+			}
+		);
+		assert.equal(transactionResponse.status, 200);
+		assert.equal(
+			((await transactionResponse.json()) as { balanceMinor: string }).balanceMinor,
+			'0'
+		);
+		await fixture.profileImageCleanup.enqueue(
+			identity.user.id,
 			'/profile-images/users/recovery/pending.webp'
 		);
-		await backupDatabase(sourceUrl, undefined, backupPath, key);
+
+		const backupPath = join(fixture.directory, 'backup.json');
+		const restoredUrl = `file:${join(fixture.directory, 'restored.db')}`;
+		const key = Buffer.alloc(32, 7).toString('base64');
+		await backupDatabase(fixture.sourceUrl, undefined, backupPath, key);
 		await restoreDatabase(restoredUrl, undefined, backupPath, key);
 		const restored = createDatabase({ url: restoredUrl });
 		const restoredFinancial = createFinancialDatabase({ url: restoredUrl });
 		try {
-			assert.equal((await restored.db.select().from(workspace)).length, 2);
+			assert.equal((await restored.db.select().from(workspace)).length, 1);
 			assert.deepEqual(
 				(await restored.db.select().from(profileImageCleanupJob)).map((job) => job.publicUrl),
 				['/profile-images/users/recovery/pending.webp']
 			);
 			const restoredAccounts = await createLedgerRepository(restoredFinancial.db).listAccounts({
-				userId: firstSession.user.id,
-				workspaceId: firstWorkspaceId
+				userId: identity.user.id,
+				workspaceId
 			});
-			const restoredBoundary = restoredAccounts.find(
-				(account) => account.id === boundaryAccount.id
-			);
+			const restoredBoundary = restoredAccounts.find((item) => item.id === account.id);
 			assert.equal(restoredBoundary?.openingBalanceMinor, '9223372036854775807');
 			assert.equal(restoredBoundary?.balanceMinor, '0');
 		} finally {
 			restoredFinancial.client.close();
 			restored.client.close();
 		}
-	} finally {
-		sourceFinancial.client.close();
-		source.client.close();
-		await rm(directory, { recursive: true, force: true });
-	}
+	});
 });
 
 test('dashboard directory uses the server package as its development base', () => {
