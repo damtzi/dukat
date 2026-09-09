@@ -13,20 +13,14 @@ import {
 	workspaceInvitation,
 	workspaceMembership
 } from '../schema';
+import { DomainError } from './domain-error';
 
 export interface WorkspaceAuthorizationContext {
 	userId: string;
 	workspaceId: string;
 }
 type QueryDatabase = Pick<Database, 'select'>;
-export class WorkspaceError extends Error {
-	constructor(
-		public readonly code: 'not_found' | 'conflict' | 'invalid',
-		message: string
-	) {
-		super(message);
-	}
-}
+export class WorkspaceError extends DomainError {}
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const tokenHash = async (token: string) =>
 	Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))).toString(

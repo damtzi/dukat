@@ -6,7 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
-import { createLedgerRepository } from '@dukat/db/repositories/ledger';
+import { createLedgerRepository, LedgerError } from '@dukat/db/repositories/ledger';
 import { user } from '@dukat/db/schema/index';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import type { APIServices } from '../../services';
@@ -49,7 +49,7 @@ function createServices(): APIServices {
 				return input;
 			},
 			async updateAccount() {
-				throw Object.assign(new Error('Account version is stale'), { code: 'conflict' });
+				throw new LedgerError('conflict', 'Account version is stale');
 			},
 			async accountArchiveImpact() {
 				return { accountVersion: 1, date: '2026-08-06', plans: [], impactToken: 'token' };

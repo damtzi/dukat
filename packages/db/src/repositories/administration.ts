@@ -2,20 +2,14 @@ import { and, eq, isNotNull, lte } from 'drizzle-orm';
 
 import type { Database } from '../connection';
 import { serviceSetting, session, user } from '../schema';
+import { DomainError } from './domain-error';
 import { createOperationalJobRepository } from './operational-jobs';
 
 export const ACCOUNT_RECOVERY_DAYS = 30;
 export const OWNED_HOUSEHOLD_QUOTA = 10;
 export const PENDING_INVITATION_QUOTA = 20;
 
-export class AdministrationError extends Error {
-	constructor(
-		public readonly code: 'not_found' | 'conflict',
-		message: string
-	) {
-		super(message);
-	}
-}
+export class AdministrationError extends DomainError<'not_found' | 'conflict'> {}
 
 const operationalUser = {
 	id: user.id,

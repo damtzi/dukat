@@ -23,19 +23,13 @@ import {
 	user
 } from '../schema';
 import type { createExchangeRateRepository } from './exchange-rates';
+import { DomainError } from './domain-error';
 import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
 type Rates = Pick<ReturnType<typeof createExchangeRateRepository>, 'reportingTotals'>;
 
-export class BudgetError extends Error {
-	constructor(
-		public code: 'not_found' | 'conflict' | 'invalid',
-		message: string
-	) {
-		super(message);
-	}
-}
+export class BudgetError extends DomainError {}
 
 const json = (value: unknown) =>
 	JSON.stringify(value, (_key, item) =>

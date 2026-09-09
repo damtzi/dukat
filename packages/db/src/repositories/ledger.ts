@@ -36,18 +36,11 @@ import {
 	workspace,
 	workspaceMembership
 } from '../schema';
+import { DomainError, type DomainErrorCode } from './domain-error';
 import { findAuthorizedWorkspace } from './workspaces';
 
-export type LedgerErrorCode = 'not_found' | 'conflict' | 'invalid';
-export class LedgerError extends Error {
-	constructor(
-		public readonly code: LedgerErrorCode,
-		message: string
-	) {
-		super(message);
-		this.name = 'LedgerError';
-	}
-}
+export type LedgerErrorCode = DomainErrorCode;
+export class LedgerError extends DomainError {}
 
 interface Context {
 	userId: string;

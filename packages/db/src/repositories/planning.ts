@@ -27,17 +27,11 @@ import {
 	plannedSeries,
 	user
 } from '../schema';
+import { DomainError } from './domain-error';
 import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
-export class PlanningError extends Error {
-	constructor(
-		public code: 'not_found' | 'conflict' | 'invalid',
-		message: string
-	) {
-		super(message);
-	}
-}
+export class PlanningError extends DomainError {}
 const view = (p: typeof plannedSeries.$inferSelect) => ({
 	id: p.id,
 	rootPlanId: p.rootPlanId,

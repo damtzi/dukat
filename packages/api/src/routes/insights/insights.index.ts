@@ -4,96 +4,94 @@ import * as routes from './insights.routes';
 
 const router = createRouter();
 router.use('/workspaces/*', authenticated);
-const context = (c: any) => ({
+const context = (c: {
+	var: { userId: string };
+	req: { valid(target: 'param'): { workspaceId: string } };
+}) => ({
 	userId: c.var.userId,
 	workspaceId: c.req.valid('param').workspaceId
 });
-const success = async (c: any, operation: () => Promise<unknown> | unknown) => {
-	try {
-		return c.json(await operation(), 200);
-	} catch (error) {
-		const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
-		if (code === 'not_found') return c.json({ message: (error as Error).message }, 404);
-		if (code === 'conflict') return c.json({ message: (error as Error).message }, 409);
-		if (code === 'invalid') return c.json({ message: (error as Error).message }, 400);
-		throw error;
-	}
-};
 
 export const insightsRouter = router
-	.openapi(routes.listCategories, (c) =>
-		success(c, () => c.var.services.insights.listCategories(context(c)))
+	.openapi(routes.listCategories, async (c) =>
+		c.json(await c.var.services.insights.listCategories(context(c)), 200)
 	)
-	.openapi(routes.createCategory, (c) =>
-		success(c, () => c.var.services.insights.createCategory(context(c), c.req.valid('json')))
+	.openapi(routes.createCategory, async (c) =>
+		c.json(await c.var.services.insights.createCategory(context(c), c.req.valid('json')), 200)
 	)
-	.openapi(routes.updateCategory, (c) =>
-		success(c, () =>
-			c.var.services.insights.updateCategory(
+	.openapi(routes.updateCategory, async (c) =>
+		c.json(
+			await c.var.services.insights.updateCategory(
 				context(c),
 				c.req.valid('param').categoryId,
 				c.req.valid('json')
-			)
+			),
+			200
 		)
 	)
-	.openapi(routes.categoryAction, (c) =>
-		success(c, () =>
-			c.var.services.insights.categoryAction(
+	.openapi(routes.categoryAction, async (c) =>
+		c.json(
+			await c.var.services.insights.categoryAction(
 				context(c),
 				c.req.valid('param').categoryId,
 				c.req.valid('param').action,
 				c.req.valid('json')
-			)
+			),
+			200
 		)
 	)
-	.openapi(routes.summary, (c) =>
-		success(c, async () => {
-			const query = c.req.valid('query');
-			const result = await c.var.services.insights.summary(context(c), {
-				...query,
-				accountIds: query.accountId
-					? Array.isArray(query.accountId)
-						? query.accountId
-						: [query.accountId]
-					: undefined
-			});
-			return c.var.services.exchangeRates
-				? c.var.services.exchangeRates.reportingSummary(context(c).workspaceId, result)
-				: result;
-		})
-	)
-	.openapi(routes.cashFlow, (c) =>
-		success(c, async () => {
-			const query = c.req.valid('query');
-			const result = await c.var.services.insights.summary(context(c), query);
-			return c.var.services.exchangeRates!.reportingCashFlow(
+	.openapi(routes.summary, async (c) => {
+		const query = c.req.valid('query');
+		const result = await c.var.services.insights.summary(context(c), {
+			...query,
+			accountIds: query.accountId
+				? Array.isArray(query.accountId)
+					? query.accountId
+					: [query.accountId]
+				: undefined
+		});
+		return c.json(
+			c.var.services.exchangeRates
+				? await c.var.services.exchangeRates.reportingSummary(context(c).workspaceId, result)
+				: result,
+			200
+		);
+	})
+	.openapi(routes.cashFlow, async (c) => {
+		const query = c.req.valid('query');
+		const result = await c.var.services.insights.summary(context(c), query);
+		return c.json(
+			await c.var.services.exchangeRates!.reportingCashFlow(
 				context(c).workspaceId,
 				result,
 				query.startDate,
 				query.endDate
-			);
-		})
+			),
+			200
+		);
+	})
+	.openapi(routes.preview, async (c) =>
+		c.json(await c.var.services.insights.preview(context(c), c.req.valid('json')), 200)
 	)
-	.openapi(routes.preview, (c) =>
-		success(c, () => c.var.services.insights.preview(context(c), c.req.valid('json')))
+	.openapi(routes.confirm, async (c) =>
+		c.json(await c.var.services.insights.confirm(context(c), c.req.valid('json')), 200)
 	)
-	.openapi(routes.confirm, (c) =>
-		success(c, () => c.var.services.insights.confirm(context(c), c.req.valid('json')))
+	.openapi(routes.listImports, async (c) =>
+		c.json(await c.var.services.insights.listImports(context(c)), 200)
 	)
-	.openapi(routes.listImports, (c) =>
-		success(c, () => c.var.services.insights.listImports(context(c)))
-	)
-	.openapi(routes.importDetail, (c) =>
-		success(c, () =>
-			c.var.services.insights.importDetail(context(c), c.req.valid('param').importId)
+	.openapi(routes.importDetail, async (c) =>
+		c.json(
+			await c.var.services.insights.importDetail(context(c), c.req.valid('param').importId),
+			200
 		)
 	)
-	.openapi(routes.trashImport, (c) =>
-		success(c, () =>
-			c.var.services.insights.trashImport(
+	.openapi(routes.trashImport, async (c) =>
+		c.json(
+			await c.var.services.insights.trashImport(
 				context(c),
 				c.req.valid('param').importId,
 				c.req.valid('json').idempotencyKey
-			)
+			),
+			200
 		)
 	);
