@@ -13,7 +13,9 @@
 		"lint": "turbo run lint",
 		"test": "turbo run test",
 		"test:e2e": "pnpm --filter @dukat/e2e test",
+		"test:e2e:matrix": "pnpm --filter @dukat/e2e test:matrix",
 		"test:e2e:full-stack": "pnpm --filter @dukat/e2e test:full-stack",
+		"test:e2e:full-stack:matrix": "pnpm --filter @dukat/e2e test:full-stack --matrix",
 		"lint-staged": "lint-staged",
 		"prepare": "husky"
 	},

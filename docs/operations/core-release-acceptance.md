@@ -40,8 +40,9 @@ Use this during normal use, if helpful. It does not block release or closing #66
 | ------------------------------ | --------------------------------------------------------------------------- |
 | Type checks                    | 11 tasks passed                                                             |
 | Lint                           | Passed                                                                      |
-| Full-stack browser suite       | 54 passed: nine journeys across six projects                                |
-| Complete test suite            | 8 tasks passed; browser tests: 146 passed, 46 existing skips                |
+| Default full-stack suite       | 9 passed on Chromium                                                        |
+| Optional full-stack matrix     | 54 passed: nine journeys across six projects                                |
+| Complete default test suite    | 8 tasks passed; browser tests: 58 passed, 6 existing skips                  |
 | Built-dashboard security smoke | 1 passed                                                                    |
 | Worker build                   | Dry run passed; no deployment                                               |
 | Migrations                     | Empty chain, original users from 0000, and financial data from 0015 checked |
@@ -69,12 +70,23 @@ pnpm lint
 pnpm test
 ```
 
-For a focused full-stack rerun:
+`pnpm test` keeps Chromium desktop and phone-layout browser checks, plus all unit and
+integration tests. CI uses these defaults. The full-stack default runs nine Chromium journeys:
 
 ```sh
-FULL_STACK_PROJECT=full-stack-chromium pnpm test:e2e:full-stack
+pnpm test:e2e:full-stack
 ```
 
-The full matrix remains available with `pnpm test:e2e:full-stack`. Each browser gets a
-fresh database. For build checks, use `pnpm --filter @dukat/e2e test:production` and
+Six-browser matrices are optional and do not run in routine CI:
+
+```sh
+pnpm test:e2e:matrix
+pnpm test:e2e:full-stack:matrix
+```
+
+Install the extra browsers before using the matrices:
+`pnpm --filter @dukat/e2e exec playwright install --with-deps chromium firefox webkit chrome msedge`.
+Each full-stack browser gets a fresh database. To check just another browser, use
+`FULL_STACK_PROJECT=full-stack-firefox pnpm test:e2e:full-stack`.
+For build checks, use `pnpm --filter @dukat/e2e test:production` and
 `pnpm --filter @dukat/server build:worker`; the latter does not deploy.

@@ -18,10 +18,9 @@ export default defineConfig({
 	},
 	projects: [
 		{
-			name: 'production-chrome',
+			name: 'production-chromium',
 			use: {
-				...devices['Desktop Chrome'],
-				...(process.env.CI ? { channel: 'chrome' } : {})
+				...devices['Desktop Chrome']
 			}
 		}
 	]
