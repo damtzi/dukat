@@ -78,6 +78,24 @@ test('a monthly category budget moves from available to forecast overspend', asy
 			amountMinor: '10000',
 			idempotencyKey: 'create-budget'
 		});
+		assert.deepEqual(
+			await f.budgets.create(f.context, {
+				categoryId: groceries.id,
+				month: '2026-08',
+				amountMinor: '10000',
+				idempotencyKey: 'create-budget'
+			}),
+			created
+		);
+		await assert.rejects(
+			f.budgets.create(f.context, {
+				categoryId: groceries.id,
+				month: '2026-08',
+				amountMinor: '10001',
+				idempotencyKey: 'create-budget'
+			}),
+			(error) => error instanceof BudgetError && error.code === 'conflict'
+		);
 		const expense = await f.ledger.createTransaction(f.context, 'eur', {
 			kind: 'expense',
 			amountMinor: '1000',

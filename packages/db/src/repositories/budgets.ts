@@ -16,7 +16,6 @@ import {
 	ledgerAudit,
 	ledgerCategory,
 	ledgerTransaction,
-	mutationReceipt,
 	plannedOccurrenceException,
 	plannedOccurrenceMatch,
 	plannedSeries,
@@ -24,6 +23,7 @@ import {
 } from '../schema';
 import type { createExchangeRateRepository } from './exchange-rates';
 import { DomainError } from './domain-error';
+import { serializeJson as json, withMutationReceipt } from './mutation-receipt';
 import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
@@ -31,10 +31,6 @@ type Rates = Pick<ReturnType<typeof createExchangeRateRepository>, 'reportingTot
 
 export class BudgetError extends DomainError {}
 
-const json = (value: unknown) =>
-	JSON.stringify(value, (_key, item) =>
-		typeof item === 'bigint' ? item.toString() : item instanceof Date ? item.toISOString() : item
-	);
 const view = (row: typeof categoryBudget.$inferSelect) => ({
 	id: row.id,
 	workspaceId: row.workspaceId,
@@ -99,35 +95,15 @@ export function createBudgetRepository(database: FinancialDatabase, rates: Rates
 		request: unknown,
 		run: () => Promise<T>
 	): Promise<T> => {
-		const requestJson = json(request);
-		const [receipt] = await tx
-			.select()
-			.from(mutationReceipt)
-			.where(
-				and(
-					eq(mutationReceipt.workspaceId, context.workspaceId),
-					eq(mutationReceipt.actorUserId, context.userId),
-					eq(mutationReceipt.operation, operation),
-					eq(mutationReceipt.idempotencyKey, key)
-				)
-			)
-			.limit(1);
-		if (receipt) {
-			if (receipt.requestJson !== requestJson)
-				throw new BudgetError('conflict', 'Idempotency key was already used for another request');
-			return JSON.parse(receipt.responseJson) as T;
-		}
-		const response = await run();
-		await tx.insert(mutationReceipt).values({
-			id: crypto.randomUUID(),
-			workspaceId: context.workspaceId,
-			actorUserId: context.userId,
+		return withMutationReceipt(
+			tx,
+			context,
 			operation,
-			idempotencyKey: key,
-			requestJson,
-			responseJson: json(response)
-		});
-		return response;
+			key,
+			request,
+			run,
+			() => new BudgetError('conflict', 'Idempotency key was already used for another request')
+		);
 	};
 	const load = async (tx: Tx, context: Context, id: string) => {
 		const [budget] = await tx

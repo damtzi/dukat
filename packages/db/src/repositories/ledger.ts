@@ -1,18 +1,4 @@
-import {
-	and,
-	desc,
-	eq,
-	gt,
-	gte,
-	inArray,
-	isNotNull,
-	isNull,
-	lte,
-	lt,
-	ne,
-	or,
-	sql
-} from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, lt, ne, or, sql } from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
 import type { TransactionSearch } from '@dukat/core/ledger';
 
@@ -36,7 +22,9 @@ import {
 	workspace,
 	workspaceMembership
 } from '../schema';
+import { accountBalanceActivity } from './account-balance';
 import { DomainError, type DomainErrorCode } from './domain-error';
+import { serializeJson as json, withMutationReceipt } from './mutation-receipt';
 import { findAuthorizedWorkspace } from './workspaces';
 
 export type LedgerErrorCode = DomainErrorCode;
@@ -140,8 +128,6 @@ type FinancialTransaction = Parameters<Parameters<FinancialDatabase['transaction
 const INT64_MIN = -(1n << 63n);
 const INT64_MAX = (1n << 63n) - 1n;
 const BALANCE_DIFFERENCE_MAX = (1n << 64n) - 1n;
-const json = (value: unknown) =>
-	JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? item.toString() : item));
 const parseMinor = (value: string) => {
 	let amount: bigint;
 	try {
@@ -365,35 +351,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		source: FinancialDatabase | Transaction = rawDatabase,
 		throughDate?: string
 	) {
-		const rows = await source
-			.select({ kind: ledgerTransaction.kind, amountMinor: ledgerTransaction.amountMinor })
-			.from(ledgerTransaction)
-			.where(
-				and(
-					eq(ledgerTransaction.workspaceId, workspaceId),
-					eq(ledgerTransaction.accountId, accountId),
-					isNull(ledgerTransaction.trashedAt),
-					gt(ledgerTransaction.date, openingDate),
-					throughDate ? lte(ledgerTransaction.date, throughDate) : undefined
-				)
-			);
-		const transactionTotal = rows.reduce(
-			(sum, row) => sum + (row.kind === 'expense' ? -row.amountMinor : row.amountMinor),
-			0n
-		);
-		const corrections = await source
-			.select({ amountMinor: ledgerBalanceCorrection.amountMinor })
-			.from(ledgerBalanceCorrection)
-			.where(
-				and(
-					eq(ledgerBalanceCorrection.workspaceId, workspaceId),
-					eq(ledgerBalanceCorrection.accountId, accountId),
-					isNull(ledgerBalanceCorrection.trashedAt),
-					gt(ledgerBalanceCorrection.date, openingDate),
-					throughDate ? lte(ledgerBalanceCorrection.date, throughDate) : undefined
-				)
-			);
-		return transactionTotal + corrections.reduce((sum, row) => sum + BigInt(row.amountMinor), 0n);
+		return accountBalanceActivity(source, { workspaceId, id: accountId, openingDate }, throughDate);
 	}
 	async function accountView(
 		account: typeof financialAccount.$inferSelect,
@@ -568,41 +526,15 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		request: unknown,
 		mutation: () => Promise<T>
 	): Promise<T> {
-		const requestJson = json(request);
-		const [receipt] = await tx
-			.select({
-				requestJson: mutationReceipt.requestJson,
-				responseJson: mutationReceipt.responseJson
-			})
-			.from(mutationReceipt)
-			.where(
-				and(
-					eq(mutationReceipt.workspaceId, context.workspaceId),
-					eq(mutationReceipt.actorUserId, context.userId),
-					eq(mutationReceipt.operation, operation),
-					eq(mutationReceipt.idempotencyKey, key)
-				)
-			)
-			.limit(1);
-		if (receipt) {
-			if (receipt.requestJson !== requestJson)
-				throw new LedgerError(
-					'conflict',
-					'Idempotency key was already used for a different request'
-				);
-			return JSON.parse(receipt.responseJson) as T;
-		}
-		const result = await mutation();
-		await tx.insert(mutationReceipt).values({
-			id: crypto.randomUUID(),
-			workspaceId: context.workspaceId,
-			actorUserId: context.userId,
+		return withMutationReceipt(
+			tx,
+			context,
 			operation,
-			idempotencyKey: key,
-			requestJson,
-			responseJson: json(result)
-		});
-		return result;
+			key,
+			request,
+			mutation,
+			() => new LedgerError('conflict', 'Idempotency key was already used for a different request')
+		);
 	}
 	async function transferIdempotent(
 		tx: Transaction,

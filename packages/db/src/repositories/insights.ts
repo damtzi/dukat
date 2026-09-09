@@ -7,19 +7,19 @@ import {
 } from '@dukat/core';
 import type { Summary } from '@dukat/core';
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
 	householdExpense,
 	ledgerAudit,
-	ledgerBalanceCorrection,
 	ledgerCategory,
 	ledgerImportBatch,
-	ledgerTransaction,
-	mutationReceipt
+	ledgerTransaction
 } from '../schema';
+import { calculateAccountBalance } from './account-balance';
 import { LedgerError } from './ledger';
+import { serializeJson as json, withMutationReceipt } from './mutation-receipt';
 import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
@@ -51,10 +51,6 @@ const isForeignKeyConstraint = (error: unknown): boolean =>
 	((error instanceof Error && /FOREIGN KEY constraint failed/i.test(error.message)) ||
 		('cause' in error && isForeignKeyConstraint((error as { cause?: unknown }).cause)));
 
-const json = (value: unknown) =>
-	JSON.stringify(value, (_key, item) =>
-		typeof item === 'bigint' ? item.toString() : item instanceof Date ? item.toISOString() : item
-	);
 const publicRow = <T extends Record<string, unknown>>(row: T) => JSON.parse(json(row)) as T;
 
 export function createInsightsRepository(db: FinancialDatabase) {
@@ -71,38 +67,15 @@ export function createInsightsRepository(db: FinancialDatabase) {
 		request: unknown,
 		run: () => Promise<T>
 	) => {
-		const requestJson = json(request);
-		const [receipt] = await tx
-			.select()
-			.from(mutationReceipt)
-			.where(
-				and(
-					eq(mutationReceipt.workspaceId, c.workspaceId),
-					eq(mutationReceipt.actorUserId, c.userId),
-					eq(mutationReceipt.operation, operation),
-					eq(mutationReceipt.idempotencyKey, key)
-				)
-			)
-			.limit(1);
-		if (receipt) {
-			if (receipt.requestJson !== requestJson)
-				throw new LedgerError(
-					'conflict',
-					'Idempotency key was already used for a different request'
-				);
-			return JSON.parse(receipt.responseJson) as T;
-		}
-		const result = await run();
-		await tx.insert(mutationReceipt).values({
-			id: crypto.randomUUID(),
-			workspaceId: c.workspaceId,
-			actorUserId: c.userId,
+		return withMutationReceipt(
+			tx,
+			c,
 			operation,
-			idempotencyKey: key,
-			requestJson,
-			responseJson: json(result)
-		});
-		return result;
+			key,
+			request,
+			run,
+			() => new LedgerError('conflict', 'Idempotency key was already used for a different request')
+		);
 	};
 	const audit = (
 		tx: Tx,
@@ -600,33 +573,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 						);
 					if (!account || account.archivedAt)
 						throw new LedgerError('conflict', 'Account cannot accept imports');
-					const current = await tx
-						.select({ kind: ledgerTransaction.kind, amount: ledgerTransaction.amountMinor })
-						.from(ledgerTransaction)
-						.where(
-							and(
-								eq(ledgerTransaction.workspaceId, c.workspaceId),
-								eq(ledgerTransaction.accountId, account.id),
-								isNull(ledgerTransaction.trashedAt),
-								gt(ledgerTransaction.date, account.openingDate)
-							)
-						);
-					let projected = current.reduce(
-						(total, row) => total + (row.kind === 'expense' ? -row.amount : row.amount),
-						account.openingBalanceMinor
-					);
-					const corrections = await tx
-						.select({ amount: ledgerBalanceCorrection.amountMinor })
-						.from(ledgerBalanceCorrection)
-						.where(
-							and(
-								eq(ledgerBalanceCorrection.workspaceId, c.workspaceId),
-								eq(ledgerBalanceCorrection.accountId, account.id),
-								isNull(ledgerBalanceCorrection.trashedAt),
-								gt(ledgerBalanceCorrection.date, account.openingDate)
-							)
-						);
-					projected += corrections.reduce((sum, row) => sum + BigInt(row.amount), 0n);
+					let projected = await calculateAccountBalance(tx, account);
 					for (const choice of selected) {
 						const row = preview.rows.find((candidate) => candidate.sourceRow === choice.sourceRow)!;
 						if (!row.errors.length && row.date > account.openingDate)
@@ -824,35 +771,7 @@ export function createInsightsRepository(db: FinancialDatabase) {
 						.returning();
 					if (batchUpdate.length !== 1)
 						throw new LedgerError('conflict', 'Import batch changed concurrently');
-					const remaining = await tx
-						.select({ kind: ledgerTransaction.kind, amount: ledgerTransaction.amountMinor })
-						.from(ledgerTransaction)
-						.where(
-							and(
-								eq(ledgerTransaction.workspaceId, c.workspaceId),
-								eq(ledgerTransaction.accountId, account.id),
-								isNull(ledgerTransaction.trashedAt),
-								gt(ledgerTransaction.date, account.openingDate)
-							)
-						);
-					let resulting =
-						account.openingBalanceMinor +
-						remaining.reduce(
-							(sum, row) => sum + (row.kind === 'expense' ? -row.amount : row.amount),
-							0n
-						);
-					const corrections = await tx
-						.select({ amount: ledgerBalanceCorrection.amountMinor })
-						.from(ledgerBalanceCorrection)
-						.where(
-							and(
-								eq(ledgerBalanceCorrection.workspaceId, c.workspaceId),
-								eq(ledgerBalanceCorrection.accountId, account.id),
-								isNull(ledgerBalanceCorrection.trashedAt),
-								gt(ledgerBalanceCorrection.date, account.openingDate)
-							)
-						);
-					resulting += corrections.reduce((sum, row) => sum + BigInt(row.amount), 0n);
+					const resulting = await calculateAccountBalance(tx, account);
 					if (resulting < -(1n << 63n) || resulting > (1n << 63n) - 1n)
 						throw new LedgerError(
 							'invalid',

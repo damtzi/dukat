@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import type { Database, FinancialDatabase } from '../connection';
 import {
@@ -23,6 +23,7 @@ import {
 	workspaceManualRate,
 	workspaceMembership
 } from '../schema';
+import { calculateAccountBalance } from './account-balance';
 import { listAuthorizedWorkspaces } from './workspaces';
 
 export const USER_EXPORT_CONTRACT = 'dukat.user-export';
@@ -426,45 +427,6 @@ export function createExportRepository(
 		});
 	}
 
-	async function currentBalance(account: typeof financialAccount.$inferSelect) {
-		let balance = account.openingBalanceMinor;
-		for await (const row of pages((offset) =>
-			financialDatabase
-				.select({ kind: ledgerTransaction.kind, amountMinor: ledgerTransaction.amountMinor })
-				.from(ledgerTransaction)
-				.where(
-					and(
-						eq(ledgerTransaction.workspaceId, account.workspaceId),
-						eq(ledgerTransaction.accountId, account.id),
-						isNull(ledgerTransaction.trashedAt),
-						gt(ledgerTransaction.date, account.openingDate)
-					)
-				)
-				.orderBy(asc(ledgerTransaction.id))
-				.limit(PAGE_SIZE)
-				.offset(offset)
-		))
-			balance += row.kind === 'expense' ? -row.amountMinor : row.amountMinor;
-		for await (const row of pages((offset) =>
-			financialDatabase
-				.select({ amountMinor: ledgerBalanceCorrection.amountMinor })
-				.from(ledgerBalanceCorrection)
-				.where(
-					and(
-						eq(ledgerBalanceCorrection.workspaceId, account.workspaceId),
-						eq(ledgerBalanceCorrection.accountId, account.id),
-						isNull(ledgerBalanceCorrection.trashedAt),
-						gt(ledgerBalanceCorrection.date, account.openingDate)
-					)
-				)
-				.orderBy(asc(ledgerBalanceCorrection.id))
-				.limit(PAGE_SIZE)
-				.offset(offset)
-		))
-			balance += BigInt(row.amountMinor);
-		return balance;
-	}
-
 	async function* balancesCsv(userId: string) {
 		const { workspaceIds, scopeById } = await scope(userId);
 		yield csvRow([
@@ -518,7 +480,7 @@ export function createExportRepository(
 				account.id,
 				account.currency,
 				now().toISOString().slice(0, 10),
-				await currentBalance(account),
+				await calculateAccountBalance(financialDatabase, account),
 				account.version,
 				null,
 				account.archivedAt,

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
 import {
 	forecastBalances,
 	isRuleGeneratedOccurrence,
@@ -20,14 +20,14 @@ import {
 	ledgerAudit,
 	ledgerCategory,
 	ledgerTransaction,
-	ledgerBalanceCorrection,
-	mutationReceipt,
 	plannedOccurrenceException,
 	plannedOccurrenceMatch,
 	plannedSeries,
 	user
 } from '../schema';
+import { calculateAccountBalance } from './account-balance';
 import { DomainError } from './domain-error';
+import { serializeJson as json, withMutationReceipt } from './mutation-receipt';
 import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
@@ -57,8 +57,6 @@ const view = (p: typeof plannedSeries.$inferSelect) => ({
 			}
 		: undefined
 });
-const json = (value: unknown) =>
-	JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? item.toString() : item));
 const parse = <T>(schema: ZodType<T>, raw: unknown): T => {
 	try {
 		return schema.parse(raw);
@@ -73,49 +71,25 @@ export function createPlanningRepository(
 	database: FinancialDatabase,
 	clock: () => Date = () => new Date()
 ) {
+	type Tx = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
 	const idempotent = async <T>(
-		tx: any,
+		tx: Tx,
 		c: Context,
 		operation: string,
 		key: string,
 		request: unknown,
 		mutation: () => Promise<T>
 	): Promise<T> => {
-		const requestJson = json(request);
-		const [receipt] = await tx
-			.select({
-				requestJson: mutationReceipt.requestJson,
-				responseJson: mutationReceipt.responseJson
-			})
-			.from(mutationReceipt)
-			.where(
-				and(
-					eq(mutationReceipt.workspaceId, c.workspaceId),
-					eq(mutationReceipt.actorUserId, c.userId),
-					eq(mutationReceipt.operation, operation),
-					eq(mutationReceipt.idempotencyKey, key)
-				)
-			)
-			.limit(1);
-		if (receipt) {
-			if (receipt.requestJson !== requestJson)
-				throw new PlanningError(
-					'conflict',
-					'Idempotency key was already used for a different request'
-				);
-			return JSON.parse(receipt.responseJson) as T;
-		}
-		const result = await mutation();
-		await tx.insert(mutationReceipt).values({
-			id: crypto.randomUUID(),
-			workspaceId: c.workspaceId,
-			actorUserId: c.userId,
+		return withMutationReceipt(
+			tx,
+			c,
 			operation,
-			idempotencyKey: key,
-			requestJson,
-			responseJson: json(result)
-		});
-		return result;
+			key,
+			request,
+			mutation,
+			() =>
+				new PlanningError('conflict', 'Idempotency key was already used for a different request')
+		);
 	};
 	const authorized = async (tx: any, c: Context) => {
 		const row = await findAuthorizedWorkspace(tx, c);
@@ -745,33 +719,7 @@ export function createPlanningRepository(
 						and(eq(financialAccount.id, accountId), eq(financialAccount.workspaceId, c.workspaceId))
 					);
 				if (!a) throw new PlanningError('not_found', 'Account not found');
-				const transactions = await tx
-					.select()
-					.from(ledgerTransaction)
-					.where(
-						and(
-							eq(ledgerTransaction.accountId, accountId),
-							isNull(ledgerTransaction.trashedAt),
-							gt(ledgerTransaction.date, a.openingDate)
-						)
-					);
-				const corrections = await tx
-					.select()
-					.from(ledgerBalanceCorrection)
-					.where(
-						and(
-							eq(ledgerBalanceCorrection.accountId, accountId),
-							isNull(ledgerBalanceCorrection.trashedAt),
-							gt(ledgerBalanceCorrection.date, a.openingDate)
-						)
-					);
-				const balance = corrections.reduce(
-					(v: bigint, x) => v + BigInt(x.amountMinor),
-					transactions.reduce(
-						(v: bigint, t) => v + (t.kind === 'expense' ? -t.amountMinor : t.amountMinor),
-						a.openingBalanceMinor
-					)
-				);
+				const balance = await calculateAccountBalance(tx, a);
 				const ps = await tx
 					.select()
 					.from(plannedSeries)
