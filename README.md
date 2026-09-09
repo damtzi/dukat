@@ -105,4 +105,4 @@ Production releases use `db:migrate:release`. See the
 [backup and restore runbook](docs/operations/recovery.md).
 
 Use the [core release acceptance checklist](docs/operations/core-release-acceptance.md)
-for automated gates, the live restore drill, and the two-user one-month trial.
+for four practical release checks and optional first-month guidance.
