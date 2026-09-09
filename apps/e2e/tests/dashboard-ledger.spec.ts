@@ -1,30 +1,11 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-
-type Account = {
-	id: string;
-	name: string;
-	type: 'current' | 'savings' | 'cash' | 'credit_card';
-	currency: string;
-	openingDate: string;
-	openingBalanceMinor: string;
-	version: number;
-	archivedAt: string | null;
-};
-
-type Transaction = {
-	id: string;
-	accountId?: string;
-	kind: 'expense' | 'income' | 'refund';
-	amountMinor: string;
-	date: string;
-	merchant: string | null;
-	description: string | null;
-	categoryId?: string | null;
-	refundOfTransactionId?: string | null;
-	version: number;
-	trashedAt: string | null;
-};
+import {
+	accountSchema,
+	transactionSchema,
+	type Account,
+	type Transaction
+} from '@dukat/core/ledger';
 
 type Favorite = {
 	id: string;
@@ -34,6 +15,7 @@ type Favorite = {
 
 const workspaceId = 'workspace-e2e';
 const accountId = 'account-e2e';
+const fixtureTimestamp = '2026-07-31T12:00:00.000Z';
 const key = expect.stringMatching(/^\d+-[0-9a-f-]{36}$/);
 const personalWorkspace = {
 	id: workspaceId,
@@ -166,23 +148,130 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 	let favoriteNumber = 0;
 	let favorites = [...initialFavorites];
 
-	const balance = () =>
-		BigInt(account?.openingBalanceMinor ?? '0') +
-		transactions
-			.filter((item) => !item.trashedAt)
-			.reduce(
-				(sum, item) =>
-					sum + (item.kind === 'expense' ? -BigInt(item.amountMinor) : BigInt(item.amountMinor)),
-				0n
-			);
-	const accountResponse = () => ({
-		...account,
-		balanceMinor: balance().toString(),
-		negativeBalance: balance() < 0n,
-		canDelete: !account?.archivedAt && transactions.length === 0,
-		canArchive: !account?.archivedAt && balance() === 0n,
-		canRestore: !!account?.archivedAt
-	});
+	const accountFixture = (
+		response: Pick<
+			Account,
+			| 'activityStartedAt'
+			| 'balanceMinor'
+			| 'negativeBalance'
+			| 'canDelete'
+			| 'canArchive'
+			| 'canRestore'
+		>,
+		overrides: Partial<Account> = {}
+	) =>
+		accountSchema.parse({
+			id: accountId,
+			workspaceId,
+			name: 'Everyday account',
+			type: 'current',
+			currency: 'USD',
+			openingDate: '2026-07-31',
+			openingBalanceMinor: '10000',
+			version: 1,
+			archivedAt: null,
+			createdAt: fixtureTimestamp,
+			updatedAt: fixtureTimestamp,
+			...overrides,
+			...response
+		});
+	const transactionFixture = (
+		fixture: Partial<Transaction> & Pick<Transaction, 'id' | 'kind' | 'amountMinor'>
+	) =>
+		transactionSchema.parse({
+			workspaceId,
+			accountId,
+			date: '2026-07-31',
+			merchant: 'Landlord',
+			description: 'Rent',
+			categoryId: null,
+			refundOfTransactionId: null,
+			source: 'manual',
+			version: 1,
+			trashedAt: null,
+			createdAt: fixtureTimestamp,
+			updatedAt: fixtureTimestamp,
+			...fixture
+		});
+	const accountResponses = {
+		created: {
+			activityStartedAt: null,
+			balanceMinor: '10000',
+			negativeBalance: false,
+			canDelete: true,
+			canArchive: false,
+			canRestore: false
+		},
+		expenseCreated: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '-2500',
+			negativeBalance: true,
+			canDelete: false,
+			canArchive: false,
+			canRestore: false
+		},
+		refundCreated: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '0',
+			negativeBalance: false,
+			canDelete: false,
+			canArchive: true,
+			canRestore: false
+		},
+		expenseReduced: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '500',
+			negativeBalance: false,
+			canDelete: false,
+			canArchive: false,
+			canRestore: false
+		},
+		refundTrashed: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '-2000',
+			negativeBalance: true,
+			canDelete: false,
+			canArchive: false,
+			canRestore: false
+		},
+		activityAtZero: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '0',
+			negativeBalance: false,
+			canDelete: false,
+			canArchive: true,
+			canRestore: false
+		},
+		archived: {
+			activityStartedAt: fixtureTimestamp,
+			balanceMinor: '0',
+			negativeBalance: false,
+			canDelete: false,
+			canArchive: false,
+			canRestore: true
+		}
+	} satisfies Record<
+		string,
+		Pick<
+			Account,
+			| 'activityStartedAt'
+			| 'balanceMinor'
+			| 'negativeBalance'
+			| 'canDelete'
+			| 'canArchive'
+			| 'canRestore'
+		>
+	>;
+	const applyAccountResponse = (
+		response: (typeof accountResponses)[keyof typeof accountResponses],
+		overrides: Partial<Account> = {}
+	) => {
+		account = accountFixture(response, {
+			...account,
+			...overrides
+		});
+		return account;
+	};
 
 	await page.route('**/api/**', async (route) => {
 		const request = route.request();
@@ -237,8 +326,8 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				estimate: true,
 				reportingCurrency: 'USD',
 				missingRate: false,
-				startingBalanceMinor: balance().toString(),
-				endingBalanceMinor: balance().toString(),
+				startingBalanceMinor: account?.balanceMinor ?? '0',
+				endingBalanceMinor: account?.balanceMinor ?? '0',
 				occurrences: [],
 				points: [],
 				accounts: []
@@ -247,14 +336,14 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 		if (pathname === `/api/workspaces/${workspaceId}/balances/converted` && method === 'GET') {
 			return json(route, {
 				reportingCurrency: 'USD',
-				totalMinor: balance().toString(),
+				totalMinor: account?.balanceMinor ?? '0',
 				missingRate: false,
 				rates: [],
 				accounts: []
 			});
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
-			return json(route, account ? [accountResponse()] : []);
+			return json(route, account ? [account] : []);
 		}
 		if (pathname.endsWith('/history') && method === 'GET') {
 			return json(route, [
@@ -273,17 +362,14 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			]);
 		}
 		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'POST') {
-			account = {
-				id: accountId,
+			account = applyAccountResponse(accountResponses.created, {
 				name: body.name as string,
 				type: body.type as Account['type'],
 				currency: body.currency as string,
 				openingDate: body.openingDate as string,
-				openingBalanceMinor: body.openingBalanceMinor as string,
-				version: 1,
-				archivedAt: null
-			};
-			const response = await json(route, accountResponse(), 201);
+				openingBalanceMinor: body.openingBalanceMinor as string
+			});
+			const response = await json(route, account, 201);
 			expect(body).toEqual({
 				name: 'Everyday account',
 				type: 'current',
@@ -304,13 +390,13 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				version: 1,
 				idempotencyKey: key
 			});
-			account = {
-				...account!,
+			account = accountSchema.parse({
+				...account,
 				name: body.name as string,
 				type: body.type as Account['type'],
 				version: 2
-			};
-			return json(route, accountResponse());
+			});
+			return json(route, account);
 		}
 		if (
 			pathname === `/api/workspaces/${workspaceId}/accounts/${accountId}/transactions` &&
@@ -346,23 +432,17 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			};
 			expect(body).toEqual(expected);
 			expect(body!.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-			const transaction: Transaction = {
+			const transaction = transactionFixture({
 				id: `expense-e2e-${transactionNumber++}`,
-				accountId,
 				kind: body!.kind as Transaction['kind'],
 				amountMinor: body!.amountMinor as string,
 				date: body!.date as string,
 				merchant: body!.merchant as string | null,
-				description: body!.description as string,
-				version: 1,
-				trashedAt: null
-			};
+				description: body!.description as string
+			});
 			transactions.push(transaction);
-			return json(
-				route,
-				{ transaction, balanceMinor: balance().toString(), negativeBalance: balance() < 0n },
-				201
-			);
+			applyAccountResponse(accountResponses.expenseCreated);
+			return json(route, { transaction, balanceMinor: '-2500', negativeBalance: true }, 201);
 		}
 		if (
 			pathname === `/api/workspaces/${workspaceId}/transactions/expense-e2e-0/refunds` &&
@@ -375,24 +455,22 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				date: body!.date,
 				idempotencyKey: key
 			});
-			const transaction: Transaction = {
+			const transaction = transactionFixture({
 				id: 'refund-e2e',
-				accountId,
 				kind: 'refund',
 				amountMinor: '2500',
 				date: body!.date as string,
 				merchant: 'Landlord',
 				description: 'Refund',
 				categoryId: null,
-				refundOfTransactionId: 'expense-e2e-0',
-				version: 1,
-				trashedAt: null
-			};
+				refundOfTransactionId: 'expense-e2e-0'
+			});
 			transactions.push(transaction);
+			applyAccountResponse(accountResponses.refundCreated);
 			return json(route, {
 				transaction,
-				balanceMinor: balance().toString(),
-				negativeBalance: balance() < 0n
+				balanceMinor: '0',
+				negativeBalance: false
 			});
 		}
 		if (
@@ -418,10 +496,13 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 				date: body!.date,
 				version: item.version + 1
 			});
+			const response =
+				item.version === 2 ? accountResponses.expenseReduced : accountResponses.activityAtZero;
+			applyAccountResponse(response);
 			return json(route, {
 				transaction: item,
-				balanceMinor: balance().toString(),
-				negativeBalance: balance() < 0n
+				balanceMinor: response.balanceMinor,
+				negativeBalance: response.negativeBalance
 			});
 		}
 		const transactionAction = pathname.match(
@@ -432,11 +513,14 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			const item = transactions.find((candidate) => candidate.id === id)!;
 			expect(body).toEqual({ version: item.version, idempotencyKey: key });
 			item.version++;
-			item.trashedAt = action === 'trash' ? '2026-07-31T12:00:00.000Z' : null;
+			item.trashedAt = action === 'trash' ? fixtureTimestamp : null;
+			const response =
+				action === 'trash' ? accountResponses.refundTrashed : accountResponses.expenseReduced;
+			applyAccountResponse(response);
 			return json(route, {
 				transaction: item,
-				balanceMinor: balance().toString(),
-				negativeBalance: balance() < 0n
+				balanceMinor: response.balanceMinor,
+				negativeBalance: response.negativeBalance
 			});
 		}
 		const accountAction = pathname.match(
@@ -454,14 +538,25 @@ async function mockLedger(page: Page, initialFavorites: Favorite[] = []) {
 			});
 		}
 		if (accountAction && method === 'POST') {
+			const action = accountAction[1];
 			expect(body).toEqual({
 				version: account!.version,
 				idempotencyKey: key,
-				...(accountAction[1] === 'archive' ? { impactToken: 'no-plans-impact' } : {})
+				...(action === 'archive' ? { impactToken: 'no-plans-impact' } : {})
 			});
-			account!.version++;
-			account!.archivedAt = accountAction[1] === 'archive' ? '2026-07-31T12:00:00.000Z' : null;
-			return json(route, accountResponse());
+			const response = applyAccountResponse(
+				action === 'archive' ? accountResponses.archived : accountResponses.activityAtZero,
+				{
+					version: account!.version + 1,
+					archivedAt: action === 'archive' ? fixtureTimestamp : null
+				}
+			);
+			return json(route, {
+				...response,
+				...(action === 'archive'
+					? { planningImpact: { stoppedRecurring: 0, cancelledOneTime: 0 } }
+					: {})
+			});
 		}
 
 		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
@@ -2018,28 +2113,34 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 });
 
 test('transfers with a separate fee and explicitly reconciles a balance', async ({ page }) => {
-	const accounts = [
-		{
-			id: 'checking',
-			name: 'Checking',
-			type: 'current',
+	const account = (id: 'checking' | 'savings', balanceMinor: string) =>
+		accountSchema.parse({
+			id,
+			workspaceId,
+			name: id === 'checking' ? 'Checking' : 'Savings',
+			type: id === 'checking' ? 'current' : 'savings',
 			currency: 'USD',
 			openingDate: '2026-01-01',
 			openingBalanceMinor: '10000',
 			version: 1,
-			archivedAt: null
-		},
-		{
-			id: 'savings',
-			name: 'Savings',
-			type: 'savings',
-			currency: 'USD',
-			openingDate: '2026-01-01',
-			openingBalanceMinor: '10000',
-			version: 1,
-			archivedAt: null
-		}
-	];
+			activityStartedAt: fixtureTimestamp,
+			archivedAt: null,
+			createdAt: fixtureTimestamp,
+			updatedAt: fixtureTimestamp,
+			balanceMinor,
+			negativeBalance: false,
+			canDelete: false,
+			canArchive: false,
+			canRestore: false
+		});
+	const accountResponses = {
+		initial: [account('checking', '10000'), account('savings', '10000')],
+		transferred: [account('checking', '8000'), account('savings', '12000')],
+		feeRecorded: [account('checking', '7900'), account('savings', '12000')],
+		transferTrashed: [account('checking', '9900'), account('savings', '10000')],
+		reconciled: [account('checking', '8000'), account('savings', '12000')]
+	};
+	let accountResponseState: keyof typeof accountResponses = 'initial';
 	const transfers: Array<Record<string, unknown>> = [];
 	const transactions: Array<Record<string, unknown>> = [];
 	const checks: Array<Record<string, unknown>> = [];
@@ -2048,22 +2149,6 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	let firstCorrectionBody: Record<string, unknown> | undefined;
 	let feeAttempts = 0;
 	let correctionAttempts = 0;
-	const accountResponse = (account: (typeof accounts)[number]) => ({
-		...account,
-		balanceMinor:
-			account.id === 'checking'
-				? (
-						10000n -
-						(transfers[0]?.trashedAt ? 0n : 2000n) -
-						100n +
-						BigInt((corrections[0]?.amountMinor as string) ?? '0')
-					).toString()
-				: (10000n + (transfers[0]?.trashedAt ? 0n : 2000n)).toString(),
-		negativeBalance: false,
-		canDelete: false,
-		canArchive: false,
-		canRestore: false
-	});
 	await page.route('**/api/**', async (route) => {
 		const request = route.request();
 		const url = new URL(request.url());
@@ -2075,7 +2160,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 		if (path === '/api/favorites' && method === 'GET') return json(route, []);
 		if (path === '/api/workspaces') return json(route, [personalWorkspace]);
 		if (path === `/api/workspaces/${workspaceId}/accounts`)
-			return json(route, accounts.map(accountResponse));
+			return json(route, accountResponses[accountResponseState]);
 		if (method === 'GET' && path.endsWith('/transactions')) return json(route, transactions);
 		if (method === 'GET' && path.endsWith('/transfers')) return json(route, transfers);
 		if (method === 'GET' && path.endsWith('/balance-checks')) return json(route, checks);
@@ -2105,6 +2190,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 				version: 1,
 				trashedAt: null
 			});
+			accountResponseState = 'transferred';
 			return json(route, transfers[0]);
 		}
 		if (method === 'POST' && path.endsWith('/accounts/checking/transactions')) {
@@ -2118,6 +2204,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 			if (!firstFeeBody) {
 				firstFeeBody = body;
 				transactions.push({ id: 'fee-e2e', ...body, version: 1, trashedAt: null });
+				accountResponseState = 'feeRecorded';
 				return route.abort('connectionfailed');
 			}
 			expect(body).toEqual(firstFeeBody);
@@ -2130,6 +2217,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 		if (method === 'POST' && /\/transfers\/transfer-e2e\/(trash|restore)$/.test(path)) {
 			transfers[0].version = Number(transfers[0].version) + 1;
 			transfers[0].trashedAt = path.endsWith('/trash') ? '2026-08-01T00:00:00Z' : null;
+			accountResponseState = path.endsWith('/trash') ? 'transferTrashed' : 'feeRecorded';
 			return json(route, transfers[0]);
 		}
 		if (method === 'POST' && path.endsWith('/balance-checks')) {
@@ -2154,6 +2242,7 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 			if (!firstCorrectionBody) {
 				firstCorrectionBody = body;
 				corrections.push({ id: 'correction-e2e', ...body, version: 1, trashedAt: null });
+				accountResponseState = 'reconciled';
 				return route.abort('connectionfailed');
 			}
 			expect(body).toEqual(firstCorrectionBody);

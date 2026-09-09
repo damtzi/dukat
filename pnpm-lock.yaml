@@ -193,6 +193,9 @@ importers:
       '@axe-core/playwright':
         specifier: ^4.10.2
         version: 4.12.1(playwright-core@1.62.1)
+      '@dukat/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@hono/node-server':
         specifier: ^1.19.14
         version: 1.19.14(hono@4.12.26)
