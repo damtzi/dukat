@@ -6,8 +6,10 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { eq } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { createDatabase, createFinancialDatabase } from '../connection';
+import { createDatabase, createFinancialDatabase, type FinancialDatabase } from '../connection';
+import * as schema from '../schema';
 import { financialAccount, ledgerBalanceCorrection, user, workspace } from '../schema';
 import { createLedgerRepository } from './ledger';
 import { createPlanningRepository } from './planning';
@@ -50,7 +52,15 @@ test('planning persists recurrence, forecasts corrections, and matches only once
 			amountMinor: '50'
 		});
 
-		const planning = createPlanningRepository(financial.db, () => new Date('2026-08-06T12:00:00Z'));
+		const queries: string[] = [];
+		const instrumentedDatabase = drizzle(financial.client, {
+			schema,
+			logger: { logQuery: (query) => queries.push(query) }
+		}) as FinancialDatabase;
+		const planning = createPlanningRepository(
+			instrumentedDatabase,
+			() => new Date('2026-08-06T12:00:00Z')
+		);
 		const plan = await planning.create(context, {
 			idempotencyKey: 'create-monthly-plan',
 			accountId: 'cash',
@@ -140,7 +150,13 @@ test('planning persists recurrence, forecasts corrections, and matches only once
 		});
 		assert.notEqual(successor.id, plan.id);
 		assert.equal(successor.rootPlanId, plan.id);
+		queries.length = 0;
 		const afterSplit = await planning.accountForecast(context, 'cash');
+		assert.equal(
+			queries.filter((query) => query.includes('from "planned_occurrence_exception"')).length,
+			1,
+			'a multi-plan forecast loads exceptions in one query'
+		);
 		assert.ok(
 			afterSplit.matchedOccurrences.some(
 				(matchedOccurrence) =>

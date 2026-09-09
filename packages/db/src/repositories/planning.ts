@@ -170,28 +170,29 @@ export function createPlanningRepository(
 	};
 	const exceptions = async (tx: any, id: string) =>
 		tx.select().from(plannedOccurrenceException).where(eq(plannedOccurrenceException.planId, id));
-	const corePlan = async (
-		tx: any,
-		p: typeof plannedSeries.$inferSelect
-	): Promise<PlannedTransaction> => ({
-		id: p.id,
-		accountId: p.accountId,
-		kind: p.kind,
-		amountMinor: p.amountMinor,
-		date: p.date,
-		effectiveFrom: p.effectiveFrom,
-		status: p.status,
+	type OccurrenceException = typeof plannedOccurrenceException.$inferSelect;
+	const toCorePlan = (
+		plan: typeof plannedSeries.$inferSelect,
+		planExceptions: OccurrenceException[]
+	): PlannedTransaction => ({
+		id: plan.id,
+		accountId: plan.accountId,
+		kind: plan.kind,
+		amountMinor: plan.amountMinor,
+		date: plan.date,
+		effectiveFrom: plan.effectiveFrom,
+		status: plan.status,
 		active: true,
-		cutoffDate: p.cutoffDate,
-		cancelled: p.cancelled === 1,
-		recurrence: p.recurrenceFrequency
+		cutoffDate: plan.cutoffDate,
+		cancelled: plan.cancelled === 1,
+		recurrence: plan.recurrenceFrequency
 			? {
-					frequency: p.recurrenceFrequency,
-					interval: p.recurrenceInterval!,
-					endDate: p.recurrenceEndDate ?? undefined
+					frequency: plan.recurrenceFrequency,
+					interval: plan.recurrenceInterval!,
+					endDate: plan.recurrenceEndDate ?? undefined
 				}
 			: undefined,
-		exceptions: (await exceptions(tx, p.id)).map((e: any) =>
+		exceptions: planExceptions.map((e) =>
 			e.action === 'skip'
 				? { originalDate: e.originalDate, action: 'skip' }
 				: {
@@ -203,6 +204,30 @@ export function createPlanningRepository(
 					}
 		)
 	});
+	const corePlan = async (tx: any, p: typeof plannedSeries.$inferSelect) =>
+		toCorePlan(p, await exceptions(tx, p.id));
+	const corePlans = async (
+		tx: any,
+		plans: Array<typeof plannedSeries.$inferSelect>
+	): Promise<PlannedTransaction[]> => {
+		if (!plans.length) return [];
+		const loadedExceptions: OccurrenceException[] = await tx
+			.select()
+			.from(plannedOccurrenceException)
+			.where(
+				inArray(
+					plannedOccurrenceException.planId,
+					plans.map(({ id }) => id)
+				)
+			);
+		const exceptionsByPlan = new Map<string, OccurrenceException[]>();
+		for (const occurrenceException of loadedExceptions) {
+			const planExceptions = exceptionsByPlan.get(occurrenceException.planId) ?? [];
+			planExceptions.push(occurrenceException);
+			exceptionsByPlan.set(occurrenceException.planId, planExceptions);
+		}
+		return plans.map((plan) => toCorePlan(plan, exceptionsByPlan.get(plan.id) ?? []));
+	};
 	return {
 		async list(c: Context) {
 			return database.transaction(async (tx) => {
@@ -774,18 +799,17 @@ export function createPlanningRepository(
 						)
 					)
 					.where(eq(plannedOccurrenceMatch.workspaceId, c.workspaceId));
+				const plans = await corePlans(tx, ps);
 				const result = forecastBalances(
 					[{ id: accountId, currentBalanceMinor: balance }],
-					a.archivedAt ? [] : await Promise.all(ps.map((p) => corePlan(tx, p))),
+					a.archivedAt ? [] : plans,
 					{
 						today,
 						includeTentative,
 						matchedOccurrences: new Set(matches.map((m) => `${m.planId}:${m.originalDate}`))
 					}
 				)[0];
-				const plansById = new Map(
-					(await Promise.all(ps.map((p) => corePlan(tx, p)))).map((p) => [p.id, p])
-				);
+				const plansById = new Map(plans.map((plan) => [plan.id, plan]));
 				const matchedOccurrences = matches.flatMap((match) => {
 					const matchedPlan = plansById.get(match.planId);
 					if (!matchedPlan) return [];
