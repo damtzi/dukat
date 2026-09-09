@@ -22,7 +22,7 @@ const children: ChildProcess[] = [];
 const executable = (name: string) => resolve(repositoryRoot, 'node_modules/.bin', name);
 
 // Each browser gets a fresh database: these journeys intentionally change shared fixtures.
-if (!process.env.FULL_STACK_PROJECT) {
+if (process.argv.includes('--matrix')) {
 	for (const browser of ['chromium', 'chrome', 'firefox', 'webkit', 'edge', 'phone']) {
 		const child = start(executable('tsx'), [fileURLToPath(import.meta.url)], {
 			...process.env,
@@ -351,7 +351,7 @@ try {
 			'--config',
 			'playwright.full-stack.config.ts',
 			'--project',
-			process.env.FULL_STACK_PROJECT
+			process.env.FULL_STACK_PROJECT ?? 'full-stack-chromium'
 		],
 		environment,
 		join(repositoryRoot, 'apps/e2e')
