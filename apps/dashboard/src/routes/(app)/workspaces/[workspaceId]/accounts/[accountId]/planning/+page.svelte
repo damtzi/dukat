@@ -9,7 +9,7 @@
 
   let { data }: { data: PageData } = $props()
   const { ledger, workspace } = getWorkspaceDashboardContext()
-  let account = $derived(ledger.selected())
+  let account = $derived(ledger.account.selected())
 
   function setIncludeTentative(include: boolean) {
     if (!account) return

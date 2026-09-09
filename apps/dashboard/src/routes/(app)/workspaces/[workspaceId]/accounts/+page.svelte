@@ -24,15 +24,17 @@
   <PageHeader
     id="accounts-title"
     title="Accounts"
-    description={`${ledger.accounts.length} ${ledger.accounts.length === 1 ? 'account' : 'accounts'} in this workspace`}
+    description={`${ledger.account.items.length} ${ledger.account.items.length === 1 ? 'account' : 'accounts'} in this workspace`}
   >
     {#snippet actions()}
-      <Button variant="outline" onclick={ledger.newAccount}>Add account</Button>
+      <Button variant="outline" onclick={ledger.account.create}
+        >Add account</Button
+      >
     {/snippet}
   </PageHeader>
   <AccountGrid
-    accounts={ledger.accounts}
-    onnew={ledger.newAccount}
+    accounts={ledger.account.items}
+    onnew={ledger.account.create}
     onselect={selectAccount}
   />
 </section>

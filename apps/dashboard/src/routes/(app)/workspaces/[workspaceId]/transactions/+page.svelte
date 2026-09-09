@@ -144,14 +144,14 @@
     {#snippet actions()}
       <div class="flex flex-wrap gap-2">
         {#if data.isHousehold}
-          <Button onclick={() => ledger.newHouseholdExpense()}
+          <Button onclick={() => ledger.transaction.createHouseholdExpense()}
             >Add Household expense</Button
           >
         {/if}
         {#if data.accounts.some(({ archivedAt }) => !archivedAt)}
           <Button
             variant={data.isHousehold ? 'outline' : 'default'}
-            onclick={() => ledger.newTransaction()}>Add transaction</Button
+            onclick={() => ledger.transaction.create()}>Add transaction</Button
           >
         {/if}
       </div>
@@ -212,25 +212,30 @@
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={ledger.pending}
+                        disabled={ledger.status.pending}
                         onclick={() =>
-                          ledger.householdExpenseAction(item, 'restore')}
-                        >Restore</Button
+                          ledger.transaction.householdExpenseAction(
+                            item,
+                            'restore',
+                          )}>Restore</Button
                       >
                     {:else}
                       <Button
                         size="sm"
                         variant="outline"
-                        onclick={() => ledger.editHouseholdExpense(item)}
+                        onclick={() =>
+                          ledger.transaction.editHouseholdExpense(item)}
                         >Edit</Button
                       >
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={ledger.pending}
+                        disabled={ledger.status.pending}
                         onclick={() =>
-                          ledger.householdExpenseAction(item, 'trash')}
-                        >Move to trash</Button
+                          ledger.transaction.householdExpenseAction(
+                            item,
+                            'trash',
+                          )}>Move to trash</Button
                       >
                     {/if}
                   {/if}

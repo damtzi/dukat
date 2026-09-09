@@ -27,7 +27,7 @@
   let requestGeneration = 0
   let currency = $derived(workspace.activeWorkspace?.reportingCurrency ?? 'PLN')
   let availableCategories = $derived(
-    ledger.categories.filter(
+    ledger.transaction.categories.filter(
       (category) =>
         !category.archivedAt &&
         !budgets.some((budget) => budget.categoryId === category.id),

@@ -9,7 +9,7 @@
 
   let { data }: { data: PageData } = $props()
   const { ledger } = getWorkspaceDashboardContext()
-  let account = $derived(ledger.selected())
+  let account = $derived(ledger.account.selected())
 </script>
 
 {#if account}
@@ -28,28 +28,27 @@
       <TransactionsSection
         {account}
         transactions={data.transactions}
-        pending={ledger.pending}
-        onnew={() => ledger.newTransaction(account.id)}
-        onedit={ledger.editTransaction}
-        onrefund={ledger.newRefund}
-        onaction={ledger.transactionAction}
+        pending={ledger.status.pending}
+        onnew={() => ledger.transaction.create(account.id)}
+        onedit={ledger.transaction.edit}
+        onrefund={ledger.transaction.refund}
+        onaction={ledger.transaction.action}
         onhistory={(item) =>
-          ledger.showHistory('transactions', item.id, 'Transaction history')}
+          ledger.history.show('transactions', item.id, 'Transaction history')}
       />
       <TransfersSection
         {account}
         transfers={data.transfers}
-        pending={ledger.pending}
-        canCreate={!ledger.feeIntent}
-        onnew={ledger.newTransfer}
+        pending={ledger.status.pending}
+        canCreate={!ledger.transfer.feeIntent}
+        onnew={ledger.transfer.create}
         onedit={(item) =>
-          ledger.editTransfer(item, () =>
+          ledger.transfer.edit(item, () =>
             data.transfers.some(({ id }) => id === item.id),
           )}
-        onaction={(item, action) =>
-          ledger.entityAction('transfers', item, action)}
+        onaction={(item, action) => ledger.transfer.action(item, action)}
         onhistory={(item) =>
-          ledger.showHistory('transfers', item.id, 'Transfer history')}
+          ledger.history.show('transfers', item.id, 'Transfer history')}
       />
     </div>
   {/if}

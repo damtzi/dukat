@@ -224,7 +224,7 @@
     <CashFlowCategories
       reporting={currentReporting}
       currencies={current!.currencies}
-      accounts={ledger.accounts}
+      accounts={ledger.account.items}
     />
   {/if}
 

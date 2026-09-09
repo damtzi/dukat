@@ -151,7 +151,9 @@
   >
     {#snippet actions()}
       {#if activeAccounts.length > 0}
-        <Button onclick={() => ledger.newTransaction()}>Add transaction</Button>
+        <Button onclick={() => ledger.transaction.create()}
+          >Add transaction</Button
+        >
       {/if}
     {/snippet}
   </PageHeader>
@@ -167,7 +169,7 @@
           </Empty.Description>
         </Empty.Header>
         <Empty.Content>
-          <Button onclick={ledger.newAccount}>Add account</Button>
+          <Button onclick={ledger.account.create}>Add account</Button>
         </Empty.Content>
       </Empty.Root>
     {:else if missingRate}

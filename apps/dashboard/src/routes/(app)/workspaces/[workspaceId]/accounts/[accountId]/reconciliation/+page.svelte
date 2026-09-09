@@ -8,7 +8,7 @@
 
   let { data }: { data: PageData } = $props()
   const { ledger } = getWorkspaceDashboardContext()
-  let account = $derived(ledger.selected())
+  let account = $derived(ledger.account.selected())
 </script>
 
 {#if account}
@@ -27,22 +27,22 @@
       {account}
       checks={data.checks}
       corrections={data.corrections}
-      pending={ledger.pending}
-      onnew={ledger.newCheck}
-      onedit={ledger.editCheck}
-      oncorrect={ledger.createCorrection}
+      pending={ledger.status.pending}
+      onnew={ledger.reconciliation.create}
+      onedit={ledger.reconciliation.edit}
+      oncorrect={ledger.reconciliation.createCorrection}
       oncheckaction={(item, action) =>
-        ledger.entityAction('balance-checks', item, action)}
+        ledger.reconciliation.action('balance-checks', item, action)}
       oncorrectionaction={(item, action) =>
-        ledger.entityAction('corrections', item, action)}
+        ledger.reconciliation.action('corrections', item, action)}
       oncheckhistory={(item) =>
-        ledger.showHistory(
+        ledger.history.show(
           'balance-checks',
           item.id,
           'Balance snapshot history',
         )}
       oncorrectionhistory={(item) =>
-        ledger.showHistory('corrections', item.id, 'Correction history')}
+        ledger.history.show('corrections', item.id, 'Correction history')}
     />
   {/if}
 {/if}

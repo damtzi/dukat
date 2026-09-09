@@ -17,8 +17,8 @@
   />
   {#key workspace.workspaceId}
     <CsvImports
-      accounts={ledger.accounts}
-      categories={ledger.categories}
+      accounts={ledger.account.items}
+      categories={ledger.transaction.categories}
       api={(path, options) =>
         api(`/workspaces/${workspace.workspaceId}/imports${path}`, options)}
       onchanged={() => workspace.refresh()}

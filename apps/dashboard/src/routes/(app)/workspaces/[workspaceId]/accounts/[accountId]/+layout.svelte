@@ -11,11 +11,11 @@
 
   let { children } = $props()
   const { ledger, workspace } = getWorkspaceDashboardContext()
-  let account = $derived(ledger.selected())
+  let account = $derived(ledger.account.selected())
 
   async function accountAction(action: 'archive' | 'restore' | 'delete') {
     const workspaceId = workspace.workspaceId
-    const completed = await ledger.accountAction(action)
+    const completed = await ledger.account.action(action)
     if (
       !completed ||
       action !== 'delete' ||
@@ -43,10 +43,10 @@
 
     <AccountSummary
       {account}
-      pending={ledger.pending}
-      onedit={ledger.editAccount}
+      pending={ledger.status.pending}
+      onedit={ledger.account.edit}
       onhistory={() =>
-        ledger.showHistory('accounts', account.id, `${account.name} history`)}
+        ledger.history.show('accounts', account.id, `${account.name} history`)}
       onaction={accountAction}
     />
 

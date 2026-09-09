@@ -17,7 +17,7 @@
   />
   {#key workspace.workspaceId}
     <CategoryManager
-      categories={ledger.categories}
+      categories={ledger.transaction.categories}
       api={(path, options) =>
         api(`/workspaces/${workspace.workspaceId}/categories${path}`, options)}
       onchanged={() => workspace.refresh()}
