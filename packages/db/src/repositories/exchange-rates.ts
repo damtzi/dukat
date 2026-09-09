@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
 import type { Summary } from '@dukat/core/csv-import';
 import {
 	addRational,
@@ -16,9 +16,9 @@ import {
 	exchangeRateTable,
 	user,
 	workspace,
-	workspaceManualRate,
-	workspaceMembership
+	workspaceManualRate
 } from '../schema';
+import { findAuthorizedWorkspace } from './workspaces';
 
 export interface NbpTable {
 	table: string;
@@ -81,24 +81,7 @@ export function createExchangeRateRepository(
 	let latestRefresh: Promise<void> | undefined;
 	let latestFailureUntil = 0;
 	const authorized = async (userId: string, workspaceId: string) => {
-		const [found] = await database
-			.select({ id: workspace.id })
-			.from(workspace)
-			.leftJoin(
-				workspaceMembership,
-				and(
-					eq(workspaceMembership.workspaceId, workspace.id),
-					eq(workspaceMembership.userId, userId)
-				)
-			)
-			.where(
-				and(
-					eq(workspace.id, workspaceId),
-					isNull(workspace.deletedAt),
-					or(eq(workspace.personalOwnerUserId, userId), eq(workspaceMembership.userId, userId))
-				)
-			)
-			.limit(1);
+		const found = await findAuthorizedWorkspace(database, { userId, workspaceId });
 		if (!found) throw Object.assign(new Error('Workspace not found'), { code: 'not_found' });
 	};
 	const resolveReportingCurrency = async (workspaceId: string, targetCurrency?: string) => {

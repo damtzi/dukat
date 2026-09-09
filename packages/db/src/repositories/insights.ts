@@ -7,7 +7,7 @@ import {
 } from '@dukat/core';
 import type { Summary } from '@dukat/core';
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
 import {
 	financialAccount,
@@ -17,11 +17,10 @@ import {
 	ledgerCategory,
 	ledgerImportBatch,
 	ledgerTransaction,
-	mutationReceipt,
-	workspace,
-	workspaceMembership
+	mutationReceipt
 } from '../schema';
 import { LedgerError } from './ledger';
+import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
 const STARTERS = [
@@ -61,28 +60,8 @@ const publicRow = <T extends Record<string, unknown>>(row: T) => JSON.parse(json
 export function createInsightsRepository(db: FinancialDatabase) {
 	type Tx = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
 	const authorize = async (tx: Tx, c: Context) => {
-		const rows = await tx
-			.select({ id: workspace.id })
-			.from(workspace)
-			.leftJoin(
-				workspaceMembership,
-				and(
-					eq(workspaceMembership.workspaceId, workspace.id),
-					eq(workspaceMembership.userId, c.userId)
-				)
-			)
-			.where(
-				and(
-					eq(workspace.id, c.workspaceId),
-					isNull(workspace.deletedAt),
-					or(
-						and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, c.userId)),
-						and(eq(workspace.type, 'household'), eq(workspaceMembership.userId, c.userId))
-					)
-				)
-			)
-			.limit(1);
-		if (!rows.length) throw new LedgerError('not_found', 'Workspace not found');
+		if (!(await findAuthorizedWorkspace(tx, c)))
+			throw new LedgerError('not_found', 'Workspace not found');
 	};
 	const idempotent = async <T>(
 		tx: Tx,

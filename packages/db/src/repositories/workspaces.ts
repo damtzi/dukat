@@ -40,6 +40,15 @@ const summary = {
 	version: workspace.version,
 	role: workspaceMembership.role
 };
+const authorizedWorkspace = (userId: string, workspaceId?: string) =>
+	and(
+		workspaceId === undefined ? undefined : eq(workspace.id, workspaceId),
+		isNull(workspace.deletedAt),
+		or(
+			and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, userId)),
+			and(eq(workspace.type, 'household'), eq(workspaceMembership.userId, userId))
+		)
+	);
 
 export async function listAuthorizedWorkspaces(database: Database, userId: string) {
 	return database
@@ -49,18 +58,10 @@ export async function listAuthorizedWorkspaces(database: Database, userId: strin
 			workspaceMembership,
 			and(eq(workspaceMembership.workspaceId, workspace.id), eq(workspaceMembership.userId, userId))
 		)
-		.where(
-			and(
-				isNull(workspace.deletedAt),
-				or(
-					and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, userId)),
-					and(eq(workspace.type, 'household'), eq(workspaceMembership.userId, userId))
-				)
-			)
-		);
+		.where(authorizedWorkspace(userId));
 }
 export async function findAuthorizedWorkspace(
-	database: Database,
+	database: QueryDatabase,
 	context: WorkspaceAuthorizationContext
 ) {
 	const [row] = await database
@@ -73,16 +74,7 @@ export async function findAuthorizedWorkspace(
 				eq(workspaceMembership.userId, context.userId)
 			)
 		)
-		.where(
-			and(
-				eq(workspace.id, context.workspaceId),
-				isNull(workspace.deletedAt),
-				or(
-					and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, context.userId)),
-					and(eq(workspace.type, 'household'), eq(workspaceMembership.userId, context.userId))
-				)
-			)
-		)
+		.where(authorizedWorkspace(context.userId, context.workspaceId))
 		.limit(1);
 	return row;
 }

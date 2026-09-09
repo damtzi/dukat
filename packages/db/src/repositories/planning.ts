@@ -25,10 +25,9 @@ import {
 	plannedOccurrenceException,
 	plannedOccurrenceMatch,
 	plannedSeries,
-	user,
-	workspace,
-	workspaceMembership
+	user
 } from '../schema';
+import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
 export class PlanningError extends Error {
@@ -125,24 +124,7 @@ export function createPlanningRepository(
 		return result;
 	};
 	const authorized = async (tx: any, c: Context) => {
-		const [row] = await tx
-			.select({ id: workspace.id })
-			.from(workspace)
-			.leftJoin(
-				workspaceMembership,
-				and(
-					eq(workspaceMembership.workspaceId, workspace.id),
-					eq(workspaceMembership.userId, c.userId)
-				)
-			)
-			.where(
-				and(
-					eq(workspace.id, c.workspaceId),
-					isNull(workspace.deletedAt),
-					or(eq(workspace.personalOwnerUserId, c.userId), eq(workspaceMembership.userId, c.userId))
-				)
-			)
-			.limit(1);
+		const row = await findAuthorizedWorkspace(tx, c);
 		if (!row) throw new PlanningError('not_found', 'Workspace not found');
 	};
 	const audit = async (

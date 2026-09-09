@@ -36,6 +36,7 @@ import {
 	workspace,
 	workspaceMembership
 } from '../schema';
+import { findAuthorizedWorkspace } from './workspaces';
 
 export type LedgerErrorCode = 'not_found' | 'conflict' | 'invalid';
 export class LedgerError extends Error {
@@ -536,29 +537,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		tx: Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0],
 		context: Context
 	) {
-		const [found] = await tx
-			.select({ id: workspace.id })
-			.from(workspace)
-			.where(
-				and(
-					eq(workspace.id, context.workspaceId),
-					isNull(workspace.deletedAt),
-					or(
-						and(eq(workspace.type, 'personal'), eq(workspace.personalOwnerUserId, context.userId)),
-						and(
-							eq(workspace.type, 'household'),
-							inArray(
-								workspace.id,
-								tx
-									.select({ id: workspaceMembership.workspaceId })
-									.from(workspaceMembership)
-									.where(eq(workspaceMembership.userId, context.userId))
-							)
-						)
-					)
-				)
-			)
-			.limit(1);
+		const found = await findAuthorizedWorkspace(tx, context);
 		if (!found) throw new LedgerError('not_found', 'Workspace not found');
 	}
 	async function idempotent<T>(

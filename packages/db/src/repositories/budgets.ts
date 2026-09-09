@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { expandOccurrences } from '@dukat/core/planning';
 import {
 	budgetMonthSchema,
@@ -20,11 +20,10 @@ import {
 	plannedOccurrenceException,
 	plannedOccurrenceMatch,
 	plannedSeries,
-	user,
-	workspace,
-	workspaceMembership
+	user
 } from '../schema';
 import type { createExchangeRateRepository } from './exchange-rates';
+import { findAuthorizedWorkspace } from './workspaces';
 
 type Context = { userId: string; workspaceId: string };
 type Rates = Pick<ReturnType<typeof createExchangeRateRepository>, 'reportingTotals'>;
@@ -70,27 +69,7 @@ const uniqueConstraint = (error: unknown): boolean =>
 export function createBudgetRepository(database: FinancialDatabase, rates: Rates) {
 	type Tx = Parameters<Parameters<FinancialDatabase['transaction']>[0]>[0];
 	const authorize = async (tx: Tx, context: Context) => {
-		const [found] = await tx
-			.select({ id: workspace.id, reportingCurrency: workspace.reportingCurrency })
-			.from(workspace)
-			.leftJoin(
-				workspaceMembership,
-				and(
-					eq(workspaceMembership.workspaceId, workspace.id),
-					eq(workspaceMembership.userId, context.userId)
-				)
-			)
-			.where(
-				and(
-					eq(workspace.id, context.workspaceId),
-					isNull(workspace.deletedAt),
-					or(
-						eq(workspace.personalOwnerUserId, context.userId),
-						eq(workspaceMembership.userId, context.userId)
-					)
-				)
-			)
-			.limit(1);
+		const found = await findAuthorizedWorkspace(tx, context);
 		if (!found) throw new BudgetError('not_found', 'Workspace not found');
 		return found;
 	};
