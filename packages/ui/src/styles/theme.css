@@ -2,7 +2,7 @@
 
 @theme inline {
 	--font-sans: 'Inter Variable', sans-serif;
-	--font-heading: 'JetBrains Mono Variable', monospace;
+	--font-heading: 'Merriweather Variable', serif;
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
