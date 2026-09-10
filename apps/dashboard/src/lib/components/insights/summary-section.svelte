@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Account } from '@dukat/core/ledger'
   import type { Summary } from '@dukat/core/csv-import'
-  import { Button, Card, Input, Label, Select, Separator } from '@dukat/ui'
+  import { Button, Card, Field, Input, Select, Separator } from '@dukat/ui'
   import { calendarMonthRange, shiftCalendarMonth } from '$lib/date'
   import { formatMoney } from '$lib/money'
   let {
@@ -63,25 +63,25 @@
         onclick={() => shift(-1)}
         aria-label="Previous month">←</Button
       >
-      <div>
-        <Label for="summary-start">Start</Label><Input
+      <Field.Field class="w-auto">
+        <Field.Label for="summary-start">Start</Field.Label><Input
           id="summary-start"
           type="date"
           bind:value={range.startDate}
         />
-      </div>
-      <div>
-        <Label for="summary-end">End</Label><Input
+      </Field.Field>
+      <Field.Field class="w-auto">
+        <Field.Label for="summary-end">End</Field.Label><Input
           id="summary-end"
           type="date"
           bind:value={range.endDate}
         />
-      </div>
+      </Field.Field>
       <Button variant="outline" onclick={() => shift(1)} aria-label="Next month"
         >→</Button
       >
-      <div>
-        <Label for="summary-account">Account</Label><Select.Root
+      <Field.Field class="w-auto">
+        <Field.Label for="summary-account">Account</Field.Label><Select.Root
           type="single"
           bind:value={accountId}
         >
@@ -101,7 +101,7 @@
             </Select.Group>
           </Select.Content>
         </Select.Root>
-      </div>
+      </Field.Field>
     </div>
     {#if error}<p class="text-sm text-destructive">{error}</p>{/if}
     {#if summary.reporting}<Card.Root

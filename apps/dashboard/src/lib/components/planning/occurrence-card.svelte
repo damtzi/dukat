@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input, Label } from '@dukat/ui'
+  import { Button, Field, Input } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import type { Occurrence, Plan, Suggestion } from './planning-types'
@@ -96,8 +96,9 @@
     </div>
   </div>
   <div class="mt-3 flex flex-wrap items-end gap-2">
-    <div>
-      <Label for={`move-${item.planId}-${item.originalDate}`}>New date</Label
+    <Field.Field class="w-auto">
+      <Field.Label for={`move-${item.planId}-${item.originalDate}`}
+        >New date</Field.Label
       ><Input
         id={`move-${item.planId}-${item.originalDate}`}
         type="date"
@@ -105,7 +106,7 @@
         oninput={(event) => onrescheduleDate(event.currentTarget.value)}
         disabled={readonly}
       />
-    </div>
+    </Field.Field>
     <Button
       size="sm"
       variant="outline"

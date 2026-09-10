@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Card, Input, Label, Select } from '@dukat/ui'
+  import { Button, Card, Field, Input, Select } from '@dukat/ui'
   import { minorToDecimal, parseAmount } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import type { Plan, PlanningAccount, PlanSaveInput } from './planning-types'
@@ -124,120 +124,128 @@
     ></Card.Header
   >
   <Card.Content
-    ><form class="grid gap-3 md:grid-cols-3" onsubmit={save}>
-      <div>
-        <Label for="plan-kind">Type</Label><Select.Root
-          type="single"
-          bind:value={form.kind}
-          disabled={!!editing}
-        >
-          <Select.Trigger id="plan-kind" class="w-full">
-            {selectedLabel(planKinds, form.kind)}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each planKinds as option (option.value)}
-                <Select.Item value={option.value} label={option.label}
-                  >{option.label}</Select.Item
-                >
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-      <div>
-        <Label for="plan-amount">Amount ({account.currency})</Label><Input
-          id="plan-amount"
-          inputmode="decimal"
-          bind:value={form.amount}
-          required
-        />
-      </div>
-      <div>
-        <Label for="plan-date">{editing ? 'New date' : 'Start date'}</Label
-        ><Input id="plan-date" type="date" bind:value={form.date} required />
-      </div>
-      {#if editing?.recurrence}<div>
-          <Label for="plan-effective-from"
-            >Change this occurrence and future</Label
+    ><form onsubmit={save}>
+      <Field.Group class="grid gap-4 md:grid-cols-3">
+        <Field.Field>
+          <Field.Label for="plan-kind">Type</Field.Label><Select.Root
+            type="single"
+            bind:value={form.kind}
+            disabled={!!editing}
+          >
+            <Select.Trigger id="plan-kind" class="w-full">
+              {selectedLabel(planKinds, form.kind)}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each planKinds as option (option.value)}
+                  <Select.Item value={option.value} label={option.label}
+                    >{option.label}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="plan-amount"
+            >Amount ({account.currency})</Field.Label
           ><Input
-            id="plan-effective-from"
-            type="date"
-            bind:value={form.effectiveFrom}
+            id="plan-amount"
+            inputmode="decimal"
+            bind:value={form.amount}
             required
           />
-        </div>{/if}
-      <div>
-        <Label for="plan-status">Certainty</Label><Select.Root
-          type="single"
-          bind:value={form.status}
-        >
-          <Select.Trigger id="plan-status" class="w-full">
-            {selectedLabel(planStatuses, form.status)}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each planStatuses as option (option.value)}
-                <Select.Item value={option.value} label={option.label}
-                  >{option.label}</Select.Item
-                >
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-      <div>
-        <Label for="plan-repeat">Repeats</Label><Select.Root
-          type="single"
-          bind:value={form.frequency}
-          disabled={!!editing}
-        >
-          <Select.Trigger id="plan-repeat" class="w-full">
-            {selectedLabel(frequencies, form.frequency)}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              {#each frequencies as option (option.value)}
-                <Select.Item value={option.value} label={option.label}
-                  >{option.label}</Select.Item
-                >
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-      {#if form.frequency !== 'once'}<div>
-          <Label for="plan-interval">Every (interval)</Label><Input
-            id="plan-interval"
-            type="number"
-            min="1"
-            bind:value={form.interval}
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="plan-date"
+            >{editing ? 'New date' : 'Start date'}</Field.Label
+          ><Input id="plan-date" type="date" bind:value={form.date} required />
+        </Field.Field>
+        {#if editing?.recurrence}<Field.Field>
+            <Field.Label for="plan-effective-from"
+              >Change this occurrence and future</Field.Label
+            ><Input
+              id="plan-effective-from"
+              type="date"
+              bind:value={form.effectiveFrom}
+              required
+            />
+          </Field.Field>{/if}
+        <Field.Field>
+          <Field.Label for="plan-status">Certainty</Field.Label><Select.Root
+            type="single"
+            bind:value={form.status}
+          >
+            <Select.Trigger id="plan-status" class="w-full">
+              {selectedLabel(planStatuses, form.status)}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each planStatuses as option (option.value)}
+                  <Select.Item value={option.value} label={option.label}
+                    >{option.label}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="plan-repeat">Repeats</Field.Label><Select.Root
+            type="single"
+            bind:value={form.frequency}
             disabled={!!editing}
-            required
+          >
+            <Select.Trigger id="plan-repeat" class="w-full">
+              {selectedLabel(frequencies, form.frequency)}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                {#each frequencies as option (option.value)}
+                  <Select.Item value={option.value} label={option.label}
+                    >{option.label}</Select.Item
+                  >
+                {/each}
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
+        </Field.Field>
+        {#if form.frequency !== 'once'}<Field.Field>
+            <Field.Label for="plan-interval">Every (interval)</Field.Label
+            ><Input
+              id="plan-interval"
+              type="number"
+              min="1"
+              bind:value={form.interval}
+              disabled={!!editing}
+              required
+            />
+          </Field.Field>
+          <Field.Field>
+            <Field.Label for="plan-end">End date (optional)</Field.Label><Input
+              id="plan-end"
+              type="date"
+              bind:value={form.endDate}
+              disabled={!!editing}
+            />
+          </Field.Field>{/if}
+        <Field.Field class="md:col-span-2">
+          <Field.Label for="plan-description">Description</Field.Label><Input
+            id="plan-description"
+            bind:value={form.description}
+            maxlength={500}
           />
+        </Field.Field>
+        <div class="flex items-end gap-2">
+          <Button type="submit" disabled={pending}
+            >{editing ? 'Save changes' : 'Create plan'}</Button
+          >{#if editing}<Button
+              type="button"
+              variant="outline"
+              onclick={oncancel}>Cancel edit</Button
+            >{/if}
         </div>
-        <div>
-          <Label for="plan-end">End date (optional)</Label><Input
-            id="plan-end"
-            type="date"
-            bind:value={form.endDate}
-            disabled={!!editing}
-          />
-        </div>{/if}
-      <div class="md:col-span-2">
-        <Label for="plan-description">Description</Label><Input
-          id="plan-description"
-          bind:value={form.description}
-          maxlength={500}
-        />
-      </div>
-      <div class="flex items-end gap-2">
-        <Button type="submit" disabled={pending}
-          >{editing ? 'Save changes' : 'Create plan'}</Button
-        >{#if editing}<Button type="button" variant="outline" onclick={oncancel}
-            >Cancel edit</Button
-          >{/if}
-      </div>
+      </Field.Group>
     </form></Card.Content
   >
 </Card.Root>

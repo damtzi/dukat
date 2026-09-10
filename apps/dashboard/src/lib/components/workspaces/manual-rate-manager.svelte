@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { Alert, Button, Card, Field, Input } from '@dukat/ui'
 
   type ManualRate = {
     id: string
@@ -91,44 +91,48 @@
         ><Alert.Title>Exchange-rate action failed</Alert.Title
         ><Alert.Description>{error}</Alert.Description></Alert.Root
       >{/if}
-    <form class="grid gap-2 md:grid-cols-2" onsubmit={add}>
-      <div>
-        <Label for="rate-currency">Currency</Label><Input
-          id="rate-currency"
-          name="currency"
-          minlength={3}
-          maxlength={3}
-          pattern={'[A-Za-z]{3}'}
-          required
-        />
-      </div>
-      <div>
-        <Label for="rate-value">Rate to PLN</Label><Input
-          id="rate-value"
-          name="rateToPln"
-          inputmode="decimal"
-          placeholder="4.1234"
-          required
-        />
-      </div>
-      <div>
-        <Label for="rate-date">Effective date</Label><Input
-          id="rate-date"
-          name="effectiveDate"
-          type="date"
-          required
-        />
-      </div>
-      <div>
-        <Label for="rate-reason">Reason</Label><Input
-          id="rate-reason"
-          name="reason"
-          minlength={3}
-          maxlength={500}
-          required
-        />
-      </div>
-      <Button type="submit" disabled={pending}>Add manual rate</Button>
+    <form onsubmit={add}>
+      <Field.Group class="grid gap-4 md:grid-cols-2">
+        <Field.Field>
+          <Field.Label for="rate-currency">Currency</Field.Label><Input
+            id="rate-currency"
+            name="currency"
+            minlength={3}
+            maxlength={3}
+            pattern={'[A-Za-z]{3}'}
+            required
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="rate-value">Rate to PLN</Field.Label><Input
+            id="rate-value"
+            name="rateToPln"
+            inputmode="decimal"
+            placeholder="4.1234"
+            required
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="rate-date">Effective date</Field.Label><Input
+            id="rate-date"
+            name="effectiveDate"
+            type="date"
+            required
+          />
+        </Field.Field>
+        <Field.Field>
+          <Field.Label for="rate-reason">Reason</Field.Label><Input
+            id="rate-reason"
+            name="reason"
+            minlength={3}
+            maxlength={500}
+            required
+          />
+        </Field.Field>
+        <Field.Field>
+          <Button type="submit" disabled={pending}>Add manual rate</Button>
+        </Field.Field>
+      </Field.Group>
     </form>
     {#if rates.length === 0}<p class="text-sm text-muted-foreground">
         No manual rates.

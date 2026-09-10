@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Card, Input, Label } from '@dukat/ui'
+  import { Button, Card, Field, Input } from '@dukat/ui'
   import { formatMoney } from '$lib/money'
   import { todayInWarsaw } from '$lib/date'
   import type { Plan } from './planning-types'
@@ -119,9 +119,9 @@
         {#if plan.recurrence && !plan.cancelled}<div
             class="mt-3 flex flex-wrap items-end gap-2"
           >
-            <div>
-              <Label for={`restore-${plan.id}`}
-                >Restore skipped original date</Label
+            <Field.Field class="w-auto">
+              <Field.Label for={`restore-${plan.id}`}
+                >Restore skipped original date</Field.Label
               ><Input
                 id={`restore-${plan.id}`}
                 type="date"
@@ -132,7 +132,7 @@
                     [plan.id]: event.currentTarget.value,
                   })}
               />
-            </div>
+            </Field.Field>
             <Button
               size="sm"
               variant="outline"

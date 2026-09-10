@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SvelteMap } from 'svelte/reactivity'
   import type { Category } from '@dukat/core/csv-import'
-  import { Alert, Button, Card, Input, Label } from '@dukat/ui'
+  import { Alert, Button, Card, Field, Input } from '@dukat/ui'
   let {
     categories,
     api,
@@ -125,15 +125,15 @@
         ><Alert.Description>{message}</Alert.Description></Alert.Root
       >{/if}
     <form class="flex items-end gap-2" onsubmit={create}>
-      <div class="grow">
-        <Label for="category-name">New category</Label><Input
+      <Field.Field class="grow">
+        <Field.Label for="category-name">New category</Field.Label><Input
           id="category-name"
           name="name"
           oninput={() => (createIntent = null)}
           maxlength={120}
           required
         />
-      </div>
+      </Field.Field>
       <Button type="submit" disabled={pending}>Create</Button>
     </form>
     <div class="grid gap-4 md:grid-cols-2">

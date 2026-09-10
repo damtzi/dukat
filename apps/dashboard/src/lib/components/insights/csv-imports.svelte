@@ -13,8 +13,8 @@
     Button,
     Card,
     Checkbox,
+    Field,
     Input,
-    Label,
     Select,
     Table,
   } from '@dukat/ui'
@@ -224,8 +224,9 @@
         ><Alert.Description>{message}</Alert.Description></Alert.Root
       >{/if}
     <div class="flex flex-wrap items-end gap-2">
-      <div>
-        <Label for="import-account">Active account</Label><Select.Root
+      <Field.Field class="w-auto">
+        <Field.Label for="import-account">Active account</Field.Label
+        ><Select.Root
           type="single"
           bind:value={accountId}
           onValueChange={invalidatePreview}
@@ -248,15 +249,15 @@
             </Select.Group>
           </Select.Content>
         </Select.Root>
-      </div>
-      <div>
-        <Label for="csv-file">CSV file</Label>{#key inputKey}<Input
+      </Field.Field>
+      <Field.Field class="w-auto">
+        <Field.Label for="csv-file">CSV file</Field.Label>{#key inputKey}<Input
             id="csv-file"
             type="file"
             accept=".csv,text/csv"
             onchange={selectFile}
           />{/key}
-      </div>
+      </Field.Field>
       <Button variant="outline" onclick={download}>Download template</Button
       ><Button disabled={!accountId || !csv || pending} onclick={preview}
         >Preview</Button
