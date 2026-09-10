@@ -89,36 +89,6 @@
   <Sidebar.MenuItem>
     <Sidebar.MenuButton
       isActive={workspaceActive &&
-        routeId === '/(app)/workspaces/[workspaceId]/budgets'}
-      tooltipContent="Budgets"
-    >
-      {#snippet child({ props })}
-        <a
-          {...props}
-          href={budgetsPath}
-          aria-current={workspaceActive &&
-          routeId === '/(app)/workspaces/[workspaceId]/budgets'
-            ? 'page'
-            : undefined}
-          onclick={closeMobile}
-        >
-          <PiggyBankIcon aria-hidden="true" />
-          <span>Budgets</span>
-        </a>
-      {/snippet}
-    </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(budgetsPath) !== undefined}
-      pending={pendingFavoritePath === budgetsPath}
-      path={budgetsPath}
-      label={`${workspace.name} · Budgets`}
-      ontoggle={ontogglefavorite}
-    />
-  </Sidebar.MenuItem>
-
-  <Sidebar.MenuItem>
-    <Sidebar.MenuButton
-      isActive={workspaceActive &&
         routeId === '/(app)/workspaces/[workspaceId]'}
       tooltipContent="Overview"
     >
@@ -142,66 +112,6 @@
       pending={pendingFavoritePath === overviewPath}
       path={overviewPath}
       label={`${workspace.name} · Overview`}
-      ontoggle={ontogglefavorite}
-    />
-  </Sidebar.MenuItem>
-
-  <Sidebar.MenuItem>
-    <Sidebar.MenuButton
-      isActive={workspaceActive &&
-        routeId === '/(app)/workspaces/[workspaceId]/forecast'}
-      tooltipContent="Forecast"
-    >
-      {#snippet child({ props })}
-        <a
-          {...props}
-          href={forecastPath}
-          aria-current={workspaceActive &&
-          routeId === '/(app)/workspaces/[workspaceId]/forecast'
-            ? 'page'
-            : undefined}
-          onclick={closeMobile}
-        >
-          <ChartLineIcon aria-hidden="true" />
-          <span>Forecast</span>
-        </a>
-      {/snippet}
-    </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(forecastPath) !== undefined}
-      pending={pendingFavoritePath === forecastPath}
-      path={forecastPath}
-      label={`${workspace.name} · Forecast`}
-      ontoggle={ontogglefavorite}
-    />
-  </Sidebar.MenuItem>
-
-  <Sidebar.MenuItem>
-    <Sidebar.MenuButton
-      isActive={workspaceActive &&
-        routeId === '/(app)/workspaces/[workspaceId]/cash-flow'}
-      tooltipContent="Cash flow"
-    >
-      {#snippet child({ props })}
-        <a
-          {...props}
-          href={cashFlowPath}
-          aria-current={workspaceActive &&
-          routeId === '/(app)/workspaces/[workspaceId]/cash-flow'
-            ? 'page'
-            : undefined}
-          onclick={closeMobile}
-        >
-          <ChartBarIcon aria-hidden="true" />
-          <span>Cash flow</span>
-        </a>
-      {/snippet}
-    </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(cashFlowPath) !== undefined}
-      pending={pendingFavoritePath === cashFlowPath}
-      path={cashFlowPath}
-      label={`${workspace.name} · Cash flow`}
       ontoggle={ontogglefavorite}
     />
   </Sidebar.MenuItem>
@@ -296,6 +206,96 @@
       </Sidebar.MenuItem>
     {/snippet}
   </Collapsible.Root>
+
+  <Sidebar.MenuItem>
+    <Sidebar.MenuButton
+      isActive={workspaceActive &&
+        routeId === '/(app)/workspaces/[workspaceId]/budgets'}
+      tooltipContent="Budgets"
+    >
+      {#snippet child({ props })}
+        <a
+          {...props}
+          href={budgetsPath}
+          aria-current={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/budgets'
+            ? 'page'
+            : undefined}
+          onclick={closeMobile}
+        >
+          <PiggyBankIcon aria-hidden="true" />
+          <span>Budgets</span>
+        </a>
+      {/snippet}
+    </Sidebar.MenuButton>
+    <FavoriteAction
+      active={favoriteFor(budgetsPath) !== undefined}
+      pending={pendingFavoritePath === budgetsPath}
+      path={budgetsPath}
+      label={`${workspace.name} · Budgets`}
+      ontoggle={ontogglefavorite}
+    />
+  </Sidebar.MenuItem>
+
+  <Sidebar.MenuItem>
+    <Sidebar.MenuButton
+      isActive={workspaceActive &&
+        routeId === '/(app)/workspaces/[workspaceId]/forecast'}
+      tooltipContent="Forecast"
+    >
+      {#snippet child({ props })}
+        <a
+          {...props}
+          href={forecastPath}
+          aria-current={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/forecast'
+            ? 'page'
+            : undefined}
+          onclick={closeMobile}
+        >
+          <ChartLineIcon aria-hidden="true" />
+          <span>Forecast</span>
+        </a>
+      {/snippet}
+    </Sidebar.MenuButton>
+    <FavoriteAction
+      active={favoriteFor(forecastPath) !== undefined}
+      pending={pendingFavoritePath === forecastPath}
+      path={forecastPath}
+      label={`${workspace.name} · Forecast`}
+      ontoggle={ontogglefavorite}
+    />
+  </Sidebar.MenuItem>
+
+  <Sidebar.MenuItem>
+    <Sidebar.MenuButton
+      isActive={workspaceActive &&
+        routeId === '/(app)/workspaces/[workspaceId]/cash-flow'}
+      tooltipContent="Cash flow"
+    >
+      {#snippet child({ props })}
+        <a
+          {...props}
+          href={cashFlowPath}
+          aria-current={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/cash-flow'
+            ? 'page'
+            : undefined}
+          onclick={closeMobile}
+        >
+          <ChartBarIcon aria-hidden="true" />
+          <span>Cash flow</span>
+        </a>
+      {/snippet}
+    </Sidebar.MenuButton>
+    <FavoriteAction
+      active={favoriteFor(cashFlowPath) !== undefined}
+      pending={pendingFavoritePath === cashFlowPath}
+      path={cashFlowPath}
+      label={`${workspace.name} · Cash flow`}
+      ontoggle={ontogglefavorite}
+    />
+  </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
     <Sidebar.MenuButton

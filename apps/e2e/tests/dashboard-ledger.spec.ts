@@ -985,6 +985,22 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: 'Overview', exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeVisible();
+	const personalMenu = page
+		.locator('[data-slot="sidebar-group"]')
+		.filter({ has: page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Personal$/ }) })
+		.locator('[data-slot="sidebar-menu"]');
+	await expect(personalMenu.locator(':scope > li > a')).toHaveText([
+		'Overview',
+		'Accounts',
+		'Budgets',
+		'Forecast',
+		'Cash flow',
+		'Transactions',
+		'Categories',
+		'CSV imports',
+		'Exchange rates',
+		'Manage workspace'
+	]);
 	await expect(
 		page.getByRole('button', { name: 'Add Personal · Accounts to favorites' })
 	).toBeAttached();
