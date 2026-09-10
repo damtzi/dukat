@@ -16,24 +16,16 @@
   import TagIcon from 'phosphor-svelte/lib/Tag'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
   import { formatAccountBalance } from '$lib/account'
-  import FavoriteAction from '$lib/components/dashboard/favorite-action.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
-  import type { Favorite } from '$lib/favorites'
 
   let {
     workspace,
     accounts,
     accountsOpen = $bindable(true),
-    favorites,
-    pendingFavoritePath,
-    ontogglefavorite,
   }: {
     workspace: Workspace
     accounts: Account[]
     accountsOpen?: boolean
-    favorites: Favorite[]
-    pendingFavoritePath: string
-    ontogglefavorite: (path: string, label: string) => void
   } = $props()
 
   const sidebar = Sidebar.useSidebar()
@@ -79,10 +71,6 @@
   function closeMobile() {
     if (sidebar.isMobile) sidebar.setOpenMobile(false)
   }
-
-  function favoriteFor(path: string) {
-    return favorites.find((favorite) => favorite.path === path)
-  }
 </script>
 
 <Sidebar.Menu>
@@ -107,20 +95,13 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(overviewPath) !== undefined}
-      pending={pendingFavoritePath === overviewPath}
-      path={overviewPath}
-      label={`${workspace.name} · Overview`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Collapsible.Root bind:open={accountsOpen}>
     {#snippet child({ props })}
       <Sidebar.MenuItem {...props}>
         <Sidebar.MenuButton
-          class={accounts.length > 0 ? 'pr-14' : undefined}
+          class={accounts.length > 0 ? 'pr-8' : undefined}
           isActive={accountsActive}
           tooltipContent="Accounts"
         >
@@ -139,14 +120,6 @@
             </a>
           {/snippet}
         </Sidebar.MenuButton>
-        <FavoriteAction
-          class={accounts.length > 0 ? 'right-7' : undefined}
-          active={favoriteFor(accountsPath) !== undefined}
-          pending={pendingFavoritePath === accountsPath}
-          path={accountsPath}
-          label={`${workspace.name} · Accounts`}
-          ontoggle={ontogglefavorite}
-        />
         {#if accounts.length > 0}
           <Collapsible.Trigger>
             {#snippet child({ props })}
@@ -228,13 +201,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(budgetsPath) !== undefined}
-      pending={pendingFavoritePath === budgetsPath}
-      path={budgetsPath}
-      label={`${workspace.name} · Budgets`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -258,13 +224,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(forecastPath) !== undefined}
-      pending={pendingFavoritePath === forecastPath}
-      path={forecastPath}
-      label={`${workspace.name} · Forecast`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -288,13 +247,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(cashFlowPath) !== undefined}
-      pending={pendingFavoritePath === cashFlowPath}
-      path={cashFlowPath}
-      label={`${workspace.name} · Cash flow`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -318,13 +270,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(transactionsPath) !== undefined}
-      pending={pendingFavoritePath === transactionsPath}
-      path={transactionsPath}
-      label={`${workspace.name} · Transactions`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -348,13 +293,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(categoriesPath) !== undefined}
-      pending={pendingFavoritePath === categoriesPath}
-      path={categoriesPath}
-      label={`${workspace.name} · Categories`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -378,13 +316,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(importsPath) !== undefined}
-      pending={pendingFavoritePath === importsPath}
-      path={importsPath}
-      label={`${workspace.name} · CSV imports`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -408,13 +339,6 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(ratesPath) !== undefined}
-      pending={pendingFavoritePath === ratesPath}
-      path={ratesPath}
-      label={`${workspace.name} · Exchange rates`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 
   <Sidebar.MenuItem>
@@ -438,12 +362,5 @@
         </a>
       {/snippet}
     </Sidebar.MenuButton>
-    <FavoriteAction
-      active={favoriteFor(managePath) !== undefined}
-      pending={pendingFavoritePath === managePath}
-      path={managePath}
-      label={`${workspace.name} · Manage workspace`}
-      ontoggle={ontogglefavorite}
-    />
   </Sidebar.MenuItem>
 </Sidebar.Menu>

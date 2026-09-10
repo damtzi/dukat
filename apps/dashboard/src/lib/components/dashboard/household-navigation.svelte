@@ -8,22 +8,15 @@
   import SharedIcon from 'phosphor-svelte/lib/UsersThree'
   import WorkspaceNavigation from '$lib/components/dashboard/workspace-navigation.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
-  import type { Favorite } from '$lib/favorites'
 
   let {
     workspace,
     accounts,
     active,
-    favorites,
-    pendingFavoritePath,
-    ontogglefavorite,
   }: {
     workspace: Workspace
     accounts: Account[]
     active: boolean
-    favorites: Favorite[]
-    pendingFavoritePath: string
-    ontogglefavorite: (path: string, label: string) => void
   } = $props()
 
   const sidebar = Sidebar.useSidebar()
@@ -79,13 +72,7 @@
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div class="ml-3 border-l border-sidebar-border pl-2">
-          <WorkspaceNavigation
-            {workspace}
-            {accounts}
-            {favorites}
-            {pendingFavoritePath}
-            {ontogglefavorite}
-          />
+          <WorkspaceNavigation {workspace} {accounts} />
         </div>
       </Collapsible.Content>
     </Sidebar.MenuItem>

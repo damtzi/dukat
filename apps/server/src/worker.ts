@@ -7,7 +7,6 @@ import {
 	createExchangeRateRepository,
 	createNbpAdapter
 } from '@dukat/db/repositories/exchange-rates';
-import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createExportRepository } from '@dukat/db/repositories/exports';
@@ -178,7 +177,6 @@ function createRuntime(bindings: WorkerEnv) {
 			auth,
 			trustedOrigins: [],
 			exports: createExportRepository(db, financialDb),
-			favorites: createFavoriteRepository(db),
 			profileImageCleanup,
 			profileImages: createProfileImageService({
 				auth,

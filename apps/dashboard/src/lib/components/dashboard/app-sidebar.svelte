@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { goto, invalidate } from '$app/navigation'
-  import { base, resolve } from '$app/paths'
+  import { goto } from '$app/navigation'
+  import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import type { Account } from '@dukat/core/ledger'
   import { DropdownMenu, Sidebar, Spinner, toast } from '@dukat/ui'
@@ -9,10 +9,8 @@
   import HomeIcon from 'phosphor-svelte/lib/House'
   import PlusIcon from 'phosphor-svelte/lib/Plus'
   import SignOutIcon from 'phosphor-svelte/lib/SignOut'
-  import StarIcon from 'phosphor-svelte/lib/Star'
   import UserIcon from 'phosphor-svelte/lib/UserCircle'
   import { api } from '$lib/api'
-  import FavoriteAction from '$lib/components/dashboard/favorite-action.svelte'
   import HouseholdNavigation from '$lib/components/dashboard/household-navigation.svelte'
   import ProfileImage from '$lib/components/profile/profile-image.svelte'
   import WorkspaceNavigation from '$lib/components/dashboard/workspace-navigation.svelte'
@@ -20,26 +18,19 @@
     Workspace,
     WorkspaceRouteData,
   } from '$lib/controllers/workspace-controller.svelte'
-  import { favoritesDataDependency, type Favorite } from '$lib/favorites'
   import type { SessionUser } from '$lib/session'
 
   let {
     user,
     workspaces,
     personalAccounts,
-    favorites,
-    favoritesError,
   }: {
     user: SessionUser
     workspaces: Workspace[]
     personalAccounts: Account[]
-    favorites: Favorite[]
-    favoritesError: string
   } = $props()
 
   const sidebar = Sidebar.useSidebar()
-  let pendingFavoritePath = $state('')
-  let favoriteMessage = $state('')
   let accountMenuOpen = $state(false)
   let logoutPending = $state(false)
   let personalAccountsOpen = $state(true)
@@ -56,7 +47,6 @@
       : [],
   )
   let routeId = $derived(page.route.id)
-  let visibleFavoriteError = $derived(favoriteMessage || favoritesError)
   let displayName = $derived(
     user.name || user.username || user.email || 'Account',
   )
@@ -69,34 +59,6 @@
   function closeAccountMenu() {
     accountMenuOpen = false
     closeMobile()
-  }
-
-  function favoriteFor(path: string) {
-    return favorites.find((favorite) => favorite.path === path)
-  }
-
-  async function toggleFavorite(path: string, label: string) {
-    if (pendingFavoritePath) return
-    pendingFavoritePath = path
-    favoriteMessage = ''
-    try {
-      const favorite = favoriteFor(path)
-      if (favorite) {
-        await api(`/favorites/${encodeURIComponent(favorite.id)}`, {
-          method: 'DELETE',
-        })
-      } else {
-        await api('/favorites', {
-          method: 'POST',
-          body: JSON.stringify({ path, label }),
-        })
-      }
-      await invalidate(favoritesDataDependency)
-    } catch (error) {
-      favoriteMessage = (error as Error).message
-    } finally {
-      pendingFavoritePath = ''
-    }
   }
 
   async function logout() {
@@ -171,53 +133,6 @@
       </Sidebar.GroupContent>
     </Sidebar.Group>
 
-    {#if favorites.length > 0 || visibleFavoriteError}
-      <Sidebar.Group aria-label="Favorites">
-        <Sidebar.GroupLabel>Favorites</Sidebar.GroupLabel>
-        <Sidebar.GroupContent>
-          {#if visibleFavoriteError}
-            <p class="px-2 text-xs text-destructive" role="alert">
-              {visibleFavoriteError}
-            </p>
-          {/if}
-          {#if favorites.length > 0}
-            <Sidebar.Menu>
-              {#each favorites as favorite (favorite.id)}
-                <Sidebar.MenuItem>
-                  <Sidebar.MenuButton
-                    isActive={page.url.pathname === favorite.path}
-                    tooltipContent={favorite.label}
-                  >
-                    {#snippet child({ props })}
-                      <a
-                        {...props}
-                        href={`${base}${favorite.path}`}
-                        aria-current={page.url.pathname === favorite.path
-                          ? 'page'
-                          : undefined}
-                        onclick={closeMobile}
-                      >
-                        <StarIcon weight="fill" aria-hidden="true" />
-                        <span>{favorite.label}</span>
-                      </a>
-                    {/snippet}
-                  </Sidebar.MenuButton>
-                  <FavoriteAction
-                    active
-                    showOnHover
-                    pending={pendingFavoritePath === favorite.path}
-                    path={favorite.path}
-                    label={favorite.label}
-                    ontoggle={toggleFavorite}
-                  />
-                </Sidebar.MenuItem>
-              {/each}
-            </Sidebar.Menu>
-          {/if}
-        </Sidebar.GroupContent>
-      </Sidebar.Group>
-    {/if}
-
     {#if personalWorkspace}
       <Sidebar.Group>
         <Sidebar.GroupLabel>Personal</Sidebar.GroupLabel>
@@ -226,9 +141,6 @@
             workspace={personalWorkspace}
             accounts={personalAccounts}
             bind:accountsOpen={personalAccountsOpen}
-            {favorites}
-            {pendingFavoritePath}
-            ontogglefavorite={toggleFavorite}
           />
         </Sidebar.GroupContent>
       </Sidebar.Group>
@@ -255,9 +167,6 @@
               {workspace}
               accounts={routeWorkspaceId === workspace.id ? routeAccounts : []}
               active={routeWorkspaceId === workspace.id}
-              {favorites}
-              {pendingFavoritePath}
-              ontogglefavorite={toggleFavorite}
             />
           {/each}
         </Sidebar.Menu>

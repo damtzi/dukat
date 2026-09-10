@@ -28,7 +28,6 @@ const services = (): APIServices => ({
 		}
 	},
 	async readiness() {},
-	favorites: {} as APIServices['favorites'],
 	ledger: {} as APIServices['ledger'],
 	planning: {} as APIServices['planning'],
 	insights: {

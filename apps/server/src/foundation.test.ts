@@ -11,7 +11,6 @@ import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/em
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
 import { createAdministrationRepository } from '@dukat/db/repositories/administration';
 import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
-import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createPlanningRepository } from '@dukat/db/repositories/planning';
@@ -91,7 +90,6 @@ async function createFoundationFixture() {
 			api: createAPI({
 				administration,
 				auth,
-				favorites: createFavoriteRepository(source.db),
 				profileImageCleanup,
 				profileImages: createProfileImageService({
 					auth,
@@ -547,7 +545,6 @@ test('authentication lifecycle validates identity and session security', async (
 		const productionApp = createServerApp({
 			api: createAPI({
 				auth: productionAuth,
-				favorites: createFavoriteRepository(source.db),
 				readiness: () => source.db.run('select 1'),
 				ledger: createLedgerRepository(fixture.sourceFinancial.db),
 				planning: createPlanningRepository(fixture.sourceFinancial.db),

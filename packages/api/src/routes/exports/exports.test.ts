@@ -39,7 +39,6 @@ function services(): APIServices {
 				yield `1,${userId},${name}\r\n`;
 			}
 		} as APIServices['exports'],
-		favorites: {} as APIServices['favorites'],
 		ledger: {} as APIServices['ledger'],
 		planning: {} as APIServices['planning'],
 		insights: {} as APIServices['insights'],

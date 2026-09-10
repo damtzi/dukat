@@ -1,7 +1,6 @@
 import { createAPI, createProfileImageService } from '@dukat/api';
 import { auth, emailSender, trustedOrigins } from '@dukat/auth';
 import { db, financialDb } from '@dukat/db';
-import { createFavoriteRepository } from '@dukat/db/repositories/favorites';
 import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { createLedgerRepository } from '@dukat/db/repositories/ledger';
 import { createInsightsRepository } from '@dukat/db/repositories/insights';
@@ -205,7 +204,6 @@ const api = createAPI(
 		auth,
 		trustedOrigins,
 		exports: createExportRepository(db, financialDb),
-		favorites: createFavoriteRepository(db),
 		profileImageCleanup,
 		profileImages: createProfileImageService({
 			auth,

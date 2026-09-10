@@ -82,7 +82,6 @@ const services = (reportError?: BudgetError) => {
 			}
 		},
 		budgets,
-		favorites: {},
 		ledger: {},
 		planning: {},
 		insights: {},

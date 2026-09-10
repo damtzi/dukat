@@ -136,7 +136,6 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 		const url = new URL(route.request().url());
 		if (url.pathname === '/api/auth/get-session')
 			return json(route, { session: { id: 'session' }, user: { id: 'user' } });
-		if (url.pathname === '/api/favorites') return json(route, []);
 		if (url.pathname === '/api/workspaces')
 			return json(route, [
 				{

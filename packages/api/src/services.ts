@@ -76,18 +76,6 @@ export interface AdministrationService {
 	purgeExpiredAccounts(): Promise<{ id: string }[]>;
 }
 
-export interface FavoriteSummary {
-	id: string;
-	path: string;
-	label: string;
-}
-
-export interface FavoriteService {
-	list(userId: string): Promise<FavoriteSummary[]>;
-	add(userId: string, input: { path: string; label: string }): Promise<FavoriteSummary>;
-	remove(userId: string, favoriteId: string): Promise<void>;
-}
-
 export interface WorkspaceSummary {
 	id: string;
 	name: string;
@@ -307,7 +295,6 @@ export interface APIServices {
 	auth: AuthenticationService;
 	exports?: ExportRepository;
 	trustedOrigins?: readonly string[];
-	favorites: FavoriteService;
 	profileImageCleanup?: ProfileImageCleanupService;
 	profileImages?: ProfileImageService;
 	readiness(): Promise<unknown>;

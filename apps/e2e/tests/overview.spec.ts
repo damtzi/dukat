@@ -165,7 +165,6 @@ async function mockOverview(page: Page, state: State = 'data', attention: Attent
 				session: { id: 'session' },
 				user: { id: 'user' }
 			});
-		if (pathname === '/api/favorites') return json(route, []);
 		if (pathname === '/api/workspaces')
 			return json(route, [
 				{

@@ -4,34 +4,23 @@
   import type { Snippet } from 'svelte'
   import AppSidebar from '$lib/components/dashboard/app-sidebar.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
-  import type { Favorite } from '$lib/favorites'
   import type { SessionUser } from '$lib/session'
 
   let {
     user,
     workspaces,
     personalAccounts,
-    favorites,
-    favoritesError,
     children,
   }: {
     user: SessionUser
     workspaces: Workspace[]
     personalAccounts: Account[]
-    favorites: Favorite[]
-    favoritesError: string
     children: Snippet
   } = $props()
 </script>
 
 <Sidebar.Provider style="--sidebar-width: 17rem;">
-  <AppSidebar
-    {user}
-    {workspaces}
-    {personalAccounts}
-    {favorites}
-    {favoritesError}
-  />
+  <AppSidebar {user} {workspaces} {personalAccounts} />
   <Sidebar.Inset class="min-w-0 overflow-hidden">
     <header
       class="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur"
