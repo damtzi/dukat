@@ -10,6 +10,7 @@ const proxy = {
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
+    allowedHosts: ['.onamp.dev'],
     proxy,
   },
   preview: {
