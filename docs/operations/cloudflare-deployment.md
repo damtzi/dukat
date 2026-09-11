@@ -117,6 +117,20 @@ Worker startup validates all values without printing them. Requests to an origin
 `BETTER_AUTH_URL` fail closed. Better Auth therefore emits secure, HTTP-only, same-site cookies and
 same-origin redirects.
 
+### 7. Enable automatic deploys
+
+Create a Cloudflare API token from the **Edit Cloudflare Workers** template. Limit it to the account
+that owns the `dukat` Worker. Add these repository secrets in GitHub under **Settings → Secrets and
+variables → Actions**:
+
+- `CLOUDFLARE_ACCOUNT_ID`: the Worker account ID.
+- `CLOUDFLARE_API_TOKEN`: the scoped API token.
+
+The `CI` GitHub Actions workflow deploys each push to `main` only after lint, type checks, builds,
+and tests pass. Pull requests run the same checks but do not deploy. Production database migrations
+remain a separate controlled step. Run any required migration before merging a change that depends
+on it.
+
 ## Release
 
 Migrations are a separate controlled step. Before a risky production migration, confirm that Turso
@@ -129,7 +143,7 @@ TURSO_AUTH_TOKEN='<release-token>' \
 pnpm db:migrate:release
 ```
 
-Deploy only after migration succeeds:
+For the initial deployment or a manual redeployment, deploy only after migration succeeds:
 
 ```sh
 pnpm run deploy
