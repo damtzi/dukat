@@ -126,10 +126,10 @@ variables → Actions**:
 - `CLOUDFLARE_ACCOUNT_ID`: the Worker account ID.
 - `CLOUDFLARE_API_TOKEN`: the scoped API token.
 
-The `CI` GitHub Actions workflow deploys each push to `main` only after lint, type checks, builds,
-and tests pass. Pull requests run the same checks but do not deploy. Production database migrations
-remain a separate controlled step. Run any required migration before merging a change that depends
-on it.
+The `CI` GitHub Actions workflow uses Cloudflare's Wrangler action to deploy each push to `main` only
+after lint, type checks, builds, and tests pass. Pull requests run the same checks but do not deploy.
+Production database migrations remain a separate controlled step. Run any required migration before
+merging a change that depends on it.
 
 ## Release
 
