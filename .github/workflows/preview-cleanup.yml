@@ -1,0 +1,49 @@
+name: Preview cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+concurrency:
+  group: ci-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    name: Delete PR preview
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete preview Worker and database
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DATABASE_NAME: dukat-pr-${{ github.event.number }}
+          TURSO_PLATFORM_TOKEN: ${{ secrets.TURSO_PREVIEW_PLATFORM_TOKEN }}
+          WORKER_NAME: dukat-pr-${{ github.event.number }}
+        run: |
+          set -euo pipefail
+
+          cloudflare_response="$RUNNER_TEMP/cloudflare.json"
+          cloudflare_status=$(curl --silent --show-error \
+            --output "$cloudflare_response" --write-out '%{http_code}' \
+            --request DELETE \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME?force=true")
+          if [ "$cloudflare_status" != 200 ] && [ "$cloudflare_status" != 404 ]; then
+            jq -r '.errors[]?.message // "Cloudflare Worker cleanup failed"' "$cloudflare_response" >&2
+            exit 1
+          fi
+
+          turso_response="$RUNNER_TEMP/turso.json"
+          turso_status=$(curl --silent --show-error \
+            --output "$turso_response" --write-out '%{http_code}' \
+            --request DELETE \
+            --header "Authorization: Bearer $TURSO_PLATFORM_TOKEN" \
+            "https://api.turso.tech/v1/organizations/damtzi/databases/$DATABASE_NAME")
+          if [ "$turso_status" != 200 ] && [ "$turso_status" != 404 ]; then
+            jq -r '.error // "Turso database cleanup failed"' "$turso_response" >&2
+            exit 1
+          fi

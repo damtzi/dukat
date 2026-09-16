@@ -31,5 +31,27 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	"env": {
+		"preview": {
+			"workers_dev": true,
+			"preview_urls": false,
+			"r2_buckets": [
+				{
+					"binding": "PROFILE_IMAGES",
+					"bucket_name": "dukat-profile-images-preview"
+				}
+			],
+			"images": {
+				"binding": "IMAGES"
+			},
+			"triggers": {
+				"crons": []
+			},
+			"vars": {
+				"NODE_ENV": "production",
+				"LOG_LEVEL": "info"
+			}
+		}
 	}
 }

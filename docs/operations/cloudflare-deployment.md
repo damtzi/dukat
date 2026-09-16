@@ -131,6 +131,36 @@ after lint, type checks, builds, and tests pass. Pull requests run the same chec
 Production database migrations remain a separate controlled step. Run any required migration before
 merging a change that depends on it.
 
+#### Pull request previews
+
+Same-repository pull requests deploy only after the same CI checks pass. Each pull request gets an
+isolated Worker named `dukat-pr-<number>` and a Turso database branched from the sanitized
+`dukat-preview-template` database. Preview Workers share the private
+`dukat-profile-images-preview` R2 bucket, never the production bucket, and have no Cron Triggers.
+GitHub shows the Worker URL on the deployment. Closing the pull request deletes its Worker and Turso
+database. Fork pull requests do not receive secrets or deploy previews.
+
+Create a group-scoped Turso Platform API token for this lifecycle:
+
+```sh
+turso auth api-tokens mint dukat-preview-ci \
+  --org damtzi \
+  --group dukat-eu \
+  --scope read \
+  --scope db:create \
+  --scope db:delete \
+  --scope db:mint-token
+```
+
+Add these repository secrets in GitHub Actions:
+
+- `TURSO_PREVIEW_PLATFORM_TOKEN`: the group-scoped token.
+- `PREVIEW_BETTER_AUTH_SECRET`: a separate secret of at least 32 characters.
+- `PREVIEW_RESEND_API_KEY`: a preview-only Resend API key.
+
+Never seed `dukat-preview-template` from production after production contains user data. Keep the
+template sanitized and use only fake preview data.
+
 ## Release
 
 Migrations are a separate controlled step. Before a risky production migration, confirm that Turso
