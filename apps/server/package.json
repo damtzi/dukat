@@ -6,8 +6,8 @@
 		"dev:worker": "wrangler dev",
 		"build": "tsc",
 		"build:assets": "pnpm --filter @dukat/dashboard build && pnpm --filter @dukat/admin build && rm -rf ../dashboard/build/admin && cp -R ../admin/build ../dashboard/build/admin",
-		"build:worker": "pnpm build:assets && wrangler deploy --dry-run",
-		"deploy": "pnpm build:assets && wrangler deploy",
+		"build:worker": "pnpm build:assets && wrangler deploy --dry-run --env=\"\"",
+		"deploy": "pnpm build:assets && wrangler deploy --env=\"\"",
 		"start": "tsx src/index.ts",
 		"lint": "eslint",
 		"test": "tsx --test src/*.test.ts"

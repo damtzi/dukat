@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -153,11 +153,136 @@ jobs:
       - name: Build Worker assets
         run: pnpm --filter @dukat/server build:assets
 
+      - name: Read deployment message
+        id: deployment
+        run: |
+          message=$(git log -1 --pretty=%s | tr -d '"\\')
+          printf 'message=%s\n' "${message:-GitHub commit $GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v4
         with:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy
+          command: deploy --env="" --message "${{ steps.deployment.outputs.message }}"
           packageManager: pnpm
           workingDirectory: apps/server
+
+  deploy-preview:
+    name: Deploy PR preview
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [lint, check-types, build, foundation-tests]
+    runs-on: ubuntu-latest
+    environment:
+      name: preview-pr-${{ github.event.number }}
+      url: https://dukat-pr-${{ github.event.number }}.damian-tziamtzis.workers.dev
+    env:
+      DATABASE_NAME: dukat-pr-${{ github.event.number }}
+      PREVIEW_ORIGIN: https://dukat-pr-${{ github.event.number }}.damian-tziamtzis.workers.dev
+      WORKER_NAME: dukat-pr-${{ github.event.number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.1.0
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision preview database
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.PREVIEW_BETTER_AUTH_SECRET }}
+          RESEND_API_KEY: ${{ secrets.PREVIEW_RESEND_API_KEY }}
+          TURSO_PLATFORM_TOKEN: ${{ secrets.TURSO_PREVIEW_PLATFORM_TOKEN }}
+        run: |
+          set -euo pipefail
+          api="https://api.turso.tech/v1/organizations/damtzi/databases"
+          response="$RUNNER_TEMP/database.json"
+          status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $TURSO_PLATFORM_TOKEN" \
+            "$api/$DATABASE_NAME")
+
+          if [ "$status" = 404 ]; then
+            payload=$(jq --null-input --compact-output \
+              --arg name "$DATABASE_NAME" \
+              '{name: $name, group: "dukat-eu", seed: {type: "database", name: "dukat-preview-template"}}')
+            status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $TURSO_PLATFORM_TOKEN" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "$api")
+          fi
+
+          if [ "$status" != 200 ]; then
+            jq -r '.error // "Turso database provisioning failed"' "$response" >&2
+            exit 1
+          fi
+
+          hostname=$(jq --exit-status --raw-output '.database.Hostname' "$response")
+          token_response="$RUNNER_TEMP/database-token.json"
+          status=$(curl --silent --show-error --output "$token_response" --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $TURSO_PLATFORM_TOKEN" \
+            "$api/$DATABASE_NAME/auth/tokens?expiration=2w&authorization=full-access")
+          if [ "$status" != 200 ]; then
+            echo 'Turso database token creation failed' >&2
+            exit 1
+          fi
+
+          database_token=$(jq --exit-status --raw-output '.jwt' "$token_response")
+          database_url="libsql://$hostname"
+          echo "::add-mask::$database_token"
+
+          TURSO_DATABASE_URL="$database_url" TURSO_AUTH_TOKEN="$database_token" pnpm db:migrate:release
+
+          jq --null-input \
+            --arg authSecret "$BETTER_AUTH_SECRET" \
+            --arg authUrl "$PREVIEW_ORIGIN" \
+            --arg databaseToken "$database_token" \
+            --arg databaseUrl "$database_url" \
+            --arg resendKey "$RESEND_API_KEY" \
+            '{
+              BETTER_AUTH_SECRET: $authSecret,
+              BETTER_AUTH_URL: $authUrl,
+              TURSO_DATABASE_URL: $databaseUrl,
+              TURSO_AUTH_TOKEN: $databaseToken,
+              RESEND_API_KEY: $resendKey,
+              AUTH_EMAIL_FROM: "Dukat Preview <onboarding@resend.dev>",
+              AUTH_ADMIN_EMAILS: ""
+            }' > "$RUNNER_TEMP/preview-secrets.json"
+          chmod 600 "$RUNNER_TEMP/preview-secrets.json"
+
+      - name: Build Worker assets
+        run: pnpm --filter @dukat/server build:assets
+
+      - name: Read deployment message
+        id: deployment
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          message=$(printf '%s\n' "$PR_TITLE" | head -n 1 | tr -d '"\\')
+          printf 'message=%s\n' "${message:-GitHub commit $GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy preview Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy --env preview --name ${{ env.WORKER_NAME }} --secrets-file "${{ runner.temp }}/preview-secrets.json" --message "${{ steps.deployment.outputs.message }}"
+          packageManager: pnpm
+          workingDirectory: apps/server
+
+      - name: Check preview readiness
+        run: curl --fail --silent --show-error "$PREVIEW_ORIGIN/api/health/ready"
+
+      - name: Add preview link to summary
+        run: printf '### PR preview\n\n[Open preview](%s)\n' "$PREVIEW_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
