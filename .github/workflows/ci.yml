@@ -282,7 +282,14 @@ jobs:
           workingDirectory: apps/server
 
       - name: Check preview readiness
-        run: curl --fail --silent --show-error "$PREVIEW_ORIGIN/api/health/ready"
+        run: |
+          for attempt in {1..10}; do
+            if curl --fail --silent --show-error "$PREVIEW_ORIGIN/api/health/ready"; then
+              exit 0
+            fi
+            sleep 3
+          done
+          exit 1
 
       - name: Add preview link to summary
         run: printf '### PR preview\n\n[Open preview](%s)\n' "$PREVIEW_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
