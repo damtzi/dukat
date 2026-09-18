@@ -47,6 +47,15 @@ function services(): APIServices {
 					householdNetWorth: total,
 					combinedNetWorth: total,
 					currentMonthSpending: { ...total, originals: [] },
+					spendingComparison: {
+						currentMonth: '2026-09',
+						typicalMonths: ['2026-06', '2026-07', '2026-08'],
+						asOfDay: 18,
+						missingRate: false,
+						differenceMinor: '0',
+						points: []
+					},
+					recentTransactions: [],
 					accounts: [],
 					upcoming: [],
 					workspaces: [],

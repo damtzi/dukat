@@ -23,6 +23,50 @@ function monthRange(date: string) {
 	};
 }
 
+function shiftMonth(month: string, offset: number) {
+	const [year, value] = month.split('-').map(Number) as [number, number];
+	const shifted = new Date(Date.UTC(year, value - 1 + offset, 1));
+	return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function summaryBetween(summary: Summary, startDate: string, endDate: string): Summary {
+	return {
+		currencies: summary.currencies
+			.map((source) => {
+				const groups = source.groups
+					.map((group) => {
+						const transactions = group.transactions.filter(
+							(transaction) => transaction.date >= startDate && transaction.date <= endDate
+						);
+						return {
+							...group,
+							amountMinor: transactions
+								.reduce((sum, transaction) => sum + BigInt(transaction.amountMinor), 0n)
+								.toString(),
+							transactions
+						};
+					})
+					.filter((group) => group.transactions.length > 0);
+				const amount = (kind: 'income' | 'expense') =>
+					groups
+						.filter((group) => group.kind === kind)
+						.reduce((sum, group) => sum + BigInt(group.amountMinor), 0n)
+						.toString();
+				return {
+					currency: source.currency,
+					incomeMinor: amount('income'),
+					spendingMinor: amount('expense'),
+					uncategorizedMinor: groups
+						.filter((group) => group.categoryId === null)
+						.reduce((sum, group) => sum + BigInt(group.amountMinor), 0n)
+						.toString(),
+					groups
+				};
+			})
+			.filter((source) => source.groups.length > 0)
+	};
+}
+
 function total(workspaces: Array<{ netWorthMinor: string | null; missingRate: boolean }>) {
 	const missingRate = workspaces.some((workspace) => workspace.missingRate);
 	return {
@@ -49,23 +93,38 @@ export function createOverviewRepository(dependencies: {
 		async get(userId: string): Promise<MyOverview> {
 			const workspaces = await dependencies.workspaces.listAuthorized(userId);
 			const history = await dependencies.history.list(userId);
-			const range = monthRange(todayInDefaultTimeZone(dependencies.clock?.() ?? new Date()));
+			const today = todayInDefaultTimeZone(dependencies.clock?.() ?? new Date());
+			const range = monthRange(today);
+			const currentMonth = today.slice(0, 7);
+			const typicalMonths = [-3, -2, -1].map((offset) => shiftMonth(currentMonth, offset));
+			const comparisonStart = `${typicalMonths[0]}-01`;
 			const originalSpending = new Map<string, bigint>();
 			const accountRows: MyOverview['accounts'] = [];
+			const recentTransactions: Array<
+				MyOverview['recentTransactions'][number] & { createdAt: string }
+			> = [];
 			const upcoming: MyOverview['upcoming'] = [];
+			const spendingByDate = new Map<string, bigint>();
 			let spending = 0n;
 			let spendingMissingRate = false;
+			let comparisonMissingRate = false;
 
 			const workspaceRows = [];
 			for (const workspace of workspaces) {
 				const context = { userId, workspaceId: workspace.id };
+				const categories = await dependencies.insights.listCategories(context);
+				const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
 				const balances = await dependencies.exchangeRates.currentBalances<LedgerAccount>(
 					userId,
 					workspace.id,
 					dependencies.ledger,
 					reportingCurrency
 				);
-				const summary = await dependencies.insights.summary(context, range);
+				const comparisonSummary = await dependencies.insights.summary(context, {
+					startDate: comparisonStart,
+					endDate: today
+				});
+				const summary = summaryBetween(comparisonSummary, range.startDate, today);
 				const accounts = balances.accounts;
 				const reporting = await dependencies.exchangeRates.reportingSummary(
 					workspace.id,
@@ -94,6 +153,54 @@ export function createOverviewRepository(dependencies: {
 						archivedAt: account.archivedAt
 					}))
 				);
+
+				const convertedSpending = await dependencies.exchangeRates.reportingTotals(
+					workspace.id,
+					comparisonSummary.currencies.flatMap((source) =>
+						source.groups
+							.filter((group) => group.kind === 'expense')
+							.flatMap((group) =>
+								group.transactions.map((transaction) => ({
+									group: transaction.date,
+									amountMinor: transaction.amountMinor,
+									currency: source.currency,
+									date: transaction.date
+								}))
+							)
+					),
+					reportingCurrency
+				);
+				if (convertedSpending.missingRate) comparisonMissingRate = true;
+				else
+					for (const entry of convertedSpending.totals)
+						spendingByDate.set(
+							entry.group,
+							(spendingByDate.get(entry.group) ?? 0n) + BigInt(entry.amountMinor)
+						);
+
+				const latest = await dependencies.ledger.searchTransactions(context, { limit: 200 });
+				for (const transaction of latest.filter(({ kind }) => kind !== 'refund').slice(0, 5)) {
+					const account = accounts.find(({ id }) => id === transaction.accountId);
+					if (!account) continue;
+					recentTransactions.push({
+						id: transaction.id,
+						workspaceId: workspace.id,
+						workspaceName: workspace.name,
+						workspaceType: workspace.type,
+						accountId: account.id,
+						accountName: account.name,
+						kind: transaction.kind,
+						amountMinor: transaction.amountMinor,
+						currency: account.currency,
+						date: transaction.date,
+						merchant: transaction.merchant,
+						description: transaction.description,
+						categoryName: transaction.categoryId
+							? (categoryNames.get(transaction.categoryId) ?? null)
+							: null,
+						createdAt: transaction.createdAt
+					});
+				}
 
 				const forecasts = [];
 				for (const account of accounts)
@@ -143,6 +250,28 @@ export function createOverviewRepository(dependencies: {
 
 			const personal = workspaceRows.filter(({ type }) => type === 'personal');
 			const household = workspaceRows.filter(({ type }) => type === 'household');
+			const asOfDay = Number(today.slice(-2));
+			const daysInCurrentMonth = Number(monthRange(today).endDate.slice(-2));
+			const cumulative = (month: string, day: number) => {
+				const daysInMonth = Number(monthRange(`${month}-01`).endDate.slice(-2));
+				let amount = 0n;
+				for (let index = 1; index <= Math.min(day, daysInMonth); index += 1)
+					amount += spendingByDate.get(`${month}-${String(index).padStart(2, '0')}`) ?? 0n;
+				return amount;
+			};
+			const points = Array.from({ length: daysInCurrentMonth }, (_, index) => {
+				const day = index + 1;
+				return {
+					day,
+					currentAmountMinor: day <= asOfDay ? cumulative(currentMonth, day).toString() : null,
+					typicalAmountMinor: (
+						typicalMonths.reduce((sum, month) => sum + cumulative(month, day), 0n) / 3n
+					).toString()
+				};
+			});
+			const currentAsOf = cumulative(currentMonth, asOfDay);
+			const typicalAsOf =
+				typicalMonths.reduce((sum, month) => sum + cumulative(month, asOfDay), 0n) / 3n;
 			return {
 				reportingCurrency,
 				personalNetWorth: total(personal),
@@ -155,6 +284,29 @@ export function createOverviewRepository(dependencies: {
 						.sort(([left], [right]) => left.localeCompare(right))
 						.map(([currency, amountMinor]) => ({ currency, amountMinor: amountMinor.toString() }))
 				},
+				spendingComparison: {
+					currentMonth,
+					typicalMonths,
+					asOfDay,
+					missingRate: comparisonMissingRate,
+					differenceMinor: comparisonMissingRate ? null : (typicalAsOf - currentAsOf).toString(),
+					points: comparisonMissingRate
+						? points.map((point) => ({
+								...point,
+								currentAmountMinor: null,
+								typicalAmountMinor: '0'
+							}))
+						: points
+				},
+				recentTransactions: recentTransactions
+					.sort(
+						(left, right) =>
+							right.date.localeCompare(left.date) ||
+							right.createdAt.localeCompare(left.createdAt) ||
+							right.id.localeCompare(left.id)
+					)
+					.slice(0, 5)
+					.map(({ createdAt: _, ...transaction }) => transaction),
 				accounts: accountRows,
 				upcoming: upcoming.sort(
 					(left, right) =>

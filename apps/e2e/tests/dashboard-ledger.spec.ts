@@ -32,6 +32,15 @@ function overviewResponse(
 		householdNetWorth: total,
 		combinedNetWorth: total,
 		currentMonthSpending: { ...total, originals: [] },
+		spendingComparison: {
+			currentMonth: '2026-09',
+			typicalMonths: ['2026-06', '2026-07', '2026-08'],
+			asOfDay: 18,
+			missingRate: false,
+			differenceMinor: '0',
+			points: []
+		},
+		recentTransactions: [],
 		accounts: [],
 		upcoming: [],
 		history: [],
@@ -654,7 +663,7 @@ test('signs up and signs in through the auth routes', async ({ page }) => {
 	await page.getByLabel('Password').fill('correct-horse-battery-staple');
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page).toHaveURL('/home');
-	await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Go to workspace' })).toBeVisible();
 });
 
 test('explains username availability and signup conflicts with keyboard and accessible feedback', async ({
@@ -1057,6 +1066,11 @@ test('omits combined values when rates are missing and keeps original values', a
 					missingRate: true,
 					originals: [{ currency: 'EUR', amountMinor: '1234' }]
 				},
+				spendingComparison: {
+					...overviewResponse().spendingComparison,
+					missingRate: true,
+					differenceMinor: null
+				},
 				accounts: [
 					{
 						id: accountId,
@@ -1077,9 +1091,8 @@ test('omits combined values when rates are missing and keeps original values', a
 	});
 
 	await page.goto('/home');
-	await expect(page.getByText('Some combined values are unavailable')).toBeVisible();
-	await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(3);
-	await expect(page.getByText('12,34 €', { exact: true })).toBeVisible();
+	await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
+	await expect(page.getByText(/Spending comparison is unavailable/)).toBeVisible();
 	await expect(page.getByText('45,67 €', { exact: true })).toBeVisible();
 });
 
@@ -1132,7 +1145,7 @@ test('creates and selects a household workspace', async ({ page }) => {
 	});
 
 	await page.goto('/home');
-	await page.getByRole('link', { name: 'New Household workspace' }).click();
+	await page.getByRole('link', { name: 'New workspace' }).click();
 	await page.getByLabel('Name', { exact: true }).fill('Lovelace household');
 	await page.getByLabel('Reporting currency', { exact: true }).fill('eur');
 	await page.getByRole('button', { name: 'Create workspace', exact: true }).click();

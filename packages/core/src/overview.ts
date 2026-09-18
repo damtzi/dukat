@@ -59,6 +59,39 @@ export const myOverviewSchema = z.object({
 	currentMonthSpending: totalSchema.extend({
 		originals: z.array(currencyAmountSchema)
 	}),
+	spendingComparison: z.object({
+		currentMonth: z.string().regex(/^\d{4}-\d{2}$/),
+		typicalMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/)).length(3),
+		asOfDay: z.number().int().min(1).max(31),
+		missingRate: z.boolean(),
+		differenceMinor: amountSchema.nullable(),
+		points: z.array(
+			z.object({
+				day: z.number().int().min(1).max(31),
+				currentAmountMinor: amountSchema.nullable(),
+				typicalAmountMinor: amountSchema
+			})
+		)
+	}),
+	recentTransactions: z
+		.array(
+			z.object({
+				id: z.string(),
+				workspaceId: z.string(),
+				workspaceName: z.string(),
+				workspaceType: z.enum(['personal', 'household']),
+				accountId: z.string(),
+				accountName: z.string(),
+				kind: z.enum(['income', 'expense', 'refund']),
+				amountMinor: amountSchema,
+				currency: z.string().length(3),
+				date: isoCalendarDateSchema,
+				merchant: z.string().nullable(),
+				description: z.string().nullable(),
+				categoryName: z.string().nullable()
+			})
+		)
+		.max(5),
 	accounts: z.array(
 		z.object({
 			id: z.string(),

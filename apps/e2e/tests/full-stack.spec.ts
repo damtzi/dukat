@@ -274,9 +274,9 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page).toHaveURL('/home');
 	const personalWorkspace = page.getByLabel('Personal', { exact: true });
-	await expect(personalWorkspace.getByRole('link', { name: 'Open workspace' })).toBeVisible();
+	await expect(personalWorkspace.getByRole('link', { name: 'Go to workspace' })).toBeVisible();
 
-	await personalWorkspace.getByRole('link', { name: 'Open workspace' }).click();
+	await personalWorkspace.getByRole('link', { name: 'Go to workspace' }).click();
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}`);
 	await page.goto(`/workspaces/${workspaceId}/accounts`);
 	await page.getByRole('button', { name: 'Add account' }).click();
@@ -857,24 +857,20 @@ test('My overview combines Personal and Household values once without exposing P
 	expect(overview.history[0].workspaces[0].accounts[0].rates[0].rateToPln).toBe('4.2');
 
 	await page.goto('/home');
-	await expect(page.getByRole('heading', { name: 'My overview' })).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Net-worth history' })).toBeVisible();
-	await expect(page.getByRole('img', { name: /Net-worth history from 2026-08-30/ })).toBeVisible();
-	await expect(
-		page.getByLabel('Overview details').getByText('Owed 30,00 zł', { exact: true })
-	).toBeVisible();
-	const spendingLabel = page.getByText('Current-month spending', { exact: true }).first();
-	const upcomingLabel = page.getByText('Upcoming expected cash', { exact: true }).first();
+	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+	await expect(page.getByText('Overall balance', { exact: true })).toBeVisible();
+	await expect(page.getByText('Owed 30,00 zł', { exact: true })).toBeVisible();
+	const spendingLabel = page.getByText('Spending this month', { exact: true }).first();
+	const transactionsLabel = page.getByText('Recent transactions', { exact: true }).first();
 	await expect(spendingLabel).toBeVisible();
-	await expect(upcomingLabel).toBeVisible();
+	await expect(transactionsLabel).toBeVisible();
 	const viewportHeight = page.viewportSize()!.height;
 	expect((await spendingLabel.boundingBox())!.y).toBeLessThan(viewportHeight);
-	expect((await upcomingLabel.boundingBox())!.y).toBeLessThan(viewportHeight);
+	expect((await transactionsLabel.boundingBox())!.y).toBeLessThan(viewportHeight);
 	await page.setViewportSize({ width: 390, height: 844 });
-	for (const label of [spendingLabel, upcomingLabel]) {
-		const box = (await label.boundingBox())!;
-		expect(box.y + box.height).toBeLessThanOrEqual(844);
-	}
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true
+	);
 
 	const memberContext = await browser.newContext();
 	try {
