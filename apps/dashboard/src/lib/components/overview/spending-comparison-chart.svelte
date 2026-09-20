@@ -128,9 +128,7 @@
       </AreaChart>
     </Chart.Container>
   </div>
-  <div
-    class="mt-4 flex flex-wrap items-end justify-between gap-4 border-t pt-4"
-  >
+  <div class="mt-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
     <div>
       <p class="text-base font-semibold">
         {formatMoney(currentAmountMinor ?? '0', currency)} spent this month
