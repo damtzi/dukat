@@ -859,7 +859,9 @@ test('My overview combines Personal and Household values once without exposing P
 	await page.goto('/home');
 	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
 	await expect(page.getByText('Overall balance', { exact: true })).toBeVisible();
-	await expect(page.getByText('Owed 30,00 zł', { exact: true })).toBeVisible();
+	await expect(
+		page.getByLabel('Accounts', { exact: true }).getByText('Owed 30,00 zł', { exact: true })
+	).toBeVisible();
 	const spendingLabel = page.getByText('Spending this month', { exact: true }).first();
 	const transactionsLabel = page.getByText('Recent transactions', { exact: true }).first();
 	await expect(spendingLabel).toBeVisible();
