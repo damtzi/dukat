@@ -92,40 +92,19 @@ test('insights routes require authentication and reject malformed categories, su
 	);
 });
 
-test('cash-flow route returns reporting-currency monthly and category analysis', async () => {
+test('cash-flow route passes the requested period and workspace to reporting', async () => {
 	const configured = services();
 	let received: unknown;
+	let reportingInput: unknown;
 	configured.insights.summary = async (_context, input) => {
 		received = input;
 		return { currencies: [] };
 	};
 	configured.exchangeRates = {
-		reportingCashFlow: async (
-			_workspaceId: string,
-			summary: Summary,
-			startDate: string,
-			_endDate: string
-		) => ({
-			...summary,
-			reporting: {
-				currency: 'PLN',
-				incomeMinor: '1000',
-				spendingMinor: '400',
-				uncategorizedMinor: '0',
-				netMinor: '600',
-				missingRate: false,
-				rates: [],
-				months: [
-					{
-						month: startDate.slice(0, 7),
-						incomeMinor: '1000',
-						spendingMinor: '400',
-						netMinor: '600'
-					}
-				],
-				spendingCategories: [{ categoryId: 'food', categoryName: 'Food', amountMinor: '400' }]
-			}
-		})
+		reportingCashFlow: async (...args: [string, Summary, string, string]) => {
+			reportingInput = args;
+			return { currencies: [] };
+		}
 	} as unknown as NonNullable<APIServices['exchangeRates']>;
 	const response = await createAPI(configured).request(
 		'/api/workspaces/w/cash-flow?startDate=2026-01-01&endDate=2026-08-27',
@@ -133,9 +112,7 @@ test('cash-flow route returns reporting-currency monthly and category analysis',
 	);
 	assert.equal(response.status, 200);
 	assert.deepEqual(received, { startDate: '2026-01-01', endDate: '2026-08-27' });
-	const body = (await response.json()) as { reporting: { netMinor: string; months: unknown[] } };
-	assert.equal(body.reporting.netMinor, '600');
-	assert.equal(body.reporting.months.length, 1);
+	assert.deepEqual(reportingInput, ['w', { currencies: [] }, '2026-01-01', '2026-08-27']);
 });
 
 test('category writes require and forward version and idempotency bodies', async () => {

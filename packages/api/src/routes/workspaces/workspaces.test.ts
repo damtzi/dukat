@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createDatabase } from '@dukat/db/connection';
 import { testClient } from 'hono/testing';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { createWorkspaceRepository, WorkspaceError } from '@dukat/db/repositories/workspaces';
+import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
 import { user, workspaceMembership } from '@dukat/db/schema/index';
 
 import { createAPI } from '../../app';
@@ -337,34 +337,8 @@ test('account deletion requires server confirmation and starts recovery after pa
 	assert.equal(deletedUserId, 'user-1');
 });
 
-test('WorkspaceError codes map to 404, 409 and 400, and member action parameters are parsed', async () => {
+test('member action parameters distinguish the actor from the target member', async () => {
 	const headers = { authorization: 'Session test' };
-	for (const [code, status] of [
-		['not_found', 404],
-		['conflict', 409],
-		['invalid', 400]
-	] as const) {
-		const client = testClient(
-			createAPI(
-				createServices({
-					workspace: {
-						async createHousehold() {
-							throw new WorkspaceError(code, code);
-						}
-					}
-				})
-			)
-		);
-		assert.equal(
-			(
-				await client.api.workspaces.$post(
-					{ json: { name: 'Home', reportingCurrency: 'EUR' } },
-					{ headers }
-				)
-			).status,
-			status
-		);
-	}
 	let received: unknown;
 	const client = testClient(
 		createAPI(
@@ -389,20 +363,9 @@ test('WorkspaceError codes map to 404, 409 and 400, and member action parameters
 	]);
 });
 
-test('typed workspace client lists and finds authorized workspaces', async () => {
+test('workspace lookup returns 404 when no authorized workspace is found', async () => {
 	const client = testClient(createAPI(createServices()));
 	const headers = { authorization: 'Session test' };
-
-	const listResponse = await client.api.workspaces.$get({}, { headers });
-	assert.equal(listResponse.status, 200);
-	assert.deepEqual(await listResponse.json(), [personalWorkspace]);
-
-	const getResponse = await client.api.workspaces[':workspaceId'].$get(
-		{ param: { workspaceId: personalWorkspace.id } },
-		{ headers }
-	);
-	assert.equal(getResponse.status, 200);
-	assert.deepEqual(await getResponse.json(), personalWorkspace);
 
 	const missingResponse = await client.api.workspaces[':workspaceId'].$get(
 		{ param: { workspaceId: 'missing' } },

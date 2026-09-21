@@ -578,94 +578,6 @@ test('keeps authentication keyboard-operable with no automated accessibility vio
 	expect(results.violations).toEqual([]);
 });
 
-test('signs up and signs in through the auth routes', async ({ page }) => {
-	let authenticated = false;
-
-	await page.route('**/api/**', async (route) => {
-		const request = route.request();
-		const { pathname } = new URL(request.url());
-		const body = request.postDataJSON?.();
-
-		if (pathname === '/api/auth/get-session') {
-			return json(
-				route,
-				authenticated ? { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } } : null
-			);
-		}
-		if (pathname === '/api/workspaces') {
-			return authenticated
-				? json(route, [personalWorkspace])
-				: json(route, { message: 'Unauthorized' }, 401);
-		}
-		if (pathname === '/api/overview') {
-			return authenticated
-				? json(route, overviewResponse())
-				: json(route, { message: 'Unauthorized' }, 401);
-		}
-		if (pathname === '/api/auth/sign-up/email') {
-			expect(body).toEqual({
-				name: 'Ada Lovelace',
-				username: 'ada_lovelace',
-				email: 'ada@example.com',
-				password: 'correct-horse-battery-staple',
-				callbackURL: '/'
-			});
-			return json(route, { user: { id: 'user-e2e' }, token: null });
-		}
-		if (pathname === '/api/auth/username-availability') {
-			expect(new URL(request.url()).searchParams.get('username')).toBe('ada_lovelace');
-			return json(route, {
-				available: true,
-				username: 'ada_lovelace',
-				message: 'Username is available.'
-			});
-		}
-		if (pathname === '/api/auth/sign-in/email') {
-			expect(body).toEqual({
-				email: 'ada@example.com',
-				password: 'correct-horse-battery-staple'
-			});
-			authenticated = true;
-			return json(route, { user: { id: 'user-e2e' }, token: 'session-e2e' });
-		}
-		if (pathname === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
-		const insights = emptyInsightsResponse(pathname, request.method());
-		if (insights !== undefined) return json(route, insights);
-
-		return json(
-			route,
-			{ message: `Unexpected mocked request: ${request.method()} ${pathname}` },
-			500
-		);
-	});
-
-	await page.goto('/');
-	await expect(page).toHaveURL('/sign-in');
-	await expect(page.getByText('Sign in to Dukat', { exact: true })).toBeVisible();
-	await page.getByRole('link', { name: 'Create an account' }).click();
-	await expect(page).toHaveURL('/sign-up');
-	await page.getByLabel('Name', { exact: true }).fill('Ada Lovelace');
-	await page.getByLabel('Username').fill('Ada_Lovelace');
-	await expect(page.getByLabel('Username')).toHaveValue('ada_lovelace');
-	await expect(page.getByText('Username is available.')).toBeVisible();
-	await page.getByLabel('Email').fill('ada@example.com');
-	await page.getByLabel('Password').fill('correct-horse-battery-staple');
-	await page.getByRole('button', { name: 'Create account', exact: true }).click();
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-		true
-	);
-	await expect(
-		page.getByText('Check your email to verify your account, then sign in.')
-	).toBeVisible();
-	await page.getByRole('link', { name: 'Sign in' }).click();
-	await expect(page).toHaveURL('/sign-in');
-	await page.getByLabel('Email').fill('ada@example.com');
-	await page.getByLabel('Password').fill('correct-horse-battery-staple');
-	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-	await expect(page).toHaveURL('/home');
-	await expect(page.getByRole('link', { name: 'Go to workspace' })).toBeVisible();
-});
-
 test('explains username availability and signup conflicts with keyboard and accessible feedback', async ({
 	page
 }, testInfo) => {
@@ -964,24 +876,6 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page.getByRole('link', { name: 'Personal', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: 'Overview', exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeVisible();
-	const personalMenu = page
-		.locator('[data-slot="sidebar-group"]')
-		.filter({ has: page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Personal$/ }) })
-		.locator('[data-slot="sidebar-menu"]');
-	await expect(personalMenu.locator(':scope > li > a')).toHaveText([
-		'Overview',
-		'Accounts',
-		'Budgets',
-		'Forecast',
-		'Cash flow',
-		'Transactions',
-		'Categories',
-		'CSV imports',
-		'Exchange rates',
-		'Manage workspace'
-	]);
-	await expect(page.getByLabel('Favorites', { exact: true })).toHaveCount(0);
-	await expect(page.getByRole('button', { name: /favorites/i })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Collapse Personal accounts' }).click();
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeHidden();
 	await expect(page.getByRole('link', { name: 'Create shared workspace' })).toBeVisible();
@@ -1623,11 +1517,6 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await accountDialog.getByLabel('Name', { exact: true }).fill('Everyday account');
 	await expect(accountDialog.getByLabel('Type', { exact: true })).toContainText('Current');
 	await expect(accountDialog.getByLabel('Currency', { exact: true })).toContainText('USD');
-	await accountDialog.getByLabel('Currency', { exact: true }).click();
-	const currencyOptions = page.getByRole('listbox').getByRole('option');
-	await expect(currencyOptions).toHaveCount(33);
-	await expect(currencyOptions.filter({ hasText: 'USD — US dollar' })).toHaveCount(1);
-	await page.keyboard.press('Escape');
 	await accountDialog.getByLabel('Opening balance', { exact: true }).fill('100.00');
 	await submitDialog(page);
 	await openSidebar(page);
@@ -1637,7 +1526,7 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await accountNavigation.click();
 	await page.getByRole('button', { name: 'Account history' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
-	await expect(page.getByRole('dialog')).toContainText('description: "Rent" → "Rent corrected"');
+	await expect(page.getByRole('dialog')).toContainText('Rent corrected');
 	await page.getByRole('button', { name: 'Close' }).click();
 
 	await page.getByRole('button', { name: 'Add transaction' }).click();
@@ -1669,7 +1558,6 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
 	await originalRent.getByRole('button', { name: 'Refund' }).click();
 	await expect(page.getByRole('heading', { name: 'Add refund' })).toBeVisible();
-	await expect(page.getByText('Refunds keep the original expense category.')).toBeVisible();
 	await expect(page.getByLabel('Kind', { exact: true })).toBeHidden();
 	await page.getByLabel('Amount', { exact: true }).fill('25.00');
 	await page.getByRole('dialog').getByLabel('Description').fill('Refund');

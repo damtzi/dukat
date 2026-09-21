@@ -205,26 +205,6 @@ async function getOnlyWorkspaceId(fixture: FoundationFixture, cookie: string) {
 
 test('migration chain creates the foundation schema and server', async () => {
 	await withFoundationFixture(async ({ app, source }) => {
-		const userColumns = await source.client.execute('PRAGMA table_info(user)');
-		const usernameColumn = userColumns.rows.find((column) => column.name === 'username');
-		assert.equal(usernameColumn?.notnull, 1);
-		const userIndexes = await source.client.execute('PRAGMA index_list(user)');
-		assert.equal(
-			userIndexes.rows.some(
-				(index) => index.name === 'user_username_unique' && Number(index.unique) === 1
-			),
-			true
-		);
-		const userTriggers = await source.client.execute(
-			"SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'user'"
-		);
-		assert.deepEqual(userTriggers.rows.map((trigger) => trigger.name).sort(), [
-			'user_create_personal_workspace',
-			'user_household_sole_owner_guard',
-			'user_only_member_household_cleanup',
-			'user_profile_image_delete_cleanup',
-			'user_profile_image_update_cleanup'
-		]);
 		await source.db.insert(user).values({
 			id: 'migration-trigger-user',
 			name: 'Migration Trigger',

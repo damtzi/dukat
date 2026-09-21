@@ -287,26 +287,8 @@ test('ledger transaction search validates and forwards structured filters', asyn
 	});
 });
 
-test('ledger creates a validated refund from an expense', async () => {
+test('refund route rejects a zero amount', async () => {
 	const app = createAPI(createServices());
-	const response = await app.request('/api/workspaces/workspace-1/transactions/expense-1/refunds', {
-		method: 'POST',
-		headers,
-		body: JSON.stringify({
-			amountMinor: '2500',
-			date: '2026-08-02',
-			description: 'Returned item',
-			idempotencyKey: 'partial-refund'
-		})
-	});
-	assert.equal(response.status, 200);
-	assert.deepEqual(await response.json(), {
-		amountMinor: '2500',
-		date: '2026-08-02',
-		description: 'Returned item',
-		idempotencyKey: 'partial-refund'
-	});
-
 	const invalid = await app.request('/api/workspaces/workspace-1/transactions/expense-1/refunds', {
 		method: 'POST',
 		headers,

@@ -232,14 +232,9 @@ async function mockRates(page: Page, options: { householdMember?: boolean } = {}
 }
 
 test('proves exchange-rate management, provenance, quote confirmation, and exact transfer', async ({
-	browser
+	page
 }, testInfo) => {
 	test.skip(testInfo.project.name !== 'desktop-chromium');
-	const context = await browser.newContext({
-		viewport: { width: 1440, height: 1000 },
-		recordVideo: { dir: '../../.amp/in/artifacts', size: { width: 1440, height: 1000 } }
-	});
-	const page = await context.newPage();
 	const state = await mockRates(page);
 	await page.goto(`/workspaces/${workspaceId}`);
 	await expect(page.getByRole('link', { name: 'Overview', exact: true })).toHaveAttribute(
@@ -255,11 +250,6 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await expect(outlookCard).toContainText(/157,50\sUSD/);
 	await expect(page.getByText('No planned transactions')).toBeVisible();
-	await page.waitForTimeout(500);
-	await page.screenshot({
-		path: '../../.amp/in/artifacts/overview-dashboard-proof.png',
-		fullPage: true
-	});
 
 	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
 	await page.getByLabel('Currency', { exact: true }).fill('CHF');
@@ -269,43 +259,28 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	await page.getByRole('button', { name: 'Add manual rate' }).click();
 	await expect(page.getByText(/CHF 4.5 PLN/)).toBeVisible();
 	await expect(page.getByText(/Statement settlement rate · Proof User/)).toBeVisible();
-	await page.waitForTimeout(750);
-	await page.screenshot({
-		path: '../../.amp/in/artifacts/exchange-rates-dashboard-proof.png',
-		fullPage: true
-	});
 
 	const euroAccount = page.getByRole('link', { name: /Euro wallet/ });
 	await euroAccount.click();
 	await expect(euroAccount).toHaveAttribute('data-active', 'true');
 	await expect(page.getByRole('heading', { name: 'Euro wallet', level: 1 })).toBeVisible();
-	await page.screenshot({
-		path: '../../.amp/in/artifacts/account-dashboard-proof.png',
-		fullPage: true
-	});
 	await page.getByRole('button', { name: 'New transfer' }).click();
 	await expect(page.getByLabel('Source account')).toContainText('Euro wallet (EUR)');
 	await chooseSelect(page, 'Destination account', 'Dollar account (USD)');
 	await page.getByLabel('Transfer amount').fill('10.00');
 	await expect(page.getByText(/Suggested 10,75\sUSD/)).toBeVisible();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('');
-	await page.waitForTimeout(750);
 	await page.getByRole('button', { name: 'Use suggestion' }).click();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('10,75');
-	await page.waitForTimeout(750);
 	await page.getByLabel('Transfer amount').fill('20.00');
 	await expect(page.getByText(/Suggested 21,50\sUSD/)).toBeVisible();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('');
-	await page.waitForTimeout(750);
 	await page.getByRole('button', { name: 'Use suggestion' }).click();
 	await expect(page.getByLabel('Exact amount received')).toHaveValue('21,50');
-	await page.waitForTimeout(750);
 	await page.getByLabel('Note').fill('Rate proof transfer');
-	await page.screenshot({ path: '../../.amp/in/artifacts/exchange-rate-quote-proof.png' });
 	await page.getByRole('dialog').locator('form').dispatchEvent('submit');
 	await expect(page.getByRole('dialog')).toBeHidden();
 	await expect(page.getByText('Outgoing transfer')).toBeVisible();
-	await page.waitForTimeout(750);
 	expect(state.submittedTransfer()).toMatchObject({
 		fromAccountId: 'eur-proof',
 		toAccountId: 'usd-proof',
@@ -313,9 +288,6 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		receivedAmountMinor: '2150',
 		description: 'Rate proof transfer'
 	});
-	const video = page.video();
-	await context.close();
-	await video?.saveAs('../../.amp/in/artifacts/exchange-rates-e2e-proof.webm');
 });
 
 test('manual rates remain available to a household member on a phone', async ({

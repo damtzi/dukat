@@ -3,11 +3,12 @@ import test from 'node:test';
 import { BudgetError } from '@dukat/db/repositories/budgets';
 import { LedgerError } from '@dukat/db/repositories/ledger';
 import { PlanningError } from '@dukat/db/repositories/planning';
+import { WorkspaceError } from '@dukat/db/repositories/workspaces';
 
 import { createRouter } from '../lib/create-app';
 import onError from './on-error';
 
-for (const ErrorType of [LedgerError, PlanningError, BudgetError]) {
+for (const ErrorType of [LedgerError, PlanningError, BudgetError, WorkspaceError]) {
 	test(`${ErrorType.name} codes map to expected HTTP statuses`, async () => {
 		for (const [code, status] of [
 			['not_found', 404],

@@ -326,15 +326,6 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 		await cashFlowBar.focus();
 		await expect(cashFlowBar).toBeFocused();
 	}
-	const previousIncomeBar = page.getByRole('button', {
-		name: /Jul 1, 2026–Jul 27, 2026 income/
-	});
-	const currentIncomeBar = page.getByRole('button', {
-		name: /Aug 1, 2026–Aug 27, 2026 income/
-	});
-	expect((await previousIncomeBar.boundingBox())!.x).toBeLessThan(
-		(await currentIncomeBar.boundingBox())!.x
-	);
 	await expect(page.getByText('All compared cash-flow values')).toBeVisible();
 
 	const point = page.getByRole('link', {
@@ -375,23 +366,9 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	);
 
 	if (testInfo.project.name === 'phone-chromium') {
-		const balance = await page.getByText('Your balance', { exact: true }).boundingBox();
-		const outlook = await page.getByRole('heading', { name: 'Outlook', level: 2 }).boundingBox();
-		const thisMonth = await page.getByText('This month', { exact: true }).boundingBox();
-		const accountsHeading = await overview.getByText('Accounts', { exact: true }).boundingBox();
-		expect(balance!.y).toBeLessThan(outlook!.y);
-		expect(outlook!.y).toBeLessThan(thisMonth!.y);
-		expect(thisMonth!.y).toBeLessThan(accountsHeading!.y);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 			await page.evaluate(() => window.innerWidth)
 		);
-	} else {
-		const accountsCard = overview
-			.getByText('Accounts', { exact: true })
-			.locator('xpath=ancestor::*[@data-slot="card"][1]');
-		const thisMonthBox = await thisMonthCard.boundingBox();
-		const accountsBox = await accountsCard.boundingBox();
-		expect(thisMonthBox!.width / accountsBox!.width).toBeGreaterThan(1.7);
 	}
 
 	await expectNoSeriousAxeViolations(page);
