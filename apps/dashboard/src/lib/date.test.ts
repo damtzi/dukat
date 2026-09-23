@@ -61,6 +61,6 @@ describe('cash-flow periods', () => {
     ).toEqual({ startDate: '2026-07-30', endDate: '2026-08-09' })
     expect(
       formatDateRange({ startDate: '2026-08-01', endDate: '2026-08-27' }),
-    ).toBe('Aug 1, 2026–Aug 27, 2026')
+    ).toBe('Aug 1, 2026 – Aug 27, 2026')
   })
 })

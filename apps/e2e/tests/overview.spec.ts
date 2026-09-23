@@ -294,7 +294,8 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await expect(page.getByText('Projected ending balance')).toBeVisible();
 	await expect(page.getByText('Lowest projected balance')).toBeVisible();
 	await expect(page.getByText(/These values may change and are not guaranteed/)).toBeVisible();
-	await expect(page.getByText(/subtle dotted line/)).toBeVisible();
+	await expect(page.getByText('Tentative ending impact')).toBeVisible();
+	await expect(page.getByText('Not included in the expected line')).toBeVisible();
 	await expect(page.getByRole('link', { name: 'View forecast' })).toHaveAttribute(
 		'href',
 		`/workspaces/${workspaceId}/forecast`
@@ -305,8 +306,8 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await expect(thisMonthCard).toContainText('9000,00 zł');
 	await expect(thisMonthCard).toContainText('3600,00 zł');
 	await expect(thisMonthCard).toContainText('5400,00 zł');
-	await expect(thisMonthCard).toContainText('Aug 1, 2026–Aug 27, 2026');
-	await expect(thisMonthCard).toContainText('Jul 1, 2026–Jul 27, 2026');
+	await expect(thisMonthCard).toContainText('Aug 1, 2026 – Aug 27, 2026');
+	await expect(thisMonthCard).toContainText('Jul 1, 2026 – Jul 27, 2026');
 	await expect(thisMonthCard).toContainText('Difference in net cash flow: 1400,00 zł');
 	await expect(thisMonthCard).toContainText('Groceries');
 	await expect(thisMonthCard).toContainText('Other');
@@ -317,10 +318,10 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	);
 	await expect(page.getByRole('button', { name: '12 months' })).toHaveCount(0);
 	for (const name of [
-		/Aug 1, 2026–Aug 27, 2026 income/,
-		/Aug 1, 2026–Aug 27, 2026 spending/,
-		/Jul 1, 2026–Jul 27, 2026 income/,
-		/Jul 1, 2026–Jul 27, 2026 spending/
+		/Aug 1, 2026 – Aug 27, 2026 income/,
+		/Aug 1, 2026 – Aug 27, 2026 spending/,
+		/Jul 1, 2026 – Jul 27, 2026 income/,
+		/Jul 1, 2026 – Jul 27, 2026 spending/
 	]) {
 		const cashFlowBar = page.getByRole('button', { name });
 		await cashFlowBar.focus();
@@ -328,17 +329,16 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	}
 	await expect(page.getByText('All compared cash-flow values')).toBeVisible();
 
-	const point = page.getByRole('link', {
-		name: /Expense, Everyday checking.*Expected/
+	const chart = page.getByRole('region', {
+		name: 'Expected monthly balance chart'
 	});
-	await point.focus();
-	await expect(point).toBeFocused();
-	const tentativePoint = page.getByRole('link', {
-		name: /Expense, Savings reserve.*Tentative/
-	});
-	await tentativePoint.focus();
-	await expect(tentativePoint).toBeFocused();
-	await expect(page.getByRole('img', { name: /12-month projected balance/ })).toBeVisible();
+	await chart.focus();
+	await expect(chart).toBeFocused();
+	await expect(
+		page.getByRole('img', { name: /Expected balance: 12-month projection/ })
+	).toBeVisible();
+	await expect(page.getByText('Now · 810,00 zł')).toBeVisible();
+	await expect(page.getByText('12 months · 710,00 zł')).toBeVisible();
 	await expect
 		.poll(() =>
 			page
@@ -372,8 +372,6 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	}
 
 	await expectNoSeriousAxeViolations(page);
-	await point.click();
-	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts/checking/planning`);
 });
 
 test('shows objective attention items in priority order and limits initial density', async ({

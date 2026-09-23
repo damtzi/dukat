@@ -91,5 +91,5 @@ export function formatDateRange(value: DateRange) {
     year: 'numeric',
     timeZone: 'UTC',
   })
-  return `${format.format(new Date(`${value.startDate}T12:00:00Z`))}–${format.format(new Date(`${value.endDate}T12:00:00Z`))}`
+  return `${format.format(new Date(`${value.startDate}T12:00:00Z`))} – ${format.format(new Date(`${value.endDate}T12:00:00Z`))}`
 }

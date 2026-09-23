@@ -299,12 +299,20 @@
             <ol class="flex flex-col gap-3">
               {#each categories as category, index (`${category.categoryId}:${category.categoryName}`)}
                 <li
-                  class="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 text-sm"
+                  class="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 text-sm"
                 >
                   <span class="text-muted-foreground">{index + 1}.</span>
-                  <span>{category.categoryName}</span>
+                  <span class="min-w-0 truncate" title={category.categoryName}
+                    >{category.categoryName}</span
+                  >
+                  <strong class="whitespace-nowrap tabular-nums">
+                    {formatMoney(
+                      category.amountMinor,
+                      currentReporting.currency,
+                    )}
+                  </strong>
                   <span
-                    class="h-2 overflow-hidden rounded-full bg-muted"
+                    class="col-start-2 col-end-4 h-2 overflow-hidden rounded-full bg-muted"
                     aria-hidden="true"
                   >
                     <span
@@ -312,12 +320,6 @@
                       style:width={`${categoryWidth(category.amountMinor)}%`}
                     ></span>
                   </span>
-                  <strong>
-                    {formatMoney(
-                      category.amountMinor,
-                      currentReporting.currency,
-                    )}
-                  </strong>
                 </li>
               {/each}
             </ol>

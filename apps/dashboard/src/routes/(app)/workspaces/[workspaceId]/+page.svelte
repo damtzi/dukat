@@ -52,6 +52,17 @@
   let lowestTentative = $derived(
     tentative ? lowestProjectedBalance(tentative) : null,
   )
+  let tentativeImpact = $derived(
+    tentative?.endingBalanceMinor !== null &&
+      tentative?.endingBalanceMinor !== undefined &&
+      expected?.endingBalanceMinor !== null &&
+      expected?.endingBalanceMinor !== undefined
+      ? (
+          BigInt(tentative.endingBalanceMinor) -
+          BigInt(expected.endingBalanceMinor)
+        ).toString()
+      : null,
+  )
   const today = todayInWarsaw()
   let overdueCount = $derived(
     new Set(
@@ -203,10 +214,12 @@
             class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
           >
             <div>
-              <Card.Description>Your balance</Card.Description>
-              <Card.Title class="text-3xl">
+              <p class="text-sm font-medium text-muted-foreground">
+                Your balance
+              </p>
+              <p class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                 {formatMoney(combinedBalance, currency)}
-              </Card.Title>
+              </p>
             </div>
             <Button variant="outline" href={forecastPath}>View forecast</Button>
           </div>
@@ -219,23 +232,44 @@
           </div>
         </Card.Header>
         <Card.Content class="flex flex-col gap-5">
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div
+            class={[
+              'grid gap-4',
+              tentativeImpact === null ? 'sm:grid-cols-2' : 'sm:grid-cols-3',
+            ]}
+          >
             <div>
-              <p class="text-sm text-muted-foreground">
+              <p class="text-sm font-medium text-muted-foreground">
                 Projected ending balance
               </p>
-              <strong class="text-xl">
+              <strong class="mt-1 block text-lg tabular-nums">
                 {formatMoney(expected.endingBalanceMinor, currency)}
               </strong>
             </div>
             <div>
-              <p class="text-sm text-muted-foreground">
+              <p class="text-sm font-medium text-muted-foreground">
                 Lowest projected balance
               </p>
-              <strong class="text-xl">
+              <strong class="mt-1 block text-lg tabular-nums">
                 {formatMoney(lowestExpected, currency)}
               </strong>
             </div>
+            {#if tentativeImpact !== null}
+              <div>
+                <p class="text-sm font-medium text-muted-foreground">
+                  Tentative ending impact
+                </p>
+                <strong class="mt-1 block text-lg tabular-nums">
+                  {BigInt(tentativeImpact) > 0n ? '+' : ''}{formatMoney(
+                    tentativeImpact,
+                    currency,
+                  )}
+                </strong>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  Not included in the expected line
+                </p>
+              </div>
+            {/if}
           </div>
 
           {#if (tentative ?? expected).occurrences.length === 0}
@@ -252,34 +286,12 @@
             </Empty.Root>
           {:else}
             <div class="flex flex-col gap-3">
-              <div class="flex flex-wrap gap-5 text-sm" aria-hidden="true">
-                <span class="flex items-center gap-2">
-                  <span class="h-0.5 w-8 bg-primary"></span>Expected
-                </span>
-                {#if tentative}
-                  <span class="flex items-center gap-2">
-                    <span class="w-8 border-t-2 border-dotted border-primary/60"
-                    ></span>Tentative
-                  </span>
-                {/if}
-              </div>
-              <OverviewOutlookChart
-                {expected}
-                {tentative}
-                accounts={workspace.accounts}
-                workspaceId={workspace.workspaceId}
-              />
-              {#if tentative}
-                <p class="text-sm text-muted-foreground">
-                  The solid line includes Expected plans. The subtle dotted line
-                  also includes Tentative activity as a possible scenario.
-                </p>
-              {:else}
-                <p class="text-sm text-muted-foreground">
-                  The solid line includes Expected plans. The Tentative scenario
-                  is temporarily unavailable.
-                </p>
-              {/if}
+              <p class="text-sm font-medium">Expected monthly balance</p>
+              <OverviewOutlookChart {expected} />
+              <p class="text-sm text-muted-foreground">
+                The line connects expected projected balances at monthly
+                intervals.
+              </p>
             </div>
           {/if}
         </Card.Content>

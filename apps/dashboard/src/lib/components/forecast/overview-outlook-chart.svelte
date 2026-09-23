@@ -1,25 +1,10 @@
 <script lang="ts">
-  import { resolve } from '$app/paths'
-  import type { Account } from '@dukat/core/ledger'
-  import type {
-    WorkspaceForecast,
-    WorkspaceForecastOccurrence,
-  } from '$lib/controllers/workspace-controller.svelte'
+  import type { WorkspaceForecast } from '$lib/controllers/workspace-controller.svelte'
   import { todayInWarsaw } from '$lib/date'
   import { formatMoney } from '$lib/money'
   import { monthlyForecastPoints } from '$lib/overview'
 
-  let {
-    expected,
-    tentative,
-    accounts,
-    workspaceId,
-  }: {
-    expected: WorkspaceForecast
-    tentative: WorkspaceForecast | null
-    accounts: Account[]
-    workspaceId: string
-  } = $props()
+  let { expected }: { expected: WorkspaceForecast } = $props()
 
   type ChartPoint = { date: string; projectedBalanceMinor: string }
 
@@ -36,15 +21,6 @@
       expected.points,
     ),
   )
-  let tentativeSeries = $derived<ChartPoint[]>(
-    tentative
-      ? monthlyForecastPoints(
-          tentative.startingBalanceMinor!,
-          startDate,
-          tentative.points,
-        )
-      : [],
-  )
   let endTime = $derived(Date.parse(`${expectedSeries.at(-1)!.date}T12:00:00Z`))
   let months = $derived(
     expectedSeries.map(({ date }) => ({
@@ -55,24 +31,14 @@
     })),
   )
   let balanceRange = $derived.by(() => {
-    const values = [
-      ...expectedSeries,
-      ...tentativeSeries,
-      ...expected.points,
-      ...(tentative?.points ?? []),
-    ].map(({ projectedBalanceMinor }) => BigInt(projectedBalanceMinor))
+    const values = expectedSeries.map(({ projectedBalanceMinor }) =>
+      BigInt(projectedBalanceMinor),
+    )
     return {
       minimum: values.reduce((value, item) => (item < value ? item : value)),
       maximum: values.reduce((value, item) => (item > value ? item : value)),
     }
   })
-  let occurrencePoints = $derived([
-    ...expected.points.map((point) => ({ ...point, scenario: 'Expected' })),
-    ...(tentative?.points ?? [])
-      .filter(({ status }) => status === 'tentative')
-      .map((point) => ({ ...point, scenario: 'Tentative' })),
-  ])
-
   function x(date: string) {
     return (
       inset +
@@ -89,31 +55,29 @@
     return height - inset - ratio * (height - inset * 2)
   }
 
-  function stepLine(points: ChartPoint[]) {
-    const [first, ...rest] = points
-    if (!first) return ''
-    let previous = first
-    const path = [`M ${x(first.date)} ${y(first.projectedBalanceMinor)}`]
-    for (const point of rest) {
-      path.push(
-        `L ${x(point.date)} ${y(previous.projectedBalanceMinor)}`,
-        `L ${x(point.date)} ${y(point.projectedBalanceMinor)}`,
+  function linePath(points: ChartPoint[]) {
+    return points
+      .map(
+        (point, index) =>
+          `${index === 0 ? 'M' : 'L'} ${x(point.date)} ${y(point.projectedBalanceMinor)}`,
       )
-      previous = point
-    }
-    return path.join(' ')
+      .join(' ')
   }
 
-  const accountFor = (accountId: string) =>
-    accounts.find(({ id }) => id === accountId)
-  const occurrenceLabel = (point: WorkspaceForecastOccurrence) =>
-    `${point.kind === 'income' ? 'Income' : 'Expense'}, ${accountFor(point.accountId)?.name ?? 'account'}, ${point.date}`
+  function areaPath(points: ChartPoint[]) {
+    const first = points[0]!
+    const last = points.at(-1)!
+    return `${linePath(points)} L ${x(last.date)} ${height - inset} L ${x(first.date)} ${height - inset} Z`
+  }
 </script>
 
+<!-- Horizontal chart overflow must be keyboard-scrollable. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-  class="overflow-x-auto"
-  role="group"
-  aria-labelledby="overview-outlook-chart-title"
+  class="overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  role="region"
+  aria-label="Expected monthly balance chart"
+  tabindex="0"
 >
   <div class="relative h-64 min-w-[42rem] border bg-muted/20">
     <svg
@@ -124,48 +88,33 @@
       preserveAspectRatio="none"
     >
       <title id="overview-outlook-chart-title">
-        Outlook: 12-month projected balance
+        Expected balance: 12-month projection
       </title>
       <desc id="overview-outlook-chart-description">
-        Monthly Expected balance{tentative
-          ? ' and dotted Tentative balance'
-          : ''}. Planned activity can change and projected values are not
-        guaranteed.
+        Monthly expected balance from the current balance and expected plans.
+        Planned activity can change and projected values are not guaranteed.
       </desc>
+      <path d={areaPath(expectedSeries)} class="fill-primary/10" />
       <path
-        d={stepLine(expectedSeries)}
+        d={linePath(expectedSeries)}
         class="fill-none stroke-primary"
         stroke-width="3"
         vector-effect="non-scaling-stroke"
       />
-      {#if tentative}
-        <path
-          d={stepLine(tentativeSeries)}
-          class="fill-none stroke-primary/60"
-          stroke-width="2"
-          stroke-dasharray="4 6"
-          vector-effect="non-scaling-stroke"
-        />
-      {/if}
     </svg>
-    {#each occurrencePoints as point (`${point.scenario}:${point.planId}:${point.originalDate}`)}
-      <a
-        class={[
-          'absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          point.scenario === 'Tentative'
-            ? 'border-primary bg-background'
-            : 'border-background bg-primary',
-        ]}
-        style:left={`${(x(point.date) / width) * 100}%`}
-        style:top={`${(y(point.projectedBalanceMinor) / height) * 88}%`}
-        href={resolve(
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning',
-          { workspaceId, accountId: point.accountId },
-        )}
-        aria-label={`${occurrenceLabel(point)}, ${point.scenario}, projected balance ${formatMoney(point.projectedBalanceMinor, currency)}`}
-        title={`${occurrenceLabel(point)} · ${point.scenario}`}
-      ></a>
-    {/each}
+    <span
+      class="absolute bottom-7 left-4 bg-background/90 px-1 text-xs font-medium tabular-nums"
+    >
+      Now · {formatMoney(expectedSeries[0]!.projectedBalanceMinor, currency)}
+    </span>
+    <span
+      class="absolute top-2 right-4 bg-background/90 px-1 text-xs font-medium tabular-nums"
+    >
+      12 months · {formatMoney(
+        expectedSeries.at(-1)!.projectedBalanceMinor,
+        currency,
+      )}
+    </span>
     <div
       class="absolute inset-x-4 bottom-1 grid grid-cols-[repeat(13,minmax(0,1fr))] text-center text-[0.625rem] text-muted-foreground"
       aria-hidden="true"
