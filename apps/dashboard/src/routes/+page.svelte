@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
-  import { Button, Alert } from '@dukat/ui'
+  import { Button, Alert, Spinner } from '@dukat/ui'
   import { getBrowserSession } from '$lib/session'
 
   let routeState = $state<'loading' | 'error'>('loading')
@@ -24,9 +24,11 @@
 </script>
 
 <svelte:head><title>Dukat</title></svelte:head>
-<main class="mx-auto flex min-h-screen max-w-md items-center p-4">
+<main
+  class="mx-auto flex min-h-screen max-w-md items-center justify-center p-4"
+>
   {#if routeState === 'loading'}
-    <p aria-live="polite">Loading…</p>
+    <Spinner class="size-6 text-muted-foreground" aria-label="Loading Dukat" />
   {:else}
     <Alert.Root variant="destructive" role="alert">
       <Alert.Title>Could not continue</Alert.Title>

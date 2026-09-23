@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
-  import { Alert, Button } from '@dukat/ui'
+  import { Alert, Button, Spinner } from '@dukat/ui'
   import AppShell from '$lib/components/dashboard/app-shell.svelte'
   import { getBrowserSession, type SessionUser } from '$lib/session'
   import type { LayoutProps } from './$types'
@@ -30,7 +30,9 @@
 </script>
 
 {#if guardState === 'loading'}
-  <main class="p-4"><p aria-live="polite">Loading Dukat…</p></main>
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <Spinner class="size-6 text-muted-foreground" aria-label="Loading Dukat" />
+  </main>
 {:else if guardState === 'error'}
   <main class="mx-auto max-w-md p-4">
     <Alert.Root variant="destructive" role="alert">
