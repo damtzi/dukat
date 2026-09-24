@@ -22,6 +22,8 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     merchant: '',
     description: '',
     categoryId: '',
+    repeat: 'never' as 'never' | 'weekly' | 'monthly' | 'yearly',
+    repeatEndDate: '',
     allocationMode: 'equal' as 'equal' | 'custom',
     allocations: [] as Array<{
       memberUserId: string
@@ -280,7 +282,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.error = ''
     runtime.pending = true
     try {
-      if (state.form.date > todayInWarsaw())
+      if (state.form.repeat === 'never' && state.form.date > todayInWarsaw())
         throw new Error('Date cannot be in the future.')
       if (
         state.quickEntry &&
@@ -301,6 +303,17 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
         idempotencyKey: intentKey,
         ...(state.editing ? { version: state.editing.version } : {}),
       }
+      const recurring =
+        !state.editing &&
+        !state.refundingExpense &&
+        !state.creatingHouseholdExpense &&
+        state.form.repeat !== 'never'
+      if (
+        recurring &&
+        state.form.repeatEndDate &&
+        state.form.repeatEndDate < state.form.date
+      )
+        throw new Error('The repeat end date cannot be before its start date.')
       const selectedAllocations = state.form.allocations.filter(
         ({ selected }) => selected,
       )
@@ -357,18 +370,39 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
                 : {}),
             }
           : transactionBody
-      const path = state.refundingExpense
-        ? `/workspaces/${workspaceId}/transactions/${state.refundingExpense.id}/refunds`
-        : state.editingHouseholdExpense
-          ? `/workspaces/${workspaceId}/household-expenses/${state.editingHouseholdExpense.id}`
-          : state.creatingHouseholdExpense
-            ? `/workspaces/${workspaceId}/household-expenses`
-            : state.editing
-              ? `/workspaces/${workspaceId}/transactions/${state.editing.id}`
-              : `/workspaces/${workspaceId}/accounts/${account!.id}/transactions`
+      const path = recurring
+        ? `/workspaces/${workspaceId}/plans`
+        : state.refundingExpense
+          ? `/workspaces/${workspaceId}/transactions/${state.refundingExpense.id}/refunds`
+          : state.editingHouseholdExpense
+            ? `/workspaces/${workspaceId}/household-expenses/${state.editingHouseholdExpense.id}`
+            : state.creatingHouseholdExpense
+              ? `/workspaces/${workspaceId}/household-expenses`
+              : state.editing
+                ? `/workspaces/${workspaceId}/transactions/${state.editing.id}`
+                : `/workspaces/${workspaceId}/accounts/${account!.id}/transactions`
+      const requestBody = recurring
+        ? {
+            accountId: account!.id,
+            kind: state.form.kind as 'income' | 'expense',
+            amountMinor: transactionBody.amountMinor,
+            date: state.form.date,
+            status: 'expected' as const,
+            description: transactionBody.description,
+            categoryId: transactionBody.categoryId,
+            idempotencyKey: transactionBody.idempotencyKey,
+            recurrence: {
+              frequency: state.form.repeat,
+              interval: 1,
+              ...(state.form.repeatEndDate
+                ? { endDate: state.form.repeatEndDate }
+                : {}),
+            },
+          }
+        : body
       await api(path, {
         method: state.editing || state.editingHouseholdExpense ? 'PUT' : 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify(requestBody),
       })
       if (
         !state.editing &&

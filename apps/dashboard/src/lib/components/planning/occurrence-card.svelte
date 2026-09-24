@@ -11,11 +11,13 @@
     pending,
     readonly,
     rescheduleDate,
+    editAmount,
     suggestions,
     suggestionsLoading,
     suggestionsError,
     onaction,
     onrescheduleDate,
+    oneditAmount,
     onfindSuggestions,
     onmatch,
   }: {
@@ -25,15 +27,17 @@
     pending: boolean
     readonly: boolean
     rescheduleDate: string
+    editAmount: string
     suggestions: Suggestion[] | null
     suggestionsLoading: boolean
     suggestionsError: string
     onaction: (
       item: Occurrence,
       action: 'skip' | 'restore' | 'reschedule',
-      date?: string,
+      changes?: { date: string; amount: string },
     ) => Promise<void>
     onrescheduleDate: (value: string) => void
+    oneditAmount: (value: string) => void
     onfindSuggestions: () => Promise<void>
     onmatch: (item: Occurrence, suggestion: Suggestion) => Promise<void>
   } = $props()
@@ -107,11 +111,27 @@
         disabled={readonly}
       />
     </Field.Field>
+    <Field.Field class="w-auto">
+      <Field.Label for={`amount-${item.planId}-${item.originalDate}`}
+        >Amount</Field.Label
+      >
+      <Input
+        id={`amount-${item.planId}-${item.originalDate}`}
+        inputmode="decimal"
+        value={editAmount}
+        oninput={(event) => oneditAmount(event.currentTarget.value)}
+        disabled={readonly}
+      />
+    </Field.Field>
     <Button
       size="sm"
       variant="outline"
-      onclick={() => onaction(item, 'reschedule', rescheduleDate)}
-      disabled={pending || readonly}>Reschedule</Button
+      onclick={() =>
+        onaction(item, 'reschedule', {
+          date: rescheduleDate,
+          amount: editAmount,
+        })}
+      disabled={pending || readonly}>Save occurrence</Button
     >
   </div>
   {#if suggestionsError}<p class="mt-3 text-sm text-destructive" role="alert">

@@ -81,7 +81,7 @@
           aria-current={page.route.id ===
           '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'
             ? 'page'
-            : undefined}>Planning</Button
+            : undefined}>Recurring</Button
         >
       </nav>
 

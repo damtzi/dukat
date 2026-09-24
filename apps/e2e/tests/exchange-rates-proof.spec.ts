@@ -249,7 +249,7 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 		.getByText('Your balance', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await expect(outlookCard).toContainText(/157,50\sUSD/);
-	await expect(page.getByText('No planned transactions')).toBeVisible();
+	await expect(page.getByText('No recurring entries')).toBeVisible();
 
 	await page.getByRole('link', { name: 'Manage', exact: true }).click();
 	await page.getByRole('link', { name: 'Open rates' }).click();

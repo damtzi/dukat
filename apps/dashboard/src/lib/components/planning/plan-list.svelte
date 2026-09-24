@@ -48,14 +48,15 @@
 
 <Card.Root
   ><Card.Header
-    ><Card.Title>Base plans</Card.Title><Card.Description
-      >Expected plans are solid; tentative plans are shown with a dashed border.</Card.Description
+    ><Card.Title>Repeat rules</Card.Title><Card.Description
+      >Editing a rule changes the selected occurrence and future entries.</Card.Description
     ></Card.Header
   ><Card.Content class="flex flex-col gap-3">
     {#if loading}<p aria-live="polite">
         Loading plans…
       </p>{:else if plans.length === 0}<p class="text-sm text-muted-foreground">
-        No plans for this account yet.
+        No repeat rules for this account yet. Use New to schedule an expense or
+        income.
       </p>{/if}
     {#each plans as plan (plan.id)}<article
         class:border-dashed={plan.status === 'tentative'}

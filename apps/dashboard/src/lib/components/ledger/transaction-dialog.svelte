@@ -42,6 +42,8 @@
       merchant: string
       description: string
       categoryId: string
+      repeat: 'never' | 'weekly' | 'monthly' | 'yearly'
+      repeatEndDate: string
       allocationMode: 'equal' | 'custom'
       allocations: Array<{
         memberUserId: string
@@ -66,6 +68,12 @@
   const transactionKinds = [
     { value: 'expense', label: 'Expense' },
     { value: 'income', label: 'Income' },
+  ] as const
+  const repeatOptions = [
+    { value: 'never', label: 'Never' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'yearly', label: 'Yearly' },
   ] as const
   let availableCategories = $derived(
     categories.filter(
@@ -251,10 +259,46 @@
             required
             type="date"
             min={refundingExpense?.date}
-            max={todayInWarsaw()}
+            max={form.repeat === 'never' ? todayInWarsaw() : undefined}
             bind:value={form.date}
           />
         </Field.Field>
+        {#if !editingTransaction && !refundingExpense && !creatingHouseholdExpense}
+          <Field.Field>
+            <Field.Label for="transaction-repeat">Repeat</Field.Label>
+            <Select.Root type="single" bind:value={form.repeat}>
+              <Select.Trigger id="transaction-repeat" class="w-full">
+                {repeatOptions.find(({ value }) => value === form.repeat)
+                  ?.label ?? 'Never'}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Group>
+                  {#each repeatOptions as option (option.value)}
+                    <Select.Item value={option.value} label={option.label}
+                      >{option.label}</Select.Item
+                    >
+                  {/each}
+                </Select.Group>
+              </Select.Content>
+            </Select.Root>
+          </Field.Field>
+          {#if form.repeat !== 'never'}
+            <Field.Field>
+              <Field.Label for="transaction-repeat-end"
+                >Repeat until (optional)</Field.Label
+              >
+              <Input
+                id="transaction-repeat-end"
+                type="date"
+                min={form.date}
+                bind:value={form.repeatEndDate}
+              />
+              <Field.Description
+                >Due entries post automatically.</Field.Description
+              >
+            </Field.Field>
+          {/if}
+        {/if}
         {#if !quickEntry || form.kind === 'expense'}<Field.Field>
             <Field.Label for="transaction-category">Category</Field.Label>
             {#if refundMode}
@@ -345,7 +389,7 @@
               : creatingHouseholdExpense
                 ? 'Save Household expense'
                 : quickEntry
-                  ? `Save ${form.kind}`
+                  ? `${form.repeat === 'never' ? 'Save' : 'Schedule'} ${form.kind}`
                   : 'Save transaction'}</Button
           ></Dialog.Footer
         >

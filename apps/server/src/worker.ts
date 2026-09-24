@@ -230,8 +230,20 @@ function createRuntime(bindings: WorkerEnv) {
 		async runScheduled(now: Date) {
 			const hour = now.toISOString().slice(0, 13);
 			const exchangeRateDate = dailyScheduleDate(now, EXCHANGE_RATE_START_HOUR_UTC);
+			const recurringDate = new Intl.DateTimeFormat('en-CA', {
+				timeZone: 'Europe/Warsaw'
+			}).format(now);
 			const jobs = [
-				runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED')
+				runTrackedJob(operationalJobs, 'maintenance', hour, maintain, 'MAINTENANCE_FAILED'),
+				runTrackedJob(
+					operationalJobs,
+					'recurring-transactions',
+					hour,
+					async () => {
+						await planning.postDueOccurrences(recurringDate);
+					},
+					'RECURRING_TRANSACTIONS_FAILED'
+				)
 			];
 			if (exchangeRateDate) {
 				jobs.push(

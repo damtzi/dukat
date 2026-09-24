@@ -32,6 +32,7 @@
     }, 0n),
   )
   let expected = $derived(workspace.workspaceForecast)
+  let upcomingRepeats = $derived(expected?.occurrences.slice(0, 5) ?? [])
   let tentative = $derived(data.tentativeForecast)
   let combinedBalance = $derived(
     workspace.convertedBalances?.totalMinor ?? null,
@@ -106,7 +107,6 @@
       staleRate,
     }),
   )
-  let planningAccount = $derived(activeAccounts[0] ?? null)
   let accountsPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/accounts', {
       workspaceId: workspace.workspaceId,
@@ -133,18 +133,6 @@
         )
       : accountsPath,
   )
-  let planningPath = $derived(
-    planningAccount
-      ? resolve(
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning',
-          {
-            workspaceId: workspace.workspaceId,
-            accountId: planningAccount.id,
-          },
-        )
-      : accountsPath,
-  )
-
   function barWidth(value: string) {
     if (largestAccountValue === 0n) return 0
     const absolute = absoluteMinor(value)
@@ -226,8 +214,8 @@
           <div>
             <h2 class="text-xl font-semibold">Outlook</h2>
             <p class="text-sm text-muted-foreground">
-              Expected 12-month projection from current balances and unmatched
-              plans. These values may change and are not guaranteed.
+              Expected 12-month projection from current balances and upcoming
+              recurring entries. These values may change and are not guaranteed.
             </p>
           </div>
         </Card.Header>
@@ -275,13 +263,15 @@
           {#if (tentative ?? expected).occurrences.length === 0}
             <Empty.Root class="border bg-muted/20">
               <Empty.Header>
-                <Empty.Title>No planned transactions</Empty.Title>
+                <Empty.Title>No recurring entries</Empty.Title>
                 <Empty.Description>
-                  Add a plan to build your 12-month Outlook.
+                  Use Repeat when adding an expense or income to show it here.
                 </Empty.Description>
               </Empty.Header>
               <Empty.Content>
-                <Button href={planningPath}>Manage planned transactions</Button>
+                <Button onclick={() => ledger.transaction.create()}
+                  >Add recurring entry</Button
+                >
               </Empty.Content>
             </Empty.Root>
           {:else}
@@ -292,6 +282,33 @@
                 The line connects expected projected balances at monthly
                 intervals.
               </p>
+              <div class="border-t pt-4">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <h3 class="font-semibold">Upcoming recurring entries</h3>
+                  <span class="text-sm text-muted-foreground"
+                    >Next {upcomingRepeats.length}</span
+                  >
+                </div>
+                <div class="flex flex-col gap-2">
+                  {#each upcomingRepeats as item (`${item.planId}:${item.originalDate}`)}
+                    <div
+                      class="inset-panel flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span
+                        >{item.date} · {item.kind === 'expense'
+                          ? 'Expense'
+                          : 'Income'}</span
+                      >
+                      <strong class="tabular-nums">
+                        {item.kind === 'expense' ? '−' : '+'}{formatMoney(
+                          item.sourceAmountMinor,
+                          item.sourceCurrency,
+                        )}
+                      </strong>
+                    </div>
+                  {/each}
+                </div>
+              </div>
             </div>
           {/if}
         </Card.Content>

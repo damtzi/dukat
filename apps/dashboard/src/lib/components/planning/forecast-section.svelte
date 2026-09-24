@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Card, Checkbox, Label } from '@dukat/ui'
-  import { formatMoney } from '$lib/money'
+  import { formatMoney, minorToDecimal } from '$lib/money'
   import OccurrenceCard from './occurrence-card.svelte'
   import type { Forecast, Occurrence, Plan, Suggestion } from './planning-types'
 
@@ -29,7 +29,7 @@
     onaction: (
       item: Occurrence,
       action: 'skip' | 'restore' | 'reschedule',
-      date?: string,
+      changes?: { date: string; amount: string },
     ) => Promise<void>
     onsuggestions: (item: Occurrence) => Promise<Suggestion[]>
     onmatch: (item: Occurrence, suggestion: Suggestion) => Promise<void>
@@ -40,7 +40,16 @@
   const occurrenceKey = (item: Occurrence) =>
     `${item.accountId}:${item.planId}:${item.originalDate}:${item.date}`
   let drafts = $state<
-    Record<string, { value: string; sourceDate: string; dirty: boolean }>
+    Record<
+      string,
+      {
+        date: string
+        amount: string
+        sourceDate: string
+        sourceAmount: string
+        dirty: boolean
+      }
+    >
   >({})
   let suggestionState = $state<
     Record<
@@ -56,8 +65,19 @@
     for (const item of forecast.occurrences) {
       const key = occurrenceKey(item)
       const draft = next[key]
-      if (!draft || (!draft.dirty && draft.sourceDate !== item.date)) {
-        next[key] = { value: item.date, sourceDate: item.date, dirty: false }
+      if (
+        !draft ||
+        (!draft.dirty &&
+          (draft.sourceDate !== item.date ||
+            draft.sourceAmount !== item.amountMinor))
+      ) {
+        next[key] = {
+          date: item.date,
+          amount: minorToDecimal(item.amountMinor, currency),
+          sourceDate: item.date,
+          sourceAmount: item.amountMinor,
+          dirty: false,
+        }
         changed = true
       }
     }
@@ -65,9 +85,30 @@
   })
 
   function changeDraft(item: Occurrence, value: string) {
+    const current = drafts[occurrenceKey(item)]
     drafts = {
       ...drafts,
-      [occurrenceKey(item)]: { value, sourceDate: item.date, dirty: true },
+      [occurrenceKey(item)]: {
+        date: value,
+        amount: current?.amount ?? minorToDecimal(item.amountMinor, currency),
+        sourceDate: item.date,
+        sourceAmount: item.amountMinor,
+        dirty: true,
+      },
+    }
+  }
+
+  function changeAmount(item: Occurrence, amount: string) {
+    const current = drafts[occurrenceKey(item)]
+    drafts = {
+      ...drafts,
+      [occurrenceKey(item)]: {
+        date: current?.date ?? item.date,
+        amount,
+        sourceDate: item.date,
+        sourceAmount: item.amountMinor,
+        dirty: true,
+      },
     }
   }
 
@@ -104,9 +145,8 @@
   ><Card.Header
     ><div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <Card.Title>12-month forecast</Card.Title><Card.Description
-          >Overdue occurrences remain due today until resolved. Projected
-          balance: {forecast
+        <Card.Title>Upcoming repeats</Card.Title><Card.Description
+          >Due entries post automatically. Projected balance: {forecast
             ? formatMoney(forecast.endingBalanceMinor, currency)
             : '—'}</Card.Description
         >
@@ -126,12 +166,14 @@
       </p>{:else if !forecast?.occurrences.length}<p
         class="text-sm text-muted-foreground"
       >
-        No forecast occurrences in the next 12 months.
+        No upcoming recurring entries in the next 12 months.
       </p>{:else}<div class="flex flex-col gap-3">
         {#each forecast.occurrences as item (`${item.planId}:${item.originalDate}`)}<OccurrenceCard
             {item}
             plan={planFor(item.planId)}
-            rescheduleDate={drafts[occurrenceKey(item)]?.value ?? item.date}
+            rescheduleDate={drafts[occurrenceKey(item)]?.date ?? item.date}
+            editAmount={drafts[occurrenceKey(item)]?.amount ??
+              minorToDecimal(item.amountMinor, currency)}
             suggestions={suggestionState[occurrenceKey(item)]?.items ?? null}
             suggestionsLoading={suggestionState[occurrenceKey(item)]?.loading ??
               false}
@@ -141,6 +183,7 @@
             {readonly}
             {onaction}
             onrescheduleDate={(value) => changeDraft(item, value)}
+            oneditAmount={(value) => changeAmount(item, value)}
             onfindSuggestions={() => findSuggestions(item)}
             {onmatch}
           />{/each}
@@ -148,7 +191,7 @@
     {#if forecast?.matchedOccurrences.length}<div
         class="mt-6 flex flex-col gap-3"
       >
-        <h3 class="font-semibold">Matched occurrences</h3>
+        <h3 class="font-semibold">Completed repeats</h3>
         {#each forecast.matchedOccurrences as matched (`${matched.occurrence.planId}:${matched.occurrence.originalDate}`)}<article
             class="inset-panel flex flex-wrap items-center justify-between gap-3"
           >

@@ -10,7 +10,14 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createDatabase, createFinancialDatabase, type FinancialDatabase } from '../connection';
 import * as schema from '../schema';
-import { financialAccount, ledgerBalanceCorrection, user, workspace } from '../schema';
+import {
+	financialAccount,
+	ledgerBalanceCorrection,
+	ledgerTransaction,
+	plannedOccurrenceMatch,
+	user,
+	workspace
+} from '../schema';
 import { createLedgerRepository } from './ledger';
 import { createPlanningRepository } from './planning';
 
@@ -188,6 +195,67 @@ test('planning persists recurrence, forecasts corrections, and matches only once
 			(await planning.accountForecast(context, 'cash')).occurrences[0]?.date,
 			'2026-08-06'
 		);
+	} finally {
+		financial.client.close();
+		connection.client.close();
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test('posting due recurring transactions is atomic and idempotent', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'dukat-recurring-post-'));
+	const url = `file:${join(directory, 'recurring.db')}`;
+	const connection = createDatabase({ url });
+	const financial = createFinancialDatabase({ url });
+	try {
+		await migrate(connection.db, {
+			migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url))
+		});
+		await connection.db.insert(user).values({
+			id: 'scheduler-owner',
+			name: 'Scheduler Owner',
+			username: 'scheduler_owner',
+			email: 'scheduler@example.com'
+		});
+		const [personal] = await connection.db
+			.select({ id: workspace.id })
+			.from(workspace)
+			.where(eq(workspace.personalOwnerUserId, 'scheduler-owner'));
+		assert.ok(personal);
+		await financial.db.insert(financialAccount).values({
+			id: 'scheduled-cash',
+			workspaceId: personal.id,
+			name: 'Scheduled cash',
+			type: 'cash',
+			currency: 'PLN',
+			openingDate: '2026-01-01',
+			openingBalanceMinor: 1000n
+		});
+		const planning = createPlanningRepository(financial.db);
+		await planning.create(
+			{ userId: 'scheduler-owner', workspaceId: personal.id },
+			{
+				idempotencyKey: 'monthly-rent',
+				accountId: 'scheduled-cash',
+				kind: 'expense',
+				amountMinor: '125',
+				date: '2026-01-31',
+				status: 'expected',
+				description: 'Rent',
+				recurrence: { frequency: 'monthly', interval: 1 }
+			}
+		);
+
+		assert.equal(await planning.postDueOccurrences('2026-02-28'), 2);
+		assert.equal(await planning.postDueOccurrences('2026-02-28'), 0);
+		const transactions = await financial.db
+			.select({ date: ledgerTransaction.date, amountMinor: ledgerTransaction.amountMinor })
+			.from(ledgerTransaction);
+		assert.deepEqual(transactions, [
+			{ date: '2026-01-31', amountMinor: 125n },
+			{ date: '2026-02-28', amountMinor: 125n }
+		]);
+		assert.equal((await financial.db.select().from(plannedOccurrenceMatch)).length, 2);
 	} finally {
 		financial.client.close();
 		connection.client.close();

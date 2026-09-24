@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Alert } from '@dukat/ui'
+  import { parseAmount } from '$lib/money'
   import SectionHeader from '$lib/components/dashboard/section-header.svelte'
   import PlanForm from './plan-form.svelte'
   import PlanList from './plan-list.svelte'
@@ -106,13 +107,22 @@
   async function occurrenceAction(
     item: Occurrence,
     action: 'skip' | 'restore' | 'reschedule',
-    date?: string,
+    changes?: { date: string; amount: string },
   ) {
-    if (action === 'reschedule' && !date) {
+    if (action === 'reschedule' && !changes?.date) {
       error = 'Choose a new date first.'
       return
     }
-    const name = `${item.planId}:${item.originalDate}:${action}:${date ?? ''}`
+    let amountMinor: string | undefined
+    try {
+      amountMinor = changes
+        ? parseAmount(changes.amount, account.currency)
+        : undefined
+    } catch (cause) {
+      error = (cause as Error).message
+      return
+    }
+    const name = `${item.planId}:${item.originalDate}:${action}:${changes?.date ?? ''}:${amountMinor ?? ''}`
     await run(async () => {
       await api(
         `/workspaces/${workspaceId}/plans/${item.planId}/occurrences/${item.originalDate}/${action}`,
@@ -120,7 +130,9 @@
           method: 'POST',
           body: JSON.stringify({
             ...mutation(item.planId, name),
-            ...(action === 'reschedule' ? { date } : {}),
+            ...(action === 'reschedule'
+              ? { date: changes!.date, amountMinor }
+              : {}),
           }),
         },
       )
@@ -193,17 +205,16 @@
 <section class="flex flex-col gap-6" aria-labelledby="planning-title">
   <SectionHeader
     id="planning-title"
-    title="Planning"
-    description={`Plan upcoming money for ${account.name} in ${account.currency}.`}
+    title="Recurring entries"
+    description={`Review upcoming repeats for ${account.name} in ${account.currency}. Create one from New expense or New income.`}
   />
   {#if displayedError}<Alert.Root variant="destructive"
-      ><Alert.Title>Planning action failed</Alert.Title><Alert.Description
-        >{displayedError}</Alert.Description
-      ></Alert.Root
+      ><Alert.Title>Recurring entry action failed</Alert.Title
+      ><Alert.Description>{displayedError}</Alert.Description></Alert.Root
     >{/if}
   {#if account.archivedAt}<p class="text-sm text-muted-foreground">
-      This account is archived. Planning changes are disabled.
-    </p>{:else}{#key `${account.id}:${formGeneration}`}<PlanForm
+      This account is archived. Recurring entry changes are disabled.
+    </p>{:else if editing}{#key `${account.id}:${formGeneration}`}<PlanForm
         {account}
         {editing}
         {pending}

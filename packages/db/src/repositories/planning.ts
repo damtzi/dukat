@@ -1,5 +1,6 @@
-import { and, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, like, or } from 'drizzle-orm';
 import {
+	expandOccurrences,
 	forecastBalances,
 	isRuleGeneratedOccurrence,
 	rankSuggestedMatches,
@@ -209,6 +210,99 @@ export function createPlanningRepository(
 				return (
 					await tx.select().from(plannedSeries).where(eq(plannedSeries.workspaceId, c.workspaceId))
 				).map(view);
+			});
+		},
+		async postDueOccurrences(today: string) {
+			parse(isoCalendarDateSchema, today);
+			return database.transaction(async (tx) => {
+				const rows = await tx
+					.select({ plan: plannedSeries })
+					.from(plannedSeries)
+					.innerJoin(
+						financialAccount,
+						and(
+							eq(financialAccount.id, plannedSeries.accountId),
+							eq(financialAccount.workspaceId, plannedSeries.workspaceId),
+							isNull(financialAccount.archivedAt)
+						)
+					)
+					.where(
+						and(
+							eq(plannedSeries.status, 'expected'),
+							eq(plannedSeries.cancelled, 0),
+							isNotNull(plannedSeries.recurrenceFrequency)
+						)
+					);
+				const plans = await corePlans(
+					tx,
+					rows.map(({ plan }) => plan)
+				);
+				const rowsById = new Map(rows.map(({ plan }) => [plan.id, plan]));
+				const existingMatches = await tx
+					.select({
+						planId: plannedOccurrenceMatch.planId,
+						originalDate: plannedOccurrenceMatch.originalDate
+					})
+					.from(plannedOccurrenceMatch);
+				const matched = new Set(
+					existingMatches.map(({ planId, originalDate }) => `${planId}:${originalDate}`)
+				);
+				let posted = 0;
+				for (const plan of plans) {
+					const row = rowsById.get(plan.id)!;
+					for (const occurrence of expandOccurrences(
+						plan,
+						plan.effectiveFrom ?? plan.date,
+						today
+					)) {
+						const key = `${occurrence.planId}:${occurrence.originalDate}`;
+						if (matched.has(key) || occurrence.status !== 'expected') continue;
+						const transactionId = `recurring:${occurrence.planId}:${occurrence.originalDate}`;
+						const inserted = await tx
+							.insert(ledgerTransaction)
+							.values({
+								id: transactionId,
+								workspaceId: row.workspaceId,
+								accountId: occurrence.accountId,
+								kind: occurrence.kind,
+								amountMinor: occurrence.amountMinor,
+								date: occurrence.date,
+								description: row.description,
+								categoryId: row.categoryId
+							})
+							.onConflictDoNothing()
+							.returning({ id: ledgerTransaction.id });
+						if (!inserted.length)
+							throw new PlanningError('conflict', 'Recurring transaction identity already exists');
+						await tx.insert(plannedOccurrenceMatch).values({
+							id: crypto.randomUUID(),
+							workspaceId: row.workspaceId,
+							planId: occurrence.planId,
+							originalDate: occurrence.originalDate,
+							transactionId
+						});
+						await tx.insert(ledgerAudit).values({
+							id: crypto.randomUUID(),
+							workspaceId: row.workspaceId,
+							actorUserId: null,
+							actorDisplay: 'Automatic recurring entry',
+							entityType: 'transaction',
+							entityId: transactionId,
+							action: 'created',
+							beforeJson: null,
+							afterJson: json({
+								id: transactionId,
+								planId: occurrence.planId,
+								originalDate: occurrence.originalDate,
+								date: occurrence.date,
+								amountMinor: occurrence.amountMinor.toString()
+							})
+						});
+						matched.add(key);
+						posted += 1;
+					}
+				}
+				return posted;
 			});
 		},
 		async create(c: Context, raw: any) {

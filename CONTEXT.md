@@ -124,7 +124,7 @@ Expected future income or expense assigned to a financial account, with an amoun
 
 ### Recurring plan
 
-A repeating rule that produces planned transactions on a weekly, monthly, or yearly schedule.
+A repeating rule for income or spending on a weekly, monthly, or yearly schedule. Future occurrences remain visible in the forecast; each due occurrence atomically posts one completed transaction. Retrying the scheduler never posts the same occurrence twice, and edits to one occurrence or the future series preserve completed history.
 
 ### Transaction match
 

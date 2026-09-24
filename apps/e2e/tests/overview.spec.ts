@@ -478,11 +478,8 @@ test('uses direct empty and missing-rate states', async ({ page }) => {
 	await page.unrouteAll({ behavior: 'wait' });
 	await mockOverview(page, 'no-plans');
 	await page.reload();
-	await expect(page.getByText('No planned transactions')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Manage planned transactions' })).toHaveAttribute(
-		'href',
-		`/workspaces/${workspaceId}/accounts/checking/planning`
-	);
+	await expect(page.getByText('No recurring entries')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Add recurring entry' })).toBeVisible();
 	await expect(page.getByText('Outlook: 12-month projected balance')).toHaveCount(0);
 
 	await page.unrouteAll({ behavior: 'wait' });
