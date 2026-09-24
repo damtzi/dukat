@@ -194,8 +194,7 @@ function createRuntime(bindings: WorkerEnv) {
 				ledger,
 				planning,
 				insights,
-				exchangeRates,
-				history
+				exchangeRates
 			}),
 			readiness: () => db.run('select 1'),
 			workspaces: workspaceService
