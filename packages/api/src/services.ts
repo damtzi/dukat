@@ -83,6 +83,7 @@ export interface WorkspaceSummary {
 	reportingCurrency: string | null;
 	version: number;
 	role?: 'owner' | 'member' | null;
+	hasBudgets?: boolean;
 }
 
 export interface HouseholdMember {

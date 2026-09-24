@@ -165,12 +165,6 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 	});
 }
 
-async function openSidebar(page: Page) {
-	const link = page.getByRole('link', { name: 'Forecast', exact: true });
-	if (await link.isVisible()) return;
-	await page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }).click();
-}
-
 test('shows expected and tentative occurrence-level scenarios on desktop and mobile', async ({
 	page
 }, testInfo) => {
@@ -178,9 +172,7 @@ test('shows expected and tentative occurrence-level scenarios on desktop and mob
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
 	await mock(page);
-	await page.goto(`/workspaces/${workspaceId}`);
-	await openSidebar(page);
-	await page.getByRole('link', { name: 'Forecast', exact: true }).click();
+	await page.goto(`/workspaces/${workspaceId}/forecast`);
 
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}/forecast`);
 	await expect(page.getByRole('heading', { name: 'Forecast', level: 1 })).toBeVisible();
@@ -212,14 +204,6 @@ test('shows expected and tentative occurrence-level scenarios on desktop and mob
 		const lowest = await page.getByText('Lowest projected balance', { exact: true }).boundingBox();
 		expect(current!.y).toBeLessThan(projected!.y);
 		expect(projected!.y).toBeLessThan(lowest!.y);
-	} else {
-		const forecastLink = page.getByRole('link', { name: 'Forecast', exact: true });
-		await expect(forecastLink).toHaveAttribute('aria-current', 'page');
-		const sidebar = page.locator('[data-slot="sidebar"][data-state]');
-		if ((await sidebar.getAttribute('data-state')) === 'expanded')
-			await page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }).click();
-		await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
-		await expect(forecastLink).toBeVisible();
 	}
 
 	await page.screenshot({

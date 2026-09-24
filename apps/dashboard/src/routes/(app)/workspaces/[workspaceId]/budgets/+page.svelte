@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invalidate } from '$app/navigation'
   import type { BudgetReport } from '@dukat/core/budgets'
   import {
     Alert,
@@ -12,6 +13,7 @@
   } from '@dukat/ui'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
+  import { workspacesDataDependency } from '$lib/api'
   import { api } from '$lib/controllers/workspace-controller.svelte'
   import { todayInWarsaw } from '$lib/date'
   import { formatMoney, minorToDecimal, parseAmount } from '$lib/money'
@@ -79,7 +81,7 @@
       })
       categoryId = ''
       amount = ''
-      await load()
+      await Promise.all([load(), invalidate(workspacesDataDependency)])
     } catch (cause) {
       error = (cause as Error).message
     } finally {
@@ -119,7 +121,7 @@
         method,
         body: JSON.stringify(body),
       })
-      await load()
+      await Promise.all([load(), invalidate(workspacesDataDependency)])
     } catch (cause) {
       error = (cause as Error).message
     } finally {

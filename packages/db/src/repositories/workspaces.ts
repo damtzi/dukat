@@ -5,6 +5,7 @@ import type { Database } from '../connection';
 import { OWNED_HOUSEHOLD_QUOTA, PENDING_INVITATION_QUOTA } from './administration';
 import {
 	emailOutbox,
+	categoryBudget,
 	mutationReceipt,
 	session,
 	user,
@@ -34,6 +35,13 @@ const summary = {
 	version: workspace.version,
 	role: workspaceMembership.role
 };
+const summaryWithBudgetVisibility = {
+	...summary,
+	hasBudgets: sql<number>`exists (
+		select 1 from ${categoryBudget}
+		where ${categoryBudget.workspaceId} = ${workspace.id}
+	)`.mapWith(Boolean)
+};
 const authorizedWorkspace = (userId: string, workspaceId?: string) =>
 	and(
 		workspaceId === undefined ? undefined : eq(workspace.id, workspaceId),
@@ -46,7 +54,7 @@ const authorizedWorkspace = (userId: string, workspaceId?: string) =>
 
 export async function listAuthorizedWorkspaces(database: Database, userId: string) {
 	return database
-		.selectDistinct(summary)
+		.selectDistinct(summaryWithBudgetVisibility)
 		.from(workspace)
 		.leftJoin(
 			workspaceMembership,

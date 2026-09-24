@@ -13,10 +13,12 @@
     workspace,
     accounts,
     active,
+    hasBudgets,
   }: {
     workspace: Workspace
     accounts: Account[]
     active: boolean
+    hasBudgets: boolean
   } = $props()
 
   const sidebar = Sidebar.useSidebar()
@@ -72,7 +74,7 @@
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div class="ml-3 border-l border-sidebar-border pl-2">
-          <WorkspaceNavigation {workspace} {accounts} />
+          <WorkspaceNavigation {workspace} {accounts} {hasBudgets} />
         </div>
       </Collapsible.Content>
     </Sidebar.MenuItem>

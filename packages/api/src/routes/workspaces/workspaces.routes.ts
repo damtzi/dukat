@@ -11,6 +11,9 @@ const workspaceSummarySchema = z.object({
 	version: z.number().int(),
 	role: z.enum(['owner', 'member']).nullable()
 });
+const workspaceListSummarySchema = workspaceSummarySchema.extend({
+	hasBudgets: z.boolean()
+});
 const householdMemberSchema = z.object({
 	userId: z.string(),
 	name: z.string(),
@@ -28,7 +31,7 @@ export const list = createRoute({
 	tags,
 	security: [{ sessionCookie: [] }],
 	responses: {
-		200: jsonContent(z.array(workspaceSummarySchema), 'Accessible workspaces'),
+		200: jsonContent(z.array(workspaceListSummarySchema), 'Accessible workspaces'),
 		401: jsonContent(messageSchema, 'Authentication required')
 	}
 });

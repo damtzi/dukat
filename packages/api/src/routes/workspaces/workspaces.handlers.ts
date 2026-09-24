@@ -12,7 +12,11 @@ const invitationUrl = (c: { req: { url: string } }) => (token: string) =>
 export const list: AppRouteHandler<ListRoute> = async (c) => {
 	const workspaces = await c.var.services.workspaces.listAuthorized(c.var.userId);
 	return c.json(
-		workspaces.map((workspace) => ({ ...workspace, role: workspace.role ?? null })),
+		workspaces.map((workspace) => ({
+			...workspace,
+			role: workspace.role ?? null,
+			hasBudgets: workspace.hasBudgets ?? false
+		})),
 		200
 	);
 };

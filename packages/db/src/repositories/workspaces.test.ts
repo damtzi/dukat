@@ -10,7 +10,9 @@ import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createDatabase, createFinancialDatabase } from '../connection';
 import {
 	account,
+	categoryBudget,
 	emailOutbox,
+	ledgerCategory,
 	session,
 	user,
 	workspace,
@@ -91,8 +93,29 @@ test('full migrations through 0005 create global transfer shape; household creat
 		);
 		assert.ok(
 			(await f.repo.listAuthorized('owner')).some(
-				(w) => w.id === created.id && w.reportingCurrency === 'EUR' && w.version === 1
+				(w) =>
+					w.id === created.id &&
+					w.reportingCurrency === 'EUR' &&
+					w.version === 1 &&
+					w.hasBudgets === false
 			)
+		);
+		const [category] = await f.db
+			.select({ id: ledgerCategory.id })
+			.from(ledgerCategory)
+			.where(eq(ledgerCategory.workspaceId, created.id))
+			.limit(1);
+		await f.db.insert(categoryBudget).values({
+			id: 'first-budget',
+			workspaceId: created.id,
+			categoryId: category!.id,
+			month: '2026-09',
+			amountMinor: 100n,
+			reportingCurrency: 'EUR'
+		});
+		assert.equal(
+			(await f.repo.listAuthorized('owner')).find(({ id }) => id === created.id)?.hasBudgets,
+			true
 		);
 		await f.db
 			.update(workspace)

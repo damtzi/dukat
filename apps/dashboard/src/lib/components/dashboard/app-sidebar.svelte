@@ -141,6 +141,7 @@
           <WorkspaceNavigation
             workspace={personalWorkspace}
             accounts={personalAccounts}
+            hasBudgets={personalWorkspace.hasBudgets ?? false}
             bind:accountsOpen={personalAccountsOpen}
           />
         </Sidebar.GroupContent>
@@ -149,12 +150,12 @@
 
     <Sidebar.Group>
       <Sidebar.GroupLabel>Shared</Sidebar.GroupLabel>
-      <Sidebar.GroupAction title="Create shared workspace">
+      <Sidebar.GroupAction title="Create Shared workspace">
         {#snippet child({ props })}
           <a
             {...props}
             href={resolve('/workspaces/new')}
-            aria-label="Create shared workspace"
+            aria-label="Create Shared workspace"
             onclick={closeMobile}
           >
             <PlusIcon aria-hidden="true" />
@@ -168,6 +169,7 @@
               {workspace}
               accounts={routeWorkspaceId === workspace.id ? routeAccounts : []}
               active={routeWorkspaceId === workspace.id}
+              hasBudgets={workspace.hasBudgets ?? false}
             />
           {/each}
         </Sidebar.Menu>

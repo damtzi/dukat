@@ -17,7 +17,8 @@ const personalWorkspace = {
 	type: 'personal' as const,
 	reportingCurrency: 'USD',
 	version: 1,
-	role: null
+	role: null,
+	hasBudgets: false
 };
 
 function overviewResponse(
@@ -878,7 +879,7 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeVisible();
 	await page.getByRole('button', { name: 'Collapse Personal accounts' }).click();
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeHidden();
-	await expect(page.getByRole('link', { name: 'Create shared workspace' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Create Shared workspace' })).toBeVisible();
 	const results = await new AxeBuilder({ page })
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
 		.analyze();
@@ -894,6 +895,77 @@ test('keeps global navigation available outside a workspace', async ({ page }) =
 	await openSidebar(page);
 	await expect(page.getByRole('button', { name: 'Expand Personal accounts' })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Everyday account/ })).toBeHidden();
+});
+
+test('keeps workspace navigation calm until an optional area is used', async ({
+	page
+}, testInfo) => {
+	test.skip(!['desktop-chromium', 'phone-chromium'].includes(testInfo.project.name));
+	const householdId = 'household-with-budget';
+	const household = {
+		id: householdId,
+		name: 'Home finances',
+		type: 'household' as const,
+		reportingCurrency: 'EUR',
+		version: 1,
+		role: 'member' as const,
+		hasBudgets: true
+	};
+	await page.route('**/api/**', async (route) => {
+		const path = new URL(route.request().url()).pathname;
+		if (path === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (path === '/api/workspaces') return json(route, [personalWorkspace, household]);
+		if (path === `/api/workspaces/${workspaceId}/accounts`) return json(route, []);
+		if (path === `/api/workspaces/${workspaceId}/categories`) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/accounts`) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/categories`) return json(route, []);
+		if (path === `/api/workspaces/${householdId}/members`) return json(route, []);
+		if (path === '/api/overview')
+			return json(route, overviewResponse([personalWorkspace, household]));
+		return json(route, { message: `Unexpected mocked request: ${path}` }, 500);
+	});
+
+	await page.goto('/home');
+	await openSidebar(page);
+	const personalNavigation = page.locator('[data-slot="sidebar-group"]').filter({
+		has: page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Personal$/ })
+	});
+	await expect(personalNavigation.getByRole('link')).toHaveText([
+		'Overview',
+		'Accounts',
+		'Expenses',
+		'Manage'
+	]);
+	await expect(page.getByRole('link', { name: 'Budgets', exact: true })).toHaveCount(0);
+	for (const hiddenLabel of [
+		'Forecast',
+		'Cash flow',
+		'Categories',
+		'CSV imports',
+		'Exchange rates'
+	]) {
+		await expect(page.getByRole('link', { name: hiddenLabel, exact: true })).toHaveCount(0);
+	}
+
+	await page.getByRole('link', { name: 'Manage', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Manage', level: 1 })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open categories' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open import' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open rates' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open settings' })).toBeVisible();
+	await page.screenshot({
+		path: `../../.amp/in/artifacts/workspace-manage-${testInfo.project.name}.png`,
+		fullPage: true
+	});
+
+	await page.goto(`/workspaces/${householdId}`);
+	await openSidebar(page);
+	await expect(page.getByRole('link', { name: 'Budgets', exact: true })).toBeVisible();
+	await page.screenshot({
+		path: `../../.amp/in/artifacts/workspace-navigation-${testInfo.project.name}.png`,
+		fullPage: true
+	});
 });
 
 test('logs out from the global navigation', async ({ page }) => {
@@ -1046,9 +1118,11 @@ test('creates and selects a household workspace', async ({ page }) => {
 	await expect(page).toHaveURL(`/workspaces/${householdId}/manage`);
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.goto('/home');
-	await expect(
-		page.getByLabel('Household', { exact: true }).getByText('Lovelace household', { exact: true })
-	).toBeVisible();
+	await openSidebar(page);
+	const sharedNavigation = page.locator('[data-slot="sidebar-group"]').filter({
+		has: page.locator('[data-slot="sidebar-group-label"]', { hasText: /^Shared$/ })
+	});
+	await expect(sharedNavigation.getByText('Lovelace household', { exact: true })).toBeVisible();
 });
 
 test('renders household member public identities accessibly on desktop and mobile', async ({
@@ -1904,7 +1978,8 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
 
-	await clickSidebarLink(page, 'CSV imports');
+	await clickSidebarLink(page, 'Manage');
+	await page.getByRole('link', { name: 'Open import' }).click();
 	await page
 		.getByLabel('CSV file')
 		.setInputFiles({ name: 'august.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });

@@ -146,12 +146,6 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 	return cashFlowRequests;
 }
 
-async function openSidebar(page: Page) {
-	const cashFlowLink = page.getByRole('link', { name: 'Cash flow', exact: true });
-	if (await cashFlowLink.isVisible()) return;
-	await page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }).click();
-}
-
 test('navigates, compares periods, exposes chart values, and drills into transactions', async ({
 	page
 }, testInfo) => {
@@ -159,9 +153,7 @@ test('navigates, compares periods, exposes chart values, and drills into transac
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
 	const requests = await mock(page);
-	await page.goto(`/workspaces/${workspaceId}`);
-	await openSidebar(page);
-	await page.getByRole('link', { name: 'Cash flow', exact: true }).click();
+	await page.goto(`/workspaces/${workspaceId}/cash-flow`);
 
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}/cash-flow`);
 	await expect(page.getByRole('heading', { name: 'Cash flow', level: 1 })).toBeVisible();

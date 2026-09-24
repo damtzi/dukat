@@ -12,6 +12,7 @@ export type Workspace = {
   reportingCurrency: string | null
   version: number
   role: 'owner' | 'member' | null
+  hasBudgets?: boolean
 }
 
 export type HouseholdMember = {

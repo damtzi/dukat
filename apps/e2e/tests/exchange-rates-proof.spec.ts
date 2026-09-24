@@ -251,7 +251,8 @@ test('proves exchange-rate management, provenance, quote confirmation, and exact
 	await expect(outlookCard).toContainText(/157,50\sUSD/);
 	await expect(page.getByText('No planned transactions')).toBeVisible();
 
-	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
+	await page.getByRole('link', { name: 'Manage', exact: true }).click();
+	await page.getByRole('link', { name: 'Open rates' }).click();
 	await page.getByLabel('Currency', { exact: true }).fill('CHF');
 	await page.getByLabel('Rate to PLN').fill('4.5');
 	await page.getByLabel('Effective date').fill('2026-08-01');
@@ -297,10 +298,11 @@ test('manual rates remain available to a household member on a phone', async ({
 	await mockRates(page, { householdMember: true });
 	await page.goto(`/workspaces/${workspaceId}`);
 	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-	await page.getByRole('link', { name: 'Exchange rates', exact: true }).click();
+	await page.getByRole('link', { name: 'Manage', exact: true }).last().click();
+	await page.getByRole('link', { name: 'Open rates' }).click();
 	await expect(page.getByText('Manual exchange rates', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-	await page.getByRole('link', { name: 'Manage workspace', exact: true }).click();
+	await page.getByRole('link', { name: 'Manage', exact: true }).last().click();
 	await expect(page.getByRole('dialog', { name: 'Sidebar' })).toBeHidden();
 	await expect(page.getByText('Household settings', { exact: true })).toBeVisible();
 	await page.screenshot({
