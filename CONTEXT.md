@@ -46,19 +46,11 @@ A Household workspace member who can also manage membership, assign or remove ow
 
 ### My overview
 
-A private view that combines financial data the current user can access. It shows personal net worth, Household net worth, and combined accessible net worth separately. It does not grant access to or reveal personal data to another user.
+A private view that combines financial data the current user can access. It shows Available money across the user's personal workspace and accessible Household workspaces. It does not grant access to or reveal personal data to another user.
 
-### Personal net worth
+### Available money
 
-The value of assets minus liabilities in the user's personal workspace.
-
-### Household net worth
-
-The value of assets minus liabilities in Household workspaces the user can access. Dukat does not infer each member's ownership percentage.
-
-### Combined accessible net worth
-
-Personal net worth plus Household net worth, counting each accessible workspace once. It describes money visible to the user, not the user's legal ownership.
+The combined balance of current, savings, and cash accounts across workspaces the user can access, converted to the user's overview reporting currency. Credit-card obligations are excluded and shown separately. A missing exchange rate makes the affected total unavailable rather than treating the balance as zero. Original account currencies and balances remain unchanged.
 
 ### Net worth snapshot
 

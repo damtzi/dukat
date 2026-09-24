@@ -43,9 +43,9 @@ function services(): APIServices {
 				const total = { amountMinor: '0', missingRate: false };
 				return {
 					reportingCurrency: 'PLN',
-					personalNetWorth: total,
-					householdNetWorth: total,
-					combinedNetWorth: total,
+					personalAvailableMoney: total,
+					householdAvailableMoney: total,
+					availableMoney: total,
 					currentMonthSpending: { ...total, originals: [] },
 					spendingComparison: {
 						currentMonth: '2026-09',
@@ -58,8 +58,7 @@ function services(): APIServices {
 					recentTransactions: [],
 					accounts: [],
 					upcoming: [],
-					workspaces: [],
-					history: []
+					workspaces: []
 				};
 			}
 		}

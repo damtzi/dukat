@@ -3,13 +3,17 @@ import { todayInDefaultTimeZone, type MyOverview, type Summary } from '@dukat/co
 import type { createExchangeRateRepository } from './exchange-rates';
 import type { InsightsRepository } from './insights';
 import type { LedgerRepository } from './ledger';
-import type { NetWorthHistoryRepository } from './net-worth-history';
 import type { PlanningRepository } from './planning';
 
 type WorkspaceRepository = {
-	listAuthorized(
-		userId: string
-	): Promise<Array<{ id: string; name: string; type: 'personal' | 'household' }>>;
+	listAuthorized(userId: string): Promise<
+		Array<{
+			id: string;
+			name: string;
+			type: 'personal' | 'household';
+			reportingCurrency: string | null;
+		}>
+	>;
 };
 type LedgerAccount = Awaited<ReturnType<LedgerRepository['listAccounts']>>[number];
 type AccountForecast = Awaited<ReturnType<PlanningRepository['accountForecast']>>;
@@ -67,13 +71,13 @@ function summaryBetween(summary: Summary, startDate: string, endDate: string): S
 	};
 }
 
-function total(workspaces: Array<{ netWorthMinor: string | null; missingRate: boolean }>) {
+function total(workspaces: Array<{ availableMoneyMinor: string | null; missingRate: boolean }>) {
 	const missingRate = workspaces.some((workspace) => workspace.missingRate);
 	return {
 		amountMinor: missingRate
 			? null
 			: workspaces
-					.reduce((sum, workspace) => sum + BigInt(workspace.netWorthMinor ?? '0'), 0n)
+					.reduce((sum, workspace) => sum + BigInt(workspace.availableMoneyMinor ?? '0'), 0n)
 					.toString(),
 		missingRate
 	};
@@ -85,14 +89,13 @@ export function createOverviewRepository(dependencies: {
 	planning: PlanningRepository;
 	insights: InsightsRepository;
 	exchangeRates: ReturnType<typeof createExchangeRateRepository>;
-	history: Pick<NetWorthHistoryRepository, 'list'>;
 	clock?: () => Date;
 }) {
-	const reportingCurrency = 'PLN';
 	return {
 		async get(userId: string): Promise<MyOverview> {
 			const workspaces = await dependencies.workspaces.listAuthorized(userId);
-			const history = await dependencies.history.list(userId);
+			const reportingCurrency =
+				workspaces.find(({ type }) => type === 'personal')?.reportingCurrency ?? 'PLN';
 			const today = todayInDefaultTimeZone(dependencies.clock?.() ?? new Date());
 			const range = monthRange(today);
 			const currentMonth = today.slice(0, 7);
@@ -118,7 +121,10 @@ export function createOverviewRepository(dependencies: {
 					userId,
 					workspace.id,
 					dependencies.ledger,
-					reportingCurrency
+					reportingCurrency,
+					undefined,
+					(account) =>
+						account.type === 'current' || account.type === 'savings' || account.type === 'cash'
 				);
 				const comparisonSummary = await dependencies.insights.summary(context, {
 					startDate: comparisonStart,
@@ -243,7 +249,7 @@ export function createOverviewRepository(dependencies: {
 					id: workspace.id,
 					name: workspace.name,
 					type: workspace.type,
-					netWorthMinor: balances.totalMinor,
+					availableMoneyMinor: balances.totalMinor,
 					missingRate: balances.missingRate
 				});
 			}
@@ -274,9 +280,9 @@ export function createOverviewRepository(dependencies: {
 				typicalMonths.reduce((sum, month) => sum + cumulative(month, asOfDay), 0n) / 3n;
 			return {
 				reportingCurrency,
-				personalNetWorth: total(personal),
-				householdNetWorth: total(household),
-				combinedNetWorth: total(workspaceRows),
+				personalAvailableMoney: total(personal),
+				householdAvailableMoney: total(household),
+				availableMoney: total(workspaceRows),
 				currentMonthSpending: {
 					amountMinor: spendingMissingRate ? null : spending.toString(),
 					missingRate: spendingMissingRate,
@@ -315,8 +321,7 @@ export function createOverviewRepository(dependencies: {
 							`${right.workspaceId}:${right.planId}`
 						)
 				),
-				workspaces: workspaceRows,
-				history
+				workspaces: workspaceRows
 			};
 		}
 	};

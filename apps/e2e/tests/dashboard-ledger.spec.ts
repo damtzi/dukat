@@ -29,9 +29,9 @@ function overviewResponse(
 	const total = { amountMinor: '0', missingRate: false };
 	return {
 		reportingCurrency: 'USD',
-		personalNetWorth: total,
-		householdNetWorth: total,
-		combinedNetWorth: total,
+		personalAvailableMoney: total,
+		householdAvailableMoney: total,
+		availableMoney: total,
 		currentMonthSpending: { ...total, originals: [] },
 		spendingComparison: {
 			currentMonth: '2026-09',
@@ -44,12 +44,11 @@ function overviewResponse(
 		recentTransactions: [],
 		accounts: [],
 		upcoming: [],
-		history: [],
 		workspaces: workspaces.map(({ id, name, type }) => ({
 			id,
 			name,
 			type,
-			netWorthMinor: '0',
+			availableMoneyMinor: '0',
 			missingRate: false
 		}))
 	};
@@ -1015,7 +1014,7 @@ test('logs out from the global navigation', async ({ page }) => {
 	expect(signOutRequested).toBe(true);
 });
 
-test('omits combined values when rates are missing and keeps original values', async ({ page }) => {
+test('omits Available money when rates are missing and keeps original values', async ({ page }) => {
 	await page.route('**/api/**', async (route) => {
 		const { pathname } = new URL(route.request().url());
 		if (pathname === '/api/auth/get-session')
@@ -1025,8 +1024,8 @@ test('omits combined values when rates are missing and keeps original values', a
 		if (pathname === '/api/overview') {
 			return json(route, {
 				...overviewResponse(),
-				personalNetWorth: { amountMinor: null, missingRate: true },
-				combinedNetWorth: { amountMinor: null, missingRate: true },
+				personalAvailableMoney: { amountMinor: null, missingRate: true },
+				availableMoney: { amountMinor: null, missingRate: true },
 				currentMonthSpending: {
 					amountMinor: null,
 					missingRate: true,

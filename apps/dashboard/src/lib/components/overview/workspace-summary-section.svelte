@@ -38,9 +38,9 @@
         </Card.Header>
         <Card.Content>
           <p class="text-xl font-semibold">
-            {workspace.netWorthMinor === null
-              ? 'Balance unavailable'
-              : formatMoney(workspace.netWorthMinor, reportingCurrency)}
+            {workspace.availableMoneyMinor === null
+              ? 'Available money unavailable'
+              : formatMoney(workspace.availableMoneyMinor, reportingCurrency)}
           </p>
         </Card.Content>
         <Card.Footer>

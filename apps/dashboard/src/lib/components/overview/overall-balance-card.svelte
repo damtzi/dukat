@@ -7,13 +7,13 @@
 
   let composition = $derived.by(() => {
     if (
-      overview.personalNetWorth.amountMinor === null ||
-      overview.householdNetWorth.amountMinor === null
+      overview.personalAvailableMoney.amountMinor === null ||
+      overview.householdAvailableMoney.amountMinor === null
     ) {
       return null
     }
-    const personal = BigInt(overview.personalNetWorth.amountMinor)
-    const shared = BigInt(overview.householdNetWorth.amountMinor)
+    const personal = BigInt(overview.personalAvailableMoney.amountMinor)
+    const shared = BigInt(overview.householdAvailableMoney.amountMinor)
     const hasMixedSigns =
       (personal < 0n && shared > 0n) || (personal > 0n && shared < 0n)
     if (hasMixedSigns) return { personalPercent: null, sharedPercent: null }
@@ -25,29 +25,29 @@
     return { personalPercent, sharedPercent: 100 - personalPercent }
   })
 
-  function totalLabel(total: MyOverview['combinedNetWorth']) {
+  function totalLabel(total: MyOverview['availableMoney']) {
     return total.amountMinor === null
       ? 'Unavailable'
       : formatMoney(total.amountMinor, overview.reportingCurrency)
   }
 </script>
 
-<Card.Root aria-labelledby="overall-balance-title">
+<Card.Root aria-labelledby="available-money-title">
   <Card.Content
     class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,20rem)] sm:items-center"
   >
     <div>
       <p
-        id="overall-balance-title"
+        id="available-money-title"
         class="text-sm font-medium text-muted-foreground"
       >
-        Overall balance
+        Available money
       </p>
       <p class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-        {totalLabel(overview.combinedNetWorth)}
+        {totalLabel(overview.availableMoney)}
       </p>
       <p class="mt-2 text-sm text-muted-foreground">
-        Across every account and workspace you can access
+        Cash, current accounts, and savings you can access
       </p>
     </div>
     <div class="flex flex-col gap-3">
@@ -88,7 +88,7 @@
             {/if}
           </dt>
           <dd class="mt-1 font-semibold">
-            {totalLabel(overview.personalNetWorth)}
+            {totalLabel(overview.personalAvailableMoney)}
           </dd>
         </div>
         <div>
@@ -99,7 +99,7 @@
             {/if}
           </dt>
           <dd class="mt-1 font-semibold">
-            {totalLabel(overview.householdNetWorth)}
+            {totalLabel(overview.householdAvailableMoney)}
           </dd>
         </div>
       </dl>

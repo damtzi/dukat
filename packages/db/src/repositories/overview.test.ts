@@ -53,7 +53,14 @@ test('overview compares current cumulative spending with the previous three comp
 	const repo = createOverviewRepository({
 		workspaces: {
 			async listAuthorized() {
-				return [{ id: 'personal', name: 'Personal', type: 'personal' as const }];
+				return [
+					{
+						id: 'personal',
+						name: 'Personal',
+						type: 'personal' as const,
+						reportingCurrency: 'PLN'
+					}
+				];
 			}
 		},
 		ledger: {
@@ -118,11 +125,6 @@ test('overview compares current cumulative spending with the previous three comp
 				return { occurrences: [] };
 			}
 		} as never,
-		history: {
-			async list() {
-				return [];
-			}
-		},
 		clock: () => new Date('2026-09-18T12:00:00Z')
 	});
 
@@ -144,7 +146,181 @@ test('overview compares current cumulative spending with the previous three comp
 		missingRate: false,
 		originals: [{ currency: 'PLN', amountMinor: '300' }]
 	});
-	assert.deepEqual(overview.combinedNetWorth, total);
+	assert.deepEqual(overview.availableMoney, total);
+});
+
+test('available money includes liquid accounts only, respects access, and requires every rate', async () => {
+	const requestedWorkspaces: string[] = [];
+	const accounts = new Map([
+		[
+			'personal',
+			[
+				{
+					id: 'current',
+					type: 'current',
+					currency: 'PLN',
+					balanceMinor: '10000',
+					convertedBalanceMinor: '10000'
+				},
+				{
+					id: 'savings',
+					type: 'savings',
+					currency: 'EUR',
+					balanceMinor: '500',
+					convertedBalanceMinor: '2000'
+				},
+				{
+					id: 'cash',
+					type: 'cash',
+					currency: 'PLN',
+					balanceMinor: '500',
+					convertedBalanceMinor: '500'
+				},
+				{
+					id: 'card',
+					type: 'credit_card',
+					currency: 'USD',
+					balanceMinor: '-7000',
+					convertedBalanceMinor: null
+				}
+			]
+		],
+		[
+			'household',
+			[
+				{
+					id: 'euro-savings',
+					type: 'savings',
+					currency: 'EUR',
+					balanceMinor: '3000',
+					convertedBalanceMinor: null
+				}
+			]
+		],
+		[
+			'private-to-someone-else',
+			[
+				{
+					id: 'private-cash',
+					type: 'cash',
+					currency: 'GBP',
+					balanceMinor: '999999',
+					convertedBalanceMinor: '999999'
+				}
+			]
+		]
+	]);
+	const repo = createOverviewRepository({
+		workspaces: {
+			async listAuthorized() {
+				return [
+					{
+						id: 'personal',
+						name: 'Personal',
+						type: 'personal' as const,
+						reportingCurrency: 'EUR'
+					},
+					{
+						id: 'household',
+						name: 'Household',
+						type: 'household' as const,
+						reportingCurrency: 'PLN'
+					}
+				];
+			}
+		},
+		ledger: {
+			async searchTransactions() {
+				return [];
+			}
+		} as never,
+		planning: {
+			async accountForecast(_context: unknown, accountId: string) {
+				return {
+					id: accountId,
+					currency: 'PLN',
+					startingBalanceMinor: '0',
+					endingBalanceMinor: '0',
+					occurrences: []
+				};
+			}
+		} as never,
+		insights: {
+			async listCategories() {
+				return [];
+			},
+			async summary() {
+				return { currencies: [] };
+			}
+		} as never,
+		exchangeRates: {
+			async currentBalances(
+				_userId: string,
+				workspaceId: string,
+				_ledger: unknown,
+				_targetCurrency: string,
+				_onOrBefore: undefined,
+				includeInTotal: (account: { type: string }) => boolean
+			) {
+				requestedWorkspaces.push(workspaceId);
+				const workspaceAccounts = (accounts.get(workspaceId) ?? []).map((account) => ({
+					...account,
+					name: account.id,
+					archivedAt: null
+				}));
+				const included = workspaceAccounts.filter(includeInTotal);
+				const missingRate = included.some(
+					({ convertedBalanceMinor }) => convertedBalanceMinor === null
+				);
+				return {
+					accounts: workspaceAccounts,
+					totalMinor: missingRate
+						? null
+						: included
+								.reduce((sum, account) => sum + BigInt(account.convertedBalanceMinor ?? '0'), 0n)
+								.toString(),
+					missingRate,
+					rates: []
+				};
+			},
+			async reportingSummary(_workspaceId: string, value: Summary) {
+				return {
+					...value,
+					reporting: {
+						currency: 'PLN',
+						incomeMinor: '0',
+						spendingMinor: '0',
+						uncategorizedMinor: '0',
+						missingRate: false,
+						rates: []
+					}
+				};
+			},
+			async reportingTotals() {
+				return { reportingCurrency: 'PLN', missingRate: false, totals: [] };
+			},
+			async workspaceForecast() {
+				return { occurrences: [] };
+			}
+		} as never,
+		clock: () => new Date('2026-09-18T12:00:00Z')
+	});
+
+	const overview = await repo.get('owner');
+	assert.equal(overview.reportingCurrency, 'EUR');
+	assert.deepEqual(requestedWorkspaces, ['personal', 'household']);
+	assert.deepEqual(overview.personalAvailableMoney, { amountMinor: '12500', missingRate: false });
+	assert.deepEqual(overview.householdAvailableMoney, { amountMinor: null, missingRate: true });
+	assert.deepEqual(overview.availableMoney, { amountMinor: null, missingRate: true });
+	assert.deepEqual(
+		overview.accounts
+			.filter(({ id }) => id === 'savings' || id === 'card')
+			.map(({ id, currency, balanceMinor }) => ({ id, currency, balanceMinor })),
+		[
+			{ id: 'savings', currency: 'EUR', balanceMinor: '500' },
+			{ id: 'card', currency: 'USD', balanceMinor: '-7000' }
+		]
+	);
 });
 
 test('overview returns the five newest income and expense transactions across accessible workspaces', async () => {
@@ -171,8 +347,18 @@ test('overview returns the five newest income and expense transactions across ac
 		updatedAt: `${date}T12:00:00.000Z`
 	});
 	const workspaces = [
-		{ id: 'personal', name: 'Personal', type: 'personal' as const },
-		{ id: 'shared', name: 'Home', type: 'household' as const }
+		{
+			id: 'personal',
+			name: 'Personal',
+			type: 'personal' as const,
+			reportingCurrency: 'PLN'
+		},
+		{
+			id: 'shared',
+			name: 'Home',
+			type: 'household' as const,
+			reportingCurrency: 'PLN'
+		}
 	];
 	const repo = createOverviewRepository({
 		workspaces: {
@@ -255,11 +441,6 @@ test('overview returns the five newest income and expense transactions across ac
 				return { occurrences: [] };
 			}
 		} as never,
-		history: {
-			async list() {
-				return [];
-			}
-		},
 		clock: () => new Date('2026-09-18T12:00:00Z')
 	});
 

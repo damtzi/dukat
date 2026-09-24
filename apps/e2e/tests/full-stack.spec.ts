@@ -705,7 +705,7 @@ test('allocates and settles a Personal-funded Household expense without sharing 
 	}
 });
 
-test('My overview combines Personal and Household values once without exposing Personal data', async ({
+test('My overview keeps cross-workspace activity without exposing Personal account data', async ({
 	page,
 	browser
 }: {
@@ -726,9 +726,6 @@ test('My overview combines Personal and Household values once without exposing P
 
 	await signIn(page, ownerEmail, ownerPassword);
 	type Overview = {
-		personalNetWorth: { amountMinor: string | null };
-		householdNetWorth: { amountMinor: string | null };
-		combinedNetWorth: { amountMinor: string | null };
 		currentMonthSpending: { amountMinor: string | null };
 		accounts: Array<{
 			id: string;
@@ -738,11 +735,6 @@ test('My overview combines Personal and Household values once without exposing P
 			balanceMinor: string;
 		}>;
 		upcoming: Array<{ workspaceId: string; planId: string; amountMinor: string }>;
-		history: Array<{
-			date: string;
-			personalNetWorth: { amountMinor: string | null };
-			workspaces: Array<{ id: string; accounts: Array<{ rates: Array<{ rateToPln: string }> }> }>;
-		}>;
 	};
 	const before = await apiJson<Overview>(page, '/overview');
 	const personalAccounts = await apiJson<Array<{ id: string; name: string }>>(
@@ -822,18 +814,6 @@ test('My overview combines Personal and Household values once without exposing P
 	);
 
 	const overview = await apiJson<Overview>(page, '/overview');
-	expect(overview.personalNetWorth.amountMinor).toBe(
-		(BigInt(before.personalNetWorth.amountMinor!) - 7250n).toString()
-	);
-	expect(overview.householdNetWorth.amountMinor).toBe(
-		(BigInt(before.householdNetWorth.amountMinor!) + 20000n).toString()
-	);
-	expect(overview.combinedNetWorth.amountMinor).toBe(
-		(
-			BigInt(overview.personalNetWorth.amountMinor!) +
-			BigInt(overview.householdNetWorth.amountMinor!)
-		).toString()
-	);
 	expect(overview.currentMonthSpending.amountMinor).toBe(
 		(BigInt(before.currentMonthSpending.amountMinor!) + 4250n).toString()
 	);
@@ -846,19 +826,9 @@ test('My overview combines Personal and Household values once without exposing P
 			expect.objectContaining({ planId: householdPlan.id, workspaceId: householdId })
 		])
 	);
-	expect(
-		overview.history
-			.slice(0, 2)
-			.map(({ date, personalNetWorth }) => [date, personalNetWorth.amountMinor])
-	).toEqual([
-		['2026-08-30', '42000'],
-		['2026-08-31', '43000']
-	]);
-	expect(overview.history[0].workspaces[0].accounts[0].rates[0].rateToPln).toBe('4.2');
-
 	await page.goto('/home');
 	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-	await expect(page.getByText('Overall balance', { exact: true })).toBeVisible();
+	await expect(page.getByText('Available money', { exact: true })).toBeVisible();
 	await expect(
 		page.getByLabel('Accounts', { exact: true }).getByText('Owed 30,00 zł', { exact: true })
 	).toBeVisible();
@@ -885,10 +855,6 @@ test('My overview combines Personal and Household values once without exposing P
 		expect(memberOverview.accounts).toContainEqual(
 			expect.objectContaining({ id: householdAccount.id, workspaceId: householdId })
 		);
-		expect(memberOverview.history[0].workspaces).toEqual([
-			expect.objectContaining({ id: householdId })
-		]);
-		expect(JSON.stringify(memberOverview.history)).not.toContain('historical-eur-cash');
 	} finally {
 		await memberContext.close();
 	}

@@ -53,9 +53,9 @@ export const netWorthHistoryPointSchema = z.object({
 
 export const myOverviewSchema = z.object({
 	reportingCurrency: z.string().length(3),
-	personalNetWorth: totalSchema,
-	householdNetWorth: totalSchema,
-	combinedNetWorth: totalSchema,
+	personalAvailableMoney: totalSchema,
+	householdAvailableMoney: totalSchema,
+	availableMoney: totalSchema,
 	currentMonthSpending: totalSchema.extend({
 		originals: z.array(currencyAmountSchema)
 	}),
@@ -126,11 +126,10 @@ export const myOverviewSchema = z.object({
 			id: z.string(),
 			name: z.string(),
 			type: z.enum(['personal', 'household']),
-			netWorthMinor: amountSchema.nullable(),
+			availableMoneyMinor: amountSchema.nullable(),
 			missingRate: z.boolean()
 		})
-	),
-	history: z.array(netWorthHistoryPointSchema)
+	)
 });
 
 export type MyOverview = z.infer<typeof myOverviewSchema>;

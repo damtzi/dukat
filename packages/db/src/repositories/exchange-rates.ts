@@ -692,7 +692,8 @@ export function createExchangeRateRepository(
 				): Promise<unknown>;
 			},
 			targetCurrency?: string,
-			onOrBefore?: string
+			onOrBefore?: string,
+			includeInTotal: (account: T) => boolean = () => true
 		) {
 			await authorized(userId, workspaceId);
 			const reportingCurrency = await resolveReportingCurrency(workspaceId, targetCurrency);
@@ -704,11 +705,12 @@ export function createExchangeRateRepository(
 			const converted = [];
 			const usedRates = new Map<string, ReturnType<typeof provenance>>();
 			for (const account of accounts) {
+				const included = includeInTotal(account);
 				const sameCurrency = account.currency === reportingCurrency;
 				const from = sameCurrency ? null : await point(workspaceId, account.currency, onOrBefore);
 				const to = sameCurrency ? null : await point(workspaceId, reportingCurrency, onOrBefore);
 				if (!sameCurrency && (!from || !to)) {
-					missingRate = true;
+					if (included) missingRate = true;
 					converted.push({ ...account, convertedBalanceMinor: null, rates: [] });
 					continue;
 				}
@@ -727,7 +729,7 @@ export function createExchangeRateRepository(
 							from!.rateToPln,
 							to!.rateToPln
 						);
-				total = addRational(total, exact);
+				if (included) total = addRational(total, exact);
 				converted.push({
 					...account,
 					convertedBalanceMinor: roundRational(exact).toString(),

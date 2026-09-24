@@ -221,8 +221,7 @@ const api = createAPI(
 			ledger: ledgerRepository,
 			planning: planningRepository,
 			insights: insightsRepository,
-			exchangeRates: exchangeRateRepository,
-			history: netWorthHistoryRepository
+			exchangeRates: exchangeRateRepository
 		}),
 		readiness: () => db.run('select 1'),
 		workspaces: workspaceService

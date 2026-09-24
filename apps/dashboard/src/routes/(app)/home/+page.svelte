@@ -20,7 +20,10 @@
 <svelte:head><title>Home · Dukat</title></svelte:head>
 
 <div class="flex w-full flex-col gap-6">
-  <PageHeader title="Home" description="Your overall money situation." />
+  <PageHeader
+    title="Home"
+    description="Your available money and recent activity."
+  />
 
   {#if data.overviewError}
     <Alert.Root variant="destructive" role="alert">
