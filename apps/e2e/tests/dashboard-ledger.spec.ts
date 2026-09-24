@@ -2019,7 +2019,7 @@ test('categorizes spending and completes a reviewed CSV import batch', async ({ 
 	await expect.poll(() => ledgerReads).toBeGreaterThan(readsBeforeTrash);
 });
 
-test('transfers with a separate fee and explicitly reconciles a balance', async ({ page }) => {
+test('transfers with a separate fee and explicitly adjusts a balance', async ({ page }) => {
 	const account = (id: 'checking' | 'savings', balanceMinor: string) =>
 		accountSchema.parse({
 			id,
@@ -2207,13 +2207,19 @@ test('transfers with a separate fee and explicitly reconciles a balance', async 
 	await transfer.getByRole('button', { name: 'History' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await page.getByRole('button', { name: 'Close' }).click();
-	await page.getByRole('link', { name: 'Reconciliation' }).click();
-	await page.getByRole('button', { name: 'Add balance snapshot' }).click();
+	await expect(page.getByRole('link', { name: 'Reconciliation' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Adjust balance' }).click();
+	await expect(page.getByRole('heading', { name: 'Adjust balance' })).toBeVisible();
 	await page.getByLabel('Observed balance').fill('80.00');
+	const confirmationMessage = new Promise<string>((resolve) => {
+		page.once('dialog', (dialog) => {
+			resolve(dialog.message());
+			void dialog.accept();
+		});
+	});
 	await submitDialog(page);
+	await expect(confirmationMessage).resolves.toContain('Apply a separate correction');
 	await expect(page.getByText('+1,00 USD', { exact: true })).toBeVisible();
-	page.once('dialog', (dialog) => dialog.accept());
-	await page.getByRole('button', { name: 'Create correction' }).click();
 	await expect(page.getByRole('button', { name: 'Retry correction' })).toBeVisible();
 	await page.getByRole('button', { name: 'Retry correction' }).click();
 	await expect(page.getByRole('button', { name: 'Retry correction' })).toBeHidden();

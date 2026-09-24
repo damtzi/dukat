@@ -44,6 +44,7 @@
     <AccountSummary
       {account}
       pending={ledger.status.pending}
+      onadjust={ledger.reconciliation.create}
       onedit={ledger.account.edit}
       onhistory={() =>
         ledger.history.show('accounts', account.id, `${account.name} history`)}
@@ -81,21 +82,6 @@
           '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'
             ? 'page'
             : undefined}>Planning</Button
-        >
-        <Button
-          href={resolve(
-            '/(app)/workspaces/[workspaceId]/accounts/[accountId]/reconciliation',
-            { workspaceId: workspace.workspaceId, accountId: account.id },
-          )}
-          variant={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/reconciliation'
-            ? 'secondary'
-            : 'ghost'}
-          size="sm"
-          aria-current={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/reconciliation'
-            ? 'page'
-            : undefined}>Reconciliation</Button
         >
       </nav>
 

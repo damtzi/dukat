@@ -26,10 +26,10 @@
       ><Dialog.Title
         >{editingCheck
           ? 'Edit balance snapshot'
-          : 'Add balance snapshot'}</Dialog.Title
+          : 'Adjust balance'}</Dialog.Title
       ><Dialog.Description
-        >Record an observed balance. This snapshot does not change the account
-        balance.</Dialog.Description
+        >Record the observed balance. If it differs, you can confirm a separate
+        correction next.</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
@@ -58,7 +58,7 @@
         </Field.Field>
         <Dialog.Footer
           ><Button type="submit" disabled={pending}
-            >Save balance snapshot</Button
+            >{editingCheck ? 'Save balance snapshot' : 'Continue'}</Button
           ></Dialog.Footer
         >
       </Field.Group>

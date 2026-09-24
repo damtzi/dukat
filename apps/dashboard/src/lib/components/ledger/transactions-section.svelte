@@ -22,10 +22,23 @@
     onaction: (item: Transaction, action: 'trash' | 'restore') => void
     onhistory: (item: Transaction) => void
   } = $props()
+  let recentFirst = $derived(
+    [...transactions].sort((left, right) =>
+      right.date.localeCompare(left.date),
+    ),
+  )
+  let showAll = $state(false)
+  let visibleTransactions = $derived(
+    showAll ? recentFirst : recentFirst.slice(0, 5),
+  )
 </script>
 
 <section class="flex flex-col gap-3" aria-labelledby="transactions-title">
-  <SectionHeader id="transactions-title" title="Transactions">
+  <SectionHeader
+    id="transactions-title"
+    title="Transactions"
+    description="Newest activity first."
+  >
     {#snippet actions()}
       {#if !account.archivedAt}<Button onclick={onnew}>Add transaction</Button
         >{/if}
@@ -38,7 +51,7 @@
     >
   {:else}
     <div class="flex flex-col gap-3 md:hidden">
-      {#each transactions as item (item.id)}<Card.Root
+      {#each visibleTransactions as item (item.id)}<Card.Root
           class={item.trashedAt ? 'opacity-60' : ''}
           ><Card.Header
             ><div class="flex justify-between">
@@ -83,7 +96,7 @@
             ></Table.Row
           ></Table.Header
         ><Table.Body
-          >{#each transactions as item (item.id)}<Table.Row
+          >{#each visibleTransactions as item (item.id)}<Table.Row
               class={item.trashedAt ? 'opacity-60' : ''}
               ><Table.Cell>{item.date}</Table.Cell><Table.Cell
                 >{item.merchant || '—'}</Table.Cell
@@ -109,6 +122,17 @@
         ></Table.Root
       >
     </div>
+    {#if recentFirst.length > 5}
+      <Button
+        class="self-start"
+        variant="outline"
+        onclick={() => (showAll = !showAll)}
+      >
+        {showAll
+          ? 'Show recent transactions'
+          : `Show all ${recentFirst.length} transactions`}
+      </Button>
+    {/if}
   {/if}
 </section>
 

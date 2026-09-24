@@ -62,12 +62,14 @@ export function createReconciliationWorkflow(runtime: LedgerRuntime) {
     const account = runtime.selected()
     if (!account || runtime.pending) return
     const workspaceId = dialogWorkspaceId
+    const creating = !state.editing
+    let savedCheck: BalanceCheck | null = null
     state.error = ''
     runtime.pending = true
     try {
       if (state.form.date > todayInWarsaw())
         throw new Error('Date cannot be in the future.')
-      await api(
+      savedCheck = await api<BalanceCheck>(
         `/workspaces/${workspaceId}/balance-checks${state.editing ? `/${state.editing.id}` : ''}`,
         {
           method: state.editing ? 'PUT' : 'POST',
@@ -95,6 +97,14 @@ export function createReconciliationWorkflow(runtime: LedgerRuntime) {
     } finally {
       runtime.pending = false
     }
+    if (
+      creating &&
+      savedCheck &&
+      savedCheck.differenceMinor !== null &&
+      savedCheck.differenceMinor !== '0' &&
+      runtime.callbacks.getWorkspaceId() === workspaceId
+    )
+      await createCorrection(savedCheck)
   }
 
   async function createCorrection(item: BalanceCheck) {
@@ -102,7 +112,7 @@ export function createReconciliationWorkflow(runtime: LedgerRuntime) {
     if (!difference || difference === '0' || runtime.pending) return
     if (
       !confirm(
-        `Create a separate correction for the balance snapshot on ${item.date}?`,
+        `Apply a separate correction to match the observed balance on ${item.date}?`,
       )
     )
       return

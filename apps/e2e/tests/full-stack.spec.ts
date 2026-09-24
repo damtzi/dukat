@@ -341,17 +341,22 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 		expect.objectContaining({ categoryName: 'Groceries', amountMinor: '1500' })
 	);
 
-	await page.getByRole('link', { name: 'Reconciliation' }).click();
-	await page.getByRole('button', { name: 'Add balance snapshot' }).click();
+	await expect(page.getByRole('link', { name: 'Reconciliation' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Adjust balance' }).click();
 	const snapshotDialog = page.getByRole('dialog');
 	await snapshotDialog.getByLabel('Observed balance').fill('120.00');
 	await snapshotDialog.getByLabel('Date').fill('2026-07-30');
-	await snapshotDialog.getByRole('button', { name: 'Save balance snapshot' }).click();
+	const correctionConfirmation = new Promise<string>((resolve) => {
+		page.once('dialog', (dialog) => {
+			resolve(dialog.message());
+			void dialog.accept();
+		});
+	});
+	await snapshotDialog.getByRole('button', { name: 'Continue' }).click();
+	await expect(correctionConfirmation).resolves.toContain('Apply a separate correction');
 	const snapshotCard = page.locator('[data-slot="card"]').filter({ hasText: '2026-07-30' });
 	await expect(snapshotCard).toContainText(/20,00\sUSD/);
 
-	page.once('dialog', (dialog) => dialog.accept());
-	await snapshotCard.getByRole('button', { name: 'Create correction' }).click();
 	await expect(page.getByText('Balance correction for snapshot on 2026-07-30')).toBeVisible();
 	await expect(accountSummary).toContainText(/105,00\sUSD/);
 	await page.reload();

@@ -8,7 +8,6 @@
     checks,
     corrections,
     pending,
-    onnew,
     onedit,
     oncorrect,
     oncheckaction,
@@ -20,7 +19,6 @@
     checks: BalanceCheck[]
     corrections: Correction[]
     pending: boolean
-    onnew: () => void
     onedit: (item: BalanceCheck) => void
     oncorrect: (item: BalanceCheck) => void
     oncheckaction: (item: BalanceCheck, action: 'trash' | 'restore') => void
@@ -33,18 +31,12 @@
 </script>
 
 <div class="flex flex-col gap-8">
-  <section class="flex flex-col gap-3" aria-labelledby="reconciliation-title">
+  <section class="flex flex-col gap-3" aria-labelledby="balance-history-title">
     <SectionHeader
-      id="reconciliation-title"
-      title="Balance snapshots"
-      description="Snapshots compare balances but do not alter them."
-    >
-      {#snippet actions()}
-        {#if !account.archivedAt}<Button onclick={onnew}
-            >Add balance snapshot</Button
-          >{/if}
-      {/snippet}
-    </SectionHeader>
+      id="balance-history-title"
+      title="Balance history"
+      description="Observed snapshots and explicit corrections. Corrections stay separate from income and spending."
+    />
     {#if checks.length === 0}<Card.Root
         ><Card.Content class="py-6 text-center text-muted-foreground"
           >No balance snapshots yet.</Card.Content
@@ -104,8 +96,7 @@
                     >{#if item.differenceMinor && item.differenceMinor !== '0'}<Button
                         size="sm"
                         disabled={pending}
-                        onclick={() => oncorrect(item)}
-                        >Create correction</Button
+                        onclick={() => oncorrect(item)}>Apply correction</Button
                       >{/if}{/if}{/if}
               </div></Card.Content
             ></Card.Root
@@ -116,7 +107,7 @@
     <SectionHeader
       id="corrections-title"
       title="Corrections"
-      description="Explicit signed balance adjustments, separate from income and spending."
+      description="Signed adjustments applied to this account."
     />
     {#if corrections.length === 0}<Card.Root
         ><Card.Content class="py-6 text-center text-muted-foreground"

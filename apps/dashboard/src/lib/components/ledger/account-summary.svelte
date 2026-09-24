@@ -8,12 +8,14 @@
   let {
     account,
     pending,
+    onadjust,
     onedit,
     onhistory,
     onaction,
   }: {
     account: Account
     pending: boolean
+    onadjust: () => void
     onedit: (account: Account) => void
     onhistory: () => void
     onaction: (action: 'archive' | 'restore' | 'delete') => void
@@ -55,6 +57,8 @@
     </div></Card.Header
   >
   <Card.Footer class="flex flex-wrap gap-2">
+    {#if !account.archivedAt}<Button onclick={onadjust}>Adjust balance</Button
+      >{/if}
     <Button variant="outline" onclick={() => onedit(account)}
       >Edit account</Button
     ><Button variant="outline" onclick={onhistory}>Account history</Button>

@@ -28,6 +28,9 @@
       : item.counterparty.visibility === 'private'
         ? 'Private personal account'
         : 'Deleted account'
+  let recentFirst = $derived(
+    [...transfers].sort((left, right) => right.date.localeCompare(left.date)),
+  )
 </script>
 
 <section class="flex flex-col gap-3" aria-labelledby="transfers-title">
@@ -47,7 +50,7 @@
         >No transfers yet.</Card.Content
       ></Card.Root
     >{:else}<div class="flex flex-col gap-3">
-      {#each transfers as item (item.id)}{@const outgoing =
+      {#each recentFirst as item (item.id)}{@const outgoing =
           item.localSide === 'from'}<Card.Root
           class={item.trashedAt ? 'opacity-60' : ''}
           ><Card.Content
