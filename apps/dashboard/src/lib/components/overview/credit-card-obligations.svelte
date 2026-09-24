@@ -47,9 +47,14 @@
               </p>
             </div>
             <div class="flex items-center justify-between gap-4 sm:justify-end">
-              <p class="text-lg font-semibold tabular-nums">
-                {formatMoney(obligation.amountMinor, obligation.currency)}
-              </p>
+              <div class="text-right">
+                <p class="text-xs text-muted-foreground">
+                  Statement balance due
+                </p>
+                <p class="text-lg font-semibold tabular-nums">
+                  {formatMoney(obligation.amountMinor, obligation.currency)}
+                </p>
+              </div>
               <Button
                 class="h-auto px-0"
                 variant="link"
