@@ -12,6 +12,7 @@
     Select,
     Table,
     Textarea,
+    buttonVariants,
   } from '@dukat/ui'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
@@ -171,6 +172,7 @@
         {/if}
         {#if data.accounts.some(({ archivedAt }) => !archivedAt)}
           <Button
+            class="hidden md:inline-flex"
             variant={data.isHousehold ? 'outline' : 'default'}
             onclick={() =>
               ledger.transaction.create(undefined, 'expense', true)}
@@ -396,131 +398,171 @@
     </div>
   {/if}
 
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Find expenses</Card.Title>
-      <Card.Description
-        >Merchant and description search is not case-sensitive.</Card.Description
-      >
-    </Card.Header>
-    <Card.Content>
-      <form method="GET" class="flex flex-col gap-4">
-        <Field.Group class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Field.Field class="md:col-span-2">
-            <Field.Label for="transaction-query">Search</Field.Label>
-            <Input
-              id="transaction-query"
-              name="query"
-              type="search"
-              placeholder="Merchant or description"
-              maxlength={200}
-              bind:value={query}
-            />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="transaction-account-filter">Account</Field.Label>
-            <Select.Root type="single" bind:value={accountId}>
-              <Select.Trigger id="transaction-account-filter" class="w-full">
-                {selectedAccount ? selectedAccount.name : 'All accounts'}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Group>
-                  <Select.Item value="" label="All accounts"
-                    >All accounts</Select.Item
-                  >
-                  {#each data.accounts as account (account.id)}
-                    <Select.Item value={account.id} label={account.name}>
-                      {account.name} · {account.currency}{account.archivedAt
-                        ? ' · Archived'
-                        : ''}
-                    </Select.Item>
-                  {/each}
-                </Select.Group>
-              </Select.Content>
-            </Select.Root>
-            <input type="hidden" name="accountId" value={accountId} />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="transaction-category-filter">Category</Field.Label
-            >
-            <Select.Root type="single" bind:value={categoryId}>
-              <Select.Trigger id="transaction-category-filter" class="w-full">
-                {categoryId ? categoryName(categoryId) : 'All categories'}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Group>
-                  <Select.Item value="" label="All categories"
-                    >All categories</Select.Item
-                  >
-                  <Select.Item value="uncategorized" label="Uncategorized"
-                    >Uncategorized</Select.Item
-                  >
-                  {#each data.categories as category (category.id)}
-                    <Select.Item value={category.id} label={category.name}
-                      >{category.name}</Select.Item
+  {#snippet ExpenseFilters(idPrefix: string)}
+    <Card.Root>
+      <Card.Header>
+        <Card.Title>Find expenses</Card.Title>
+        <Card.Description
+          >Merchant and description search is not case-sensitive.</Card.Description
+        >
+      </Card.Header>
+      <Card.Content>
+        <form method="GET" class="flex flex-col gap-4">
+          <Field.Group class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Field.Field class="md:col-span-2">
+              <Field.Label for={`${idPrefix}-transaction-query`}
+                >Search</Field.Label
+              >
+              <Input
+                id={`${idPrefix}-transaction-query`}
+                name="query"
+                type="search"
+                placeholder="Merchant or description"
+                maxlength={200}
+                bind:value={query}
+              />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-transaction-account-filter`}
+                >Account</Field.Label
+              >
+              <Select.Root type="single" bind:value={accountId}>
+                <Select.Trigger
+                  id={`${idPrefix}-transaction-account-filter`}
+                  class="w-full"
+                >
+                  {selectedAccount ? selectedAccount.name : 'All accounts'}
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Group>
+                    <Select.Item value="" label="All accounts"
+                      >All accounts</Select.Item
                     >
-                  {/each}
-                </Select.Group>
-              </Select.Content>
-            </Select.Root>
-            <input type="hidden" name="categoryId" value={categoryId} />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="amount-min">Minimum amount</Field.Label>
-            <Input
-              id="amount-min"
-              name="amountMin"
-              inputmode="decimal"
-              placeholder={selectedAccount
-                ? selectedAccount.currency
-                : 'Select account first'}
-              disabled={!selectedAccount}
-              bind:value={amountMin}
-            />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="amount-max">Maximum amount</Field.Label>
-            <Input
-              id="amount-max"
-              name="amountMax"
-              inputmode="decimal"
-              placeholder={selectedAccount
-                ? selectedAccount.currency
-                : 'Select account first'}
-              disabled={!selectedAccount}
-              bind:value={amountMax}
-            />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="date-from">From date</Field.Label>
-            <Input
-              id="date-from"
-              name="dateFrom"
-              type="date"
-              bind:value={dateFrom}
-            />
-          </Field.Field>
-          <Field.Field>
-            <Field.Label for="date-to">To date</Field.Label>
-            <Input id="date-to" name="dateTo" type="date" bind:value={dateTo} />
-          </Field.Field>
-        </Field.Group>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <Field.Field orientation="horizontal">
-            <Checkbox id="include-trashed" bind:checked={includeTrashed} />
-            <Field.Label for="include-trashed">Include trash</Field.Label>
-          </Field.Field>
-          {#if includeTrashed}
-            <input type="hidden" name="includeTrashed" value="true" />
-          {/if}
-          <div class="flex gap-2">
-            <Button href={pagePath} variant="outline">Clear</Button>
-            <Button type="submit">Search</Button>
+                    {#each data.accounts as account (account.id)}
+                      <Select.Item value={account.id} label={account.name}>
+                        {account.name} · {account.currency}{account.archivedAt
+                          ? ' · Archived'
+                          : ''}
+                      </Select.Item>
+                    {/each}
+                  </Select.Group>
+                </Select.Content>
+              </Select.Root>
+              <input type="hidden" name="accountId" value={accountId} />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-transaction-category-filter`}
+                >Category</Field.Label
+              >
+              <Select.Root type="single" bind:value={categoryId}>
+                <Select.Trigger
+                  id={`${idPrefix}-transaction-category-filter`}
+                  class="w-full"
+                >
+                  {categoryId ? categoryName(categoryId) : 'All categories'}
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Group>
+                    <Select.Item value="" label="All categories"
+                      >All categories</Select.Item
+                    >
+                    <Select.Item value="uncategorized" label="Uncategorized"
+                      >Uncategorized</Select.Item
+                    >
+                    {#each data.categories as category (category.id)}
+                      <Select.Item value={category.id} label={category.name}
+                        >{category.name}</Select.Item
+                      >
+                    {/each}
+                  </Select.Group>
+                </Select.Content>
+              </Select.Root>
+              <input type="hidden" name="categoryId" value={categoryId} />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-amount-min`}
+                >Minimum amount</Field.Label
+              >
+              <Input
+                id={`${idPrefix}-amount-min`}
+                name="amountMin"
+                inputmode="decimal"
+                placeholder={selectedAccount
+                  ? selectedAccount.currency
+                  : 'Select account first'}
+                disabled={!selectedAccount}
+                bind:value={amountMin}
+              />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-amount-max`}
+                >Maximum amount</Field.Label
+              >
+              <Input
+                id={`${idPrefix}-amount-max`}
+                name="amountMax"
+                inputmode="decimal"
+                placeholder={selectedAccount
+                  ? selectedAccount.currency
+                  : 'Select account first'}
+                disabled={!selectedAccount}
+                bind:value={amountMax}
+              />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-date-from`}>From date</Field.Label>
+              <Input
+                id={`${idPrefix}-date-from`}
+                name="dateFrom"
+                type="date"
+                bind:value={dateFrom}
+              />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for={`${idPrefix}-date-to`}>To date</Field.Label>
+              <Input
+                id={`${idPrefix}-date-to`}
+                name="dateTo"
+                type="date"
+                bind:value={dateTo}
+              />
+            </Field.Field>
+          </Field.Group>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <Field.Field orientation="horizontal">
+              <Checkbox
+                id={`${idPrefix}-include-trashed`}
+                bind:checked={includeTrashed}
+              />
+              <Field.Label for={`${idPrefix}-include-trashed`}
+                >Include trash</Field.Label
+              >
+            </Field.Field>
+            {#if includeTrashed}
+              <input type="hidden" name="includeTrashed" value="true" />
+            {/if}
+            <div class="flex gap-2">
+              <Button href={pagePath} variant="outline">Clear</Button>
+              <Button type="submit">Search</Button>
+            </div>
           </div>
-        </div>
-      </form>
-    </Card.Content>
-  </Card.Root>
+        </form>
+      </Card.Content>
+    </Card.Root>
+  {/snippet}
+
+  <div class="hidden md:block">
+    {@render ExpenseFilters('desktop')}
+  </div>
+  <details class="group md:hidden">
+    <summary class={buttonVariants({ variant: 'outline' })}>
+      <span class="group-open:hidden">Show expense filters</span>
+      <span class="hidden group-open:inline">Hide expense filters</span>
+    </summary>
+    <div class="mt-3">
+      {@render ExpenseFilters('mobile')}
+    </div>
+  </details>
 
   {#if data.searchError}
     <Alert.Root variant="destructive" role="alert">
