@@ -37,6 +37,11 @@ export const getOne: AppRouteHandler<GetOneRoute> = async (c) => {
 
 export const create: AppRouteHandler<typeof Routes.create> = async (c) =>
 	c.json(await c.var.services.workspaces.createHousehold(c.var.userId, c.req.valid('json')), 200);
+export const completeOnboarding: AppRouteHandler<typeof Routes.completeOnboarding> = async (c) =>
+	c.json(
+		await c.var.services.workspaces.completePersonalOnboarding(context(c), c.req.valid('json')),
+		200
+	);
 export const settings: AppRouteHandler<typeof Routes.settings> = async (c) =>
 	c.json(await c.var.services.workspaces.updateHousehold(context(c), c.req.valid('json')), 200);
 export const members: AppRouteHandler<typeof Routes.members> = async (c) => {

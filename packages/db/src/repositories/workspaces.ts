@@ -6,6 +6,7 @@ import { OWNED_HOUSEHOLD_QUOTA, PENDING_INVITATION_QUOTA } from './administratio
 import {
 	emailOutbox,
 	categoryBudget,
+	financialAccount,
 	mutationReceipt,
 	session,
 	user,
@@ -32,6 +33,7 @@ const summary = {
 	name: workspace.name,
 	type: workspace.type,
 	reportingCurrency: workspace.reportingCurrency,
+	onboardingComplete: workspace.onboardingComplete,
 	settlementEnabled: workspace.settlementEnabled,
 	version: workspace.version,
 	role: workspaceMembership.role
@@ -186,10 +188,43 @@ export function createWorkspaceRepository(database: Database) {
 					name: input.name,
 					type: 'household' as const,
 					reportingCurrency: input.reportingCurrency.toUpperCase(),
+					onboardingComplete: true,
 					settlementEnabled: false,
 					version: 1,
 					role: 'owner' as const
 				};
+			});
+		},
+		completePersonalOnboarding(
+			context: WorkspaceAuthorizationContext,
+			input: { reportingCurrency: string; version: number }
+		) {
+			return database.transaction(async (tx) => {
+				const [personalWorkspace] = await tx
+					.select({ id: workspace.id })
+					.from(workspace)
+					.where(
+						and(
+							eq(workspace.id, context.workspaceId),
+							eq(workspace.type, 'personal'),
+							eq(workspace.personalOwnerUserId, context.userId),
+							isNull(workspace.deletedAt)
+						)
+					);
+				if (!personalWorkspace)
+					throw new WorkspaceError('not_found', 'Personal workspace not found');
+				const [account] = await tx
+					.select({ id: financialAccount.id })
+					.from(financialAccount)
+					.where(eq(financialAccount.workspaceId, context.workspaceId))
+					.limit(1);
+				if (!account)
+					throw new WorkspaceError('invalid', 'Create a financial account before finishing setup');
+				const version = await bump(tx, context.workspaceId, input.version, {
+					reportingCurrency: input.reportingCurrency,
+					onboardingComplete: true
+				});
+				return { version };
 			});
 		},
 		updateHousehold(

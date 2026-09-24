@@ -10,6 +10,7 @@ export type Workspace = {
   name: string
   type: 'personal' | 'household'
   reportingCurrency: string | null
+  onboardingComplete: boolean
   settlementEnabled: boolean
   version: number
   role: 'owner' | 'member' | null

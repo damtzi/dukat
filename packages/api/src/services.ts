@@ -82,6 +82,7 @@ export interface WorkspaceSummary {
 	name: string;
 	type: 'personal' | 'household';
 	reportingCurrency: string | null;
+	onboardingComplete: boolean;
 	settlementEnabled: boolean;
 	version: number;
 	role?: 'owner' | 'member' | null;
@@ -106,6 +107,10 @@ export interface WorkspaceService {
 	createHousehold(
 		userId: string,
 		input: { name: string; reportingCurrency: string }
+	): Promise<unknown>;
+	completePersonalOnboarding(
+		context: WorkspaceContext,
+		input: { reportingCurrency: string; version: number }
 	): Promise<unknown>;
 	updateHousehold(
 		context: WorkspaceContext,

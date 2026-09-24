@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
+  import { page } from '$app/state'
   import { Alert, Button, Spinner } from '@dukat/ui'
   import AppShell from '$lib/components/dashboard/app-shell.svelte'
   import { getBrowserSession, type SessionUser } from '$lib/session'
@@ -16,6 +17,18 @@
     guardState = 'loading'
     const result = await getBrowserSession()
     if (result.status === 'authenticated') {
+      const personalWorkspace = data.workspaces.find(
+        ({ type }) => type === 'personal',
+      )
+      const onboardingRoute = page.route.id === '/(app)/onboarding'
+      if (personalWorkspace?.onboardingComplete === false && !onboardingRoute) {
+        await goto(resolve('/onboarding'), { replaceState: true })
+      } else if (
+        personalWorkspace?.onboardingComplete !== false &&
+        onboardingRoute
+      ) {
+        await goto(resolve('/home'), { replaceState: true })
+      }
       user = result.session.user
       guardState = 'authenticated'
     } else if (result.status === 'unauthenticated')
@@ -42,11 +55,15 @@
     </Alert.Root>
   </main>
 {:else if user}
-  <AppShell
-    {user}
-    workspaces={data.workspaces}
-    personalAccounts={data.personalAccounts}
-  >
+  {#if page.route.id === '/(app)/onboarding'}
     {@render children()}
-  </AppShell>
+  {:else}
+    <AppShell
+      {user}
+      workspaces={data.workspaces}
+      personalAccounts={data.personalAccounts}
+    >
+      {@render children()}
+    </AppShell>
+  {/if}
 {/if}

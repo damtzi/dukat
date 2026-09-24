@@ -19,6 +19,7 @@ const personalWorkspace: WorkspaceSummary = {
 	name: 'Personal',
 	type: 'personal',
 	reportingCurrency: null,
+	onboardingComplete: true,
 	settlementEnabled: false,
 	version: 1,
 	role: null
@@ -42,6 +43,7 @@ function createServices(
 		async createHousehold(_userId, input) {
 			return input;
 		},
+		async completePersonalOnboarding() {},
 		async updateHousehold() {},
 		async listMembers() {
 			return [];

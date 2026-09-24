@@ -14,6 +14,7 @@ export const workspacesRouter = router
 	.openapi(routes.list, handlers.list)
 	.openapi(routes.recoverable, handlers.recoverable)
 	.openapi(routes.create, handlers.create)
+	.openapi(routes.completeOnboarding, handlers.completeOnboarding)
 	.openapi(routes.settings, handlers.settings)
 	.openapi(routes.members, handlers.members)
 	.openapi(routes.invitations, handlers.invitations)

@@ -575,6 +575,81 @@ async function submitDialog(page: Page) {
 	await page.getByRole('dialog').locator('form').dispatchEvent('submit');
 }
 
+test('guides a new user through reporting currency and their first account', async ({ page }) => {
+	let onboardingComplete = false;
+	let accountCreated = false;
+	const newWorkspace = () => ({
+		...personalWorkspace,
+		reportingCurrency: onboardingComplete ? 'EUR' : null,
+		onboardingComplete
+	});
+
+	await page.route('**/api/**', async (route) => {
+		const request = route.request();
+		const { pathname } = new URL(request.url());
+		const method = request.method();
+		if (pathname === '/api/auth/get-session')
+			return json(route, { session: { id: 'session-e2e' }, user: { id: 'user-e2e' } });
+		if (pathname === '/api/workspaces' && method === 'GET') return json(route, [newWorkspace()]);
+		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'GET') {
+			return json(
+				route,
+				accountCreated
+					? [
+							{
+								id: accountId,
+								name: 'Main account',
+								type: 'current',
+								currency: 'EUR',
+								openingDate: '2026-09-24',
+								openingBalanceMinor: '125050',
+								balanceMinor: '125050',
+								negativeBalance: false,
+								canDelete: true,
+								canArchive: false,
+								canRestore: false,
+								version: 1
+							}
+						]
+					: []
+			);
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/accounts` && method === 'POST') {
+			const body = request.postDataJSON();
+			expect(body).toMatchObject({
+				name: 'Main account',
+				type: 'current',
+				currency: 'EUR',
+				openingBalanceMinor: '125050'
+			});
+			accountCreated = true;
+			return json(route, { id: accountId });
+		}
+		if (pathname === `/api/workspaces/${workspaceId}/onboarding` && method === 'POST') {
+			expect(request.postDataJSON()).toEqual({ reportingCurrency: 'EUR', version: 1 });
+			onboardingComplete = true;
+			return json(route, { version: 2 });
+		}
+		if (pathname === '/api/overview') return json(route, overviewResponse());
+		return json(route, { message: `Unexpected mocked request: ${method} ${pathname}` }, 500);
+	});
+
+	await page.goto('/home');
+	await expect(page).toHaveURL(/\/onboarding$/);
+	await page.getByLabel('Reporting currency', { exact: true }).click();
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await expect(page.getByLabel('Reporting currency', { exact: true })).toContainText('EUR — Euro');
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await page.getByLabel('Account name').fill('Main account');
+	await page.getByLabel('Current balance').fill('1250.50');
+	await page.getByRole('button', { name: 'Finish setup' }).click();
+
+	await expect(page).toHaveURL(/\/home$/);
+	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+	await expect(page.getByText('Explore when you’re ready')).toBeVisible();
+});
+
 test('keeps authentication keyboard-operable with no automated accessibility violations', async ({
 	page
 }, testInfo) => {

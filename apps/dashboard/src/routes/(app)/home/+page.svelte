@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidate } from '$app/navigation'
-  import { Alert, Button, Card } from '@dukat/ui'
+  import { resolve } from '$app/paths'
+  import { Alert, Badge, Button, Card } from '@dukat/ui'
   import { overviewDataDependency } from '$lib/api'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import AccountSummarySection from '$lib/components/overview/account-summary-section.svelte'
@@ -38,6 +39,57 @@
     </Alert.Root>
   {:else if overview}
     <OverallBalanceCard {overview} />
+
+    <Card.Root>
+      <Card.Header>
+        <Card.Title>Explore when you’re ready</Card.Title>
+        <Card.Description>
+          Your Home works without these optional tools.
+        </Card.Description>
+      </Card.Header>
+      <Card.Content class="grid gap-3 sm:grid-cols-2">
+        <a
+          class="border p-4 transition-colors hover:bg-muted/40"
+          href={resolve('/workspaces/new')}
+        >
+          <strong class="text-sm font-medium">Household</strong>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Create a shared workspace, then invite someone.
+          </p>
+        </a>
+        {#if personalWorkspace}
+          <a
+            class="border p-4 transition-colors hover:bg-muted/40"
+            href={resolve('/(app)/workspaces/[workspaceId]/budgets', {
+              workspaceId: personalWorkspace.id,
+            })}
+          >
+            <strong class="text-sm font-medium">Budgets</strong>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Set monthly limits for spending categories.
+            </p>
+          </a>
+        {/if}
+        <div class="border p-4">
+          <div class="flex items-center justify-between gap-3">
+            <strong class="text-sm font-medium">Mortgage</strong>
+            <Badge variant="secondary">Coming later</Badge>
+          </div>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Compare repayment and overpayment scenarios.
+          </p>
+        </div>
+        <div class="border p-4">
+          <div class="flex items-center justify-between gap-3">
+            <strong class="text-sm font-medium">Investments</strong>
+            <Badge variant="secondary">Coming later</Badge>
+          </div>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Track holdings and their current value.
+          </p>
+        </div>
+      </Card.Content>
+    </Card.Root>
 
     <CreditCardObligations obligations={overview.cardObligations} />
 

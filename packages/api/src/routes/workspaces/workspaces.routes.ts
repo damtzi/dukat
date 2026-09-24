@@ -8,6 +8,7 @@ const workspaceSummarySchema = z.object({
 	name: z.string(),
 	type: z.enum(['personal', 'household']),
 	reportingCurrency: z.string().nullable(),
+	onboardingComplete: z.boolean(),
 	settlementEnabled: z.boolean(),
 	version: z.number().int(),
 	role: z.enum(['owner', 'member']).nullable()
@@ -95,6 +96,18 @@ export const settings = createRoute({
 				settlementEnabled: z.literal(true).optional()
 			}),
 			'Settings'
+		)
+	}
+});
+export const completeOnboarding = createRoute({
+	...common,
+	method: 'post',
+	path: '/workspaces/{workspaceId}/onboarding',
+	request: {
+		params,
+		body: jsonContent(
+			version.extend({ reportingCurrency: supportedCurrencySchema }),
+			'Personal workspace onboarding'
 		)
 	}
 });

@@ -13,6 +13,7 @@ export const workspace = sqliteTable(
 			onDelete: 'cascade'
 		}),
 		reportingCurrency: text('reporting_currency'),
+		onboardingComplete: integer('onboarding_complete', { mode: 'boolean' }).default(true).notNull(),
 		settlementEnabled: integer('settlement_enabled', { mode: 'boolean' }).default(false).notNull(),
 		version: integer('version').default(1).notNull(),
 		deletedAt: integer('deleted_at', { mode: 'timestamp' }),
