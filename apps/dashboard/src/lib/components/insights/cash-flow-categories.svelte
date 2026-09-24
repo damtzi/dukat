@@ -67,8 +67,7 @@
   <Card.Header>
     <Card.Title>Spending categories</Card.Title>
     <Card.Description>
-      All categories in {reporting.currency}. Open one to inspect its completed
-      transactions.
+      Totals in {reporting.currency}. Open a category for transactions.
     </Card.Description>
   </Card.Header>
   <Card.Content class="flex flex-col gap-2">

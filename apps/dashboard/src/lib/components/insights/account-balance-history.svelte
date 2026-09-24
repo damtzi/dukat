@@ -29,7 +29,13 @@
       values[0] ?? 0n,
     ),
   )
+  let first = $derived(history[0])
   let latest = $derived(history.at(-1))
+  let showOriginalAccounts = $derived(
+    latest?.accounts.some(
+      ({ currency }) => currency !== latest?.reportingCurrency,
+    ) ?? false,
+  )
   let paths = $derived.by(() => {
     const result: string[] = []
     let current: string[] = []
@@ -65,20 +71,39 @@
       >Account balance history</Card.Title
     >
     <Card.Description>
-      Latest recorded account total for each month, converted to {latest?.reportingCurrency ??
-        'the snapshot reporting currency'}. Gaps mean a required exchange rate
-      was unavailable.
+      Latest monthly account totals in {latest?.reportingCurrency ??
+        'the reporting currency'}. Gaps mean a rate was unavailable.
     </Card.Description>
   </Card.Header>
   <Card.Content>
     {#if history.length > 0}
-      <div class="flex flex-col gap-4">
-        <div class="overflow-x-auto">
+      <div class="flex flex-col gap-3">
+        <dl class="grid grid-cols-2 gap-3">
+          <div class="inset-panel">
+            <dt class="text-xs text-muted-foreground">First recorded</dt>
+            <dd class="mt-1 font-medium tabular-nums">
+              {first!.balanceMinor === null
+                ? 'Unavailable'
+                : formatMoney(first!.balanceMinor, first!.reportingCurrency)}
+            </dd>
+            <dd class="text-xs text-muted-foreground">{first!.date}</dd>
+          </div>
+          <div class="inset-panel">
+            <dt class="text-xs text-muted-foreground">Latest</dt>
+            <dd class="mt-1 font-medium tabular-nums">
+              {latest!.balanceMinor === null
+                ? 'Unavailable'
+                : formatMoney(latest!.balanceMinor, latest!.reportingCurrency)}
+            </dd>
+            <dd class="text-xs text-muted-foreground">{latest!.date}</dd>
+          </div>
+        </dl>
+        <div>
           <a class="sr-only" href="#account-balance-history-title"
             >Account balance chart</a
           >
           <svg
-            class="h-56 min-w-[36rem] w-full"
+            class="h-36 w-full"
             viewBox={`0 0 ${width} ${height}`}
             role="img"
             aria-labelledby="account-balance-history-title account-balance-history-description"
@@ -129,11 +154,9 @@
           <span>{history[0].date}</span>
           {#if history.length > 1}<span>{history.at(-1)!.date}</span>{/if}
         </div>
-        {#if latest}
-          <div class="border-t pt-4">
-            <p class="mb-3 text-sm font-medium">
-              Latest original account balances · {latest.date}
-            </p>
+        {#if latest && showOriginalAccounts}
+          <div class="border-t pt-3">
+            <p class="mb-2 text-sm font-medium">Original account balances</p>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {#each latest.accounts as account (account.id)}
                 <div class="inset-panel text-sm">

@@ -30,7 +30,6 @@
 <Card.Root>
   <Card.Header>
     <Card.Title>Period</Card.Title>
-    <Card.Description>Choose a common period or exact dates.</Card.Description>
   </Card.Header>
   <Card.Content class="flex flex-col gap-4">
     <div class="flex flex-wrap gap-2" aria-label="Cash flow period">

@@ -63,7 +63,18 @@ function response(missingRate = false) {
 						transactions
 					}
 				]
-			}
+			},
+			...(missingRate
+				? [
+						{
+							currency: 'USD',
+							incomeMinor: '10000',
+							spendingMinor: '0',
+							uncategorizedMinor: '0',
+							groups: []
+						}
+					]
+				: [])
 		],
 		reporting: {
 			currency: 'PLN',
@@ -186,7 +197,7 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 	return cashFlowRequests;
 }
 
-test('navigates, compares periods, exposes chart values, and drills into transactions', async ({
+test('filters periods, exposes chart detail, and drills into transactions', async ({
 	page
 }, testInfo) => {
 	test.skip(!['desktop-chromium', 'phone-chromium'].includes(testInfo.project.name));
@@ -200,18 +211,23 @@ test('navigates, compares periods, exposes chart values, and drills into transac
 	await expect(page.getByText('Upcoming recurring money')).toBeVisible();
 	await expect(page.getByText('−2500,00 zł')).toBeVisible();
 	await expect(page.getByText('Account balance history', { exact: true })).toBeVisible();
-	await expect(page.getByText('Latest original account balances · 2026-08-27')).toBeVisible();
+	await expect(page.getByText('First recorded', { exact: true })).toBeVisible();
+	await expect(page.getByText('Latest', { exact: true })).toBeVisible();
+	await expect(page.getByText('2026-07-31', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('2026-08-27', { exact: true }).last()).toBeVisible();
+	await expect(page.getByText('Original-currency totals')).toBeHidden();
+	await expect(page.getByText('Original account balances')).toBeHidden();
 	await expect(page.getByRole('button', { name: '12 months' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByText('Equivalent-period comparison')).toBeVisible();
+	await expect(page.getByText('Equivalent-period comparison')).toBeHidden();
 	await page.getByRole('button', { name: 'Year to date' }).click();
 	await expect
 		.poll(() =>
 			requests.some(
 				(request) =>
-					request.includes('startDate=2025-01-01') && request.includes('endDate=2025-08-27')
+					request.includes('startDate=2026-01-01') && request.includes('endDate=2026-08-27')
 			)
 		)
 		.toBe(true);
@@ -220,6 +236,11 @@ test('navigates, compares periods, exposes chart values, and drills into transac
 	const incomeBar = page.getByRole('button', { name: /2026-08 income/ });
 	await incomeBar.focus();
 	await expect(incomeBar).toBeFocused();
+	const legend = page.getByLabel('Chart legend');
+	await expect(legend.getByText('Income', { exact: true })).toBeVisible();
+	await expect(legend.getByText('Spending', { exact: true })).toBeVisible();
+	await expect(page.getByText('All monthly cash-flow values')).toBeHidden();
+	await page.getByText('View monthly details').click();
 	await expect(page.getByText('All monthly cash-flow values')).toBeVisible();
 
 	await page.getByRole('button', { name: /Groceries/ }).click();
@@ -253,6 +274,7 @@ test('replaces charts with one useful action when data or rates are unavailable'
 	await expect(page.getByText('Combined cash flow unavailable')).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toBeVisible();
 	await expect(page.getByText('Original-currency totals')).toBeVisible();
+	await expect(page.getByText('USD', { exact: true })).toBeVisible();
 	await expect(page.getByText('Monthly income and spending')).toBeHidden();
 
 	await page.unrouteAll({ behavior: 'wait' });
