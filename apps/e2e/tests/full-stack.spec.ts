@@ -306,10 +306,7 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 
 	await expect(accountCard).toContainText(/75,00\sUSD/);
 	await accountCard.getByRole('button', { name: 'View details' }).click();
-	const accountSummary = page
-		.locator('[data-slot="card"]')
-		.filter({ hasText: accountName })
-		.first();
+	const accountSummary = page.getByRole('region', { name: accountName });
 	const expenseRow = page
 		.getByText('Full-stack expense', { exact: true })
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
@@ -364,32 +361,37 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 
 	await page.goto(`/workspaces/${workspaceId}/transactions`);
 	await expect(page.getByRole('heading', { name: 'Expenses' })).toBeVisible();
-	await page.getByLabel('Search').fill('Full-stack expense');
-	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	const expenseFilters = page.locator('form').filter({
+		has: page.locator('#desktop-transaction-query')
+	});
+	await expenseFilters.getByLabel('Search').fill('Full-stack expense');
+	await expenseFilters.getByRole('button', { name: 'Search', exact: true }).click();
 	await expect(page).toHaveURL(/transactions\?query=Full-stack\+expense/);
 	await expect(
 		page.getByText('Full-stack expense', { exact: true }).filter({ visible: true })
 	).toBeVisible();
-	await page.getByLabel('Search').fill('Full-stack expense');
-	await chooseSelect(page, 'Account', `${accountName} · USD`);
-	await chooseSelect(page, 'Category', 'Groceries');
-	await page.getByLabel('Minimum amount').fill('25.00');
-	await page.getByLabel('Maximum amount').fill('25.00');
-	await page.getByLabel('From date').fill('2026-08-01');
-	await page.getByLabel('To date').fill('2026-08-01');
-	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	await expenseFilters.getByLabel('Search').fill('Full-stack expense');
+	await expenseFilters.getByLabel('Account', { exact: true }).click();
+	await page.getByRole('option', { name: `${accountName} · USD`, exact: true }).click();
+	await expenseFilters.getByLabel('Category', { exact: true }).click();
+	await page.getByRole('option', { name: 'Groceries', exact: true }).click();
+	await expenseFilters.getByLabel('Minimum amount').fill('25.00');
+	await expenseFilters.getByLabel('Maximum amount').fill('25.00');
+	await expenseFilters.getByLabel('From date').fill('2026-08-01');
+	await expenseFilters.getByLabel('To date').fill('2026-08-01');
+	await expenseFilters.getByRole('button', { name: 'Search', exact: true }).click();
 	await expect(
 		page.getByText('Full-stack expense', { exact: true }).filter({ visible: true })
 	).toBeVisible();
 	await expect(page.getByText('Full-stack partial refund', { exact: true })).toHaveCount(0);
-	await page.getByLabel('Minimum amount').fill('26.00');
-	await page.getByLabel('Maximum amount').fill('26.00');
+	await expenseFilters.getByLabel('Minimum amount').fill('26.00');
+	await expenseFilters.getByLabel('Maximum amount').fill('26.00');
 	const emptySearch = page.waitForResponse(
 		(response) =>
 			response.url().includes(`/api/workspaces/${workspaceId}/transactions?`) &&
 			response.url().includes('amountMinMinor=2600')
 	);
-	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	await expenseFilters.getByRole('button', { name: 'Search', exact: true }).click();
 	expect(await (await emptySearch).json()).toEqual([]);
 	await expect(page.getByText('Full-stack expense', { exact: true })).toHaveCount(0);
 });
@@ -486,8 +488,11 @@ test('tracks a categorized card purchase and bill payment once through the real 
 	await expect(card).toContainText(/Owed 100,00\s(?:PLN|zł)/);
 	await card.getByRole('button', { name: 'View details' }).click();
 	await expect(page.getByRole('heading', { name: cardName })).toBeVisible();
-	const accountSummary = page.locator('main [data-slot="card"]').filter({ hasText: cardName });
-	await expect(accountSummary).toContainText(/Owed 100,00\s(?:PLN|zł)/);
+	const accountSummary = page.getByRole('region', { name: cardName });
+	const currentCardBalance = accountSummary
+		.getByText(/Current (?:total owed|card credit)/)
+		.locator('..');
+	await expect(currentCardBalance).toContainText(/Current total owed\s*100,00\s(?:PLN|zł)/);
 
 	const accountsBefore = await apiJson<Array<{ id: string; name: string; balanceMinor: string }>>(
 		page,
@@ -502,7 +507,7 @@ test('tracks a categorized card purchase and bill payment once through the real 
 	await chooseSelect(page, 'Category', 'Groceries');
 	await transactionDialog.getByLabel('Description').fill('Full-stack card purchase');
 	await transactionDialog.getByRole('button', { name: 'Save transaction' }).click();
-	await expect(accountSummary).toContainText(/Owed 125,00\s(?:PLN|zł)/);
+	await expect(currentCardBalance).toContainText(/Current total owed\s*125,00\s(?:PLN|zł)/);
 
 	await page.getByRole('button', { name: 'New transfer' }).click();
 	await page.getByLabel('Source account', { exact: true }).click();
@@ -512,7 +517,7 @@ test('tracks a categorized card purchase and bill payment once through the real 
 	await page.getByLabel('Transfer amount').fill('125.00');
 	await page.getByLabel('Note').fill('Full-stack card payment');
 	await page.getByRole('dialog').getByRole('button', { name: 'Save transfer' }).click();
-	await expect(accountSummary).toContainText(/Owed 0,00\s(?:PLN|zł)/);
+	await expect(currentCardBalance).toContainText(/Current card credit\s*0,00\s(?:PLN|zł)/);
 
 	const accountsAfter = await apiJson<Array<{ id: string; name: string; balanceMinor: string }>>(
 		page,
