@@ -181,7 +181,12 @@ test('available money includes liquid accounts only, respects access, and requir
 					type: 'credit_card',
 					currency: 'USD',
 					balanceMinor: '-7000',
-					convertedBalanceMinor: null
+					convertedBalanceMinor: null,
+					creditLimitMinor: '20000',
+					statementDate: '2026-09-01',
+					paymentDueDate: '2026-09-20',
+					paymentDueMinor: '7000',
+					paymentStatus: 'due'
 				}
 			]
 		],
@@ -321,6 +326,19 @@ test('available money includes liquid accounts only, respects access, and requir
 			{ id: 'card', currency: 'USD', balanceMinor: '-7000' }
 		]
 	);
+	assert.deepEqual(overview.cardObligations, [
+		{
+			accountId: 'card',
+			workspaceId: 'personal',
+			workspaceName: 'Personal',
+			accountName: 'card',
+			currency: 'USD',
+			amountMinor: '7000',
+			statementDate: '2026-09-01',
+			paymentDueDate: '2026-09-20',
+			status: 'due'
+		}
+	]);
 });
 
 test('overview returns the five newest income and expense transactions across accessible workspaces', async () => {

@@ -51,6 +51,9 @@ export function createAccountWorkflow(runtime: LedgerRuntime) {
       currency: 'USD',
       openingDate: todayInWarsaw(),
       amount: '0',
+      creditLimit: '',
+      statementDate: '',
+      paymentDueDate: '',
     },
   })
   let intentKey = ''
@@ -67,6 +70,9 @@ export function createAccountWorkflow(runtime: LedgerRuntime) {
       currency: 'USD',
       openingDate: todayInWarsaw(),
       amount: '0',
+      creditLimit: '',
+      statementDate: '',
+      paymentDueDate: '',
     }
     state.open = true
   }
@@ -82,6 +88,11 @@ export function createAccountWorkflow(runtime: LedgerRuntime) {
       currency: account.currency,
       openingDate: account.openingDate,
       amount: minorToDecimal(account.openingBalanceMinor, account.currency),
+      creditLimit: account.creditLimitMinor
+        ? minorToDecimal(account.creditLimitMinor, account.currency)
+        : '',
+      statementDate: account.statementDate ?? '',
+      paymentDueDate: account.paymentDueDate ?? '',
     }
     state.open = true
   }
@@ -107,6 +118,18 @@ export function createAccountWorkflow(runtime: LedgerRuntime) {
           state.form.currency,
           true,
         ),
+        creditLimitMinor:
+          state.form.type === 'credit_card' && state.form.creditLimit
+            ? parseAmount(state.form.creditLimit, state.form.currency)
+            : null,
+        statementDate:
+          state.form.type === 'credit_card' && state.form.statementDate
+            ? state.form.statementDate
+            : null,
+        paymentDueDate:
+          state.form.type === 'credit_card' && state.form.paymentDueDate
+            ? state.form.paymentDueDate
+            : null,
         idempotencyKey: intentKey,
         ...(state.editing ? { version: state.editing.version } : {}),
       }

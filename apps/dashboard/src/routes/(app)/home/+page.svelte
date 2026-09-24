@@ -4,6 +4,7 @@
   import { overviewDataDependency } from '$lib/api'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import AccountSummarySection from '$lib/components/overview/account-summary-section.svelte'
+  import CreditCardObligations from '$lib/components/overview/credit-card-obligations.svelte'
   import OverallBalanceCard from '$lib/components/overview/overall-balance-card.svelte'
   import RecentTransactionsCard from '$lib/components/overview/recent-transactions-card.svelte'
   import SpendingComparisonChart from '$lib/components/overview/spending-comparison-chart.svelte'
@@ -37,6 +38,8 @@
     </Alert.Root>
   {:else if overview}
     <OverallBalanceCard {overview} />
+
+    <CreditCardObligations obligations={overview.cardObligations} />
 
     <section
       class="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]"

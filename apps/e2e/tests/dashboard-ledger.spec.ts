@@ -43,6 +43,7 @@ function overviewResponse(
 		},
 		recentTransactions: [],
 		accounts: [],
+		cardObligations: [],
 		upcoming: [],
 		workspaces: workspaces.map(({ id, name, type }) => ({
 			id,
@@ -68,7 +69,17 @@ function json(route: Route, body: unknown, status = 200) {
 					}
 				: {};
 		const account =
-			'openingBalanceMinor' in item ? { activityStartedAt: null, archivedAt: null } : {};
+			'openingBalanceMinor' in item
+				? {
+						activityStartedAt: null,
+						archivedAt: null,
+						creditLimitMinor: null,
+						statementDate: null,
+						paymentDueDate: null,
+						paymentDueMinor: null,
+						paymentStatus: null
+					}
+				: {};
 		const transaction =
 			'kind' in item && 'amountMinor' in item && !('currency' in item)
 				? {
@@ -169,6 +180,11 @@ async function mockLedger(page: Page) {
 			currency: 'USD',
 			openingDate: '2026-07-31',
 			openingBalanceMinor: '10000',
+			creditLimitMinor: null,
+			statementDate: null,
+			paymentDueDate: null,
+			paymentDueMinor: null,
+			paymentStatus: null,
 			version: 1,
 			archivedAt: null,
 			createdAt: fixtureTimestamp,
@@ -362,6 +378,9 @@ async function mockLedger(page: Page) {
 				currency: 'USD',
 				openingDate: expect.any(String),
 				openingBalanceMinor: '10000',
+				creditLimitMinor: null,
+				statementDate: null,
+				paymentDueDate: null,
 				idempotencyKey: key
 			});
 			return response;
@@ -373,6 +392,9 @@ async function mockLedger(page: Page) {
 				currency: 'USD',
 				openingDate: account!.openingDate,
 				openingBalanceMinor: '10000',
+				creditLimitMinor: null,
+				statementDate: null,
+				paymentDueDate: null,
 				version: 1,
 				idempotencyKey: key
 			});
@@ -1047,6 +1069,11 @@ test('omits Available money when rates are missing and keeps original values', a
 						currency: 'EUR',
 						balanceMinor: '4567',
 						convertedBalanceMinor: null,
+						creditLimitMinor: null,
+						statementDate: null,
+						paymentDueDate: null,
+						paymentDueMinor: null,
+						paymentStatus: null,
 						archivedAt: null
 					}
 				]

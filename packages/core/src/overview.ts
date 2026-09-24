@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { accountTypeSchema, isoCalendarDateSchema } from './ledger';
+import { accountTypeSchema, creditCardPaymentStatusSchema, isoCalendarDateSchema } from './ledger';
 
 const amountSchema = z.string().regex(/^-?(0|[1-9]\d*)$/);
 const currencyAmountSchema = z.object({
@@ -103,7 +103,25 @@ export const myOverviewSchema = z.object({
 			currency: z.string().length(3),
 			balanceMinor: amountSchema,
 			convertedBalanceMinor: amountSchema.nullable(),
+			creditLimitMinor: amountSchema.nullable(),
+			statementDate: isoCalendarDateSchema.nullable(),
+			paymentDueDate: isoCalendarDateSchema.nullable(),
+			paymentDueMinor: amountSchema.nullable(),
+			paymentStatus: creditCardPaymentStatusSchema.nullable(),
 			archivedAt: z.string().nullable()
+		})
+	),
+	cardObligations: z.array(
+		z.object({
+			accountId: z.string(),
+			workspaceId: z.string(),
+			workspaceName: z.string(),
+			accountName: z.string(),
+			currency: z.string().length(3),
+			amountMinor: amountSchema,
+			statementDate: isoCalendarDateSchema.nullable(),
+			paymentDueDate: isoCalendarDateSchema.nullable(),
+			status: creditCardPaymentStatusSchema
 		})
 	),
 	upcoming: z.array(

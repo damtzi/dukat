@@ -1,6 +1,24 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, lt, ne, or, sql } from 'drizzle-orm';
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	lt,
+	ne,
+	or,
+	sql
+} from 'drizzle-orm';
 import { supportedCurrencySchema } from '@dukat/core/exchange-rates';
-import type { TransactionSearch } from '@dukat/core/ledger';
+import {
+	creditCardPaymentStatus,
+	todayInDefaultTimeZone,
+	type TransactionSearch
+} from '@dukat/core/ledger';
 
 import type { FinancialDatabase } from '../connection';
 import {
@@ -49,6 +67,9 @@ interface CreateAccount extends Mutation {
 	currency: string;
 	openingDate: string;
 	openingBalanceMinor: string;
+	creditLimitMinor?: string | null;
+	statementDate?: string | null;
+	paymentDueDate?: string | null;
 }
 interface UpdateAccount extends CreateAccount {
 	version: number;
@@ -245,14 +266,22 @@ const publicCorrection = (row: typeof ledgerBalanceCorrection.$inferSelect) => (
 	createdAt: row.createdAt.toISOString(),
 	updatedAt: row.updatedAt.toISOString()
 });
-const viewAccount = (account: typeof financialAccount.$inferSelect, balanceMinor: bigint) => ({
+const viewAccount = (
+	account: typeof financialAccount.$inferSelect,
+	balanceMinor: bigint,
+	paymentDueMinor: bigint | null,
+	paymentStatus: 'paid' | 'due' | 'overdue' | null
+) => ({
 	...account,
 	openingBalanceMinor: account.openingBalanceMinor.toString(),
+	creditLimitMinor: account.creditLimitMinor?.toString() ?? null,
 	activityStartedAt: account.activityStartedAt?.toISOString() ?? null,
 	archivedAt: account.archivedAt?.toISOString() ?? null,
 	createdAt: account.createdAt.toISOString(),
 	updatedAt: account.updatedAt.toISOString(),
 	balanceMinor: balanceMinor.toString(),
+	paymentDueMinor: paymentDueMinor?.toString() ?? null,
+	paymentStatus,
 	negativeBalance: balanceMinor < 0n,
 	canDelete: account.archivedAt === null && account.activityStartedAt === null,
 	canArchive:
@@ -358,13 +387,51 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 		source: FinancialDatabase | Transaction = rawDatabase,
 		throughDate?: string
 	) {
-		return viewAccount(
-			account,
-			checkedBalance(
-				account.openingBalanceMinor +
-					(await balance(account.workspaceId, account.id, account.openingDate, source, throughDate))
-			)
+		const balanceMinor = checkedBalance(
+			account.openingBalanceMinor +
+				(await balance(account.workspaceId, account.id, account.openingDate, source, throughDate))
 		);
+		let paymentDueMinor: bigint | null = null;
+		let paymentStatus: 'paid' | 'due' | 'overdue' | null = null;
+		if (account.type === 'credit_card') {
+			const effectiveDate = throughDate ?? todayInDefaultTimeZone();
+			if (!account.statementDate) paymentDueMinor = balanceMinor < 0n ? -balanceMinor : 0n;
+			else if (account.statementDate > effectiveDate) paymentDueMinor = 0n;
+			else {
+				const statementBalance = checkedBalance(
+					account.openingBalanceMinor +
+						(await balance(
+							account.workspaceId,
+							account.id,
+							account.openingDate,
+							source,
+							account.statementDate
+						))
+				);
+				const [{ payments }] = await source
+					.select({ payments: sql<bigint>`coalesce(sum(${ledgerTransaction.amountMinor}), 0)` })
+					.from(ledgerTransaction)
+					.where(
+						and(
+							eq(ledgerTransaction.workspaceId, account.workspaceId),
+							eq(ledgerTransaction.accountId, account.id),
+							eq(ledgerTransaction.source, 'transfer'),
+							eq(ledgerTransaction.transferSide, 'to'),
+							isNull(ledgerTransaction.trashedAt),
+							gt(ledgerTransaction.date, account.statementDate),
+							lte(ledgerTransaction.date, effectiveDate)
+						)
+					);
+				const statementDebt = statementBalance < 0n ? -statementBalance : 0n;
+				paymentDueMinor = statementDebt > BigInt(payments) ? statementDebt - BigInt(payments) : 0n;
+			}
+			paymentStatus = creditCardPaymentStatus(
+				paymentDueMinor.toString(),
+				account.paymentDueDate,
+				effectiveDate
+			);
+		}
+		return viewAccount(account, balanceMinor, paymentDueMinor, paymentStatus);
 	}
 	async function assertBalances(tx: Transaction, workspaceId: string, accountIds: string[]) {
 		const accounts = await tx
@@ -811,7 +878,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						type: input.type,
 						currency: input.currency,
 						openingDate: input.openingDate,
-						openingBalanceMinor: parseMinor(input.openingBalanceMinor)
+						openingBalanceMinor: parseMinor(input.openingBalanceMinor),
+						creditLimitMinor: input.creditLimitMinor ? parseMinor(input.creditLimitMinor) : null,
+						statementDate: input.statementDate ?? null,
+						paymentDueDate: input.paymentDueDate ?? null
 					};
 					await tx.insert(financialAccount).values(row);
 					const [created] = await tx
@@ -823,7 +893,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						openingBalanceMinor: created.openingBalanceMinor,
 						currency: created.currency
 					});
-					return viewAccount(created, checkedBalance(created.openingBalanceMinor));
+					return accountView(created, tx);
 				});
 			});
 		},
@@ -905,6 +975,11 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								currency: input.currency,
 								openingDate: input.openingDate,
 								openingBalanceMinor: parseMinor(input.openingBalanceMinor),
+								creditLimitMinor: input.creditLimitMinor
+									? parseMinor(input.creditLimitMinor)
+									: null,
+								statementDate: input.statementDate ?? null,
+								paymentDueDate: input.paymentDueDate ?? null,
 								version: before.version + 1,
 								updatedAt: new Date()
 							})
@@ -945,7 +1020,10 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						if (
 							before.name !== after.name ||
 							before.type !== after.type ||
-							before.currency !== after.currency
+							before.currency !== after.currency ||
+							before.creditLimitMinor !== after.creditLimitMinor ||
+							before.statementDate !== after.statementDate ||
+							before.paymentDueDate !== after.paymentDueDate
 						)
 							await audit(tx, context, 'account', accountId, 'updated', before, after);
 						return accountView(after, tx);
@@ -1113,7 +1191,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							}
 						}
 						await audit(tx, context, 'account', accountId, action, row, updated);
-						return { ...viewAccount(updated, currentBalance), planningImpact };
+						return { ...(await accountView(updated, tx)), planningImpact };
 					}
 				);
 			});

@@ -800,7 +800,10 @@ test('credit-card purchases increase debt and payments stay exact without duplic
 			type: 'credit_card',
 			currency: 'EUR',
 			openingDate: '2026-01-01',
-			openingBalanceMinor: '0'
+			openingBalanceMinor: '0',
+			creditLimitMinor: '10000',
+			statementDate: '2026-08-02',
+			paymentDueDate: '2026-08-20'
 		});
 		const usdCard = await f.ledger.createAccount(f.context, {
 			idempotencyKey: 'create-usd-card',
@@ -843,7 +846,13 @@ test('credit-card purchases increase debt and payments stay exact without duplic
 
 		const accounts = await f.ledger.listAccounts(f.context);
 		assert.equal(accounts.find(({ id }) => id === 'eur')?.balanceMinor, '-800');
-		assert.equal(accounts.find(({ id }) => id === eurCard.id)?.balanceMinor, '-200');
+		const eurCardAccount = accounts.find(({ id }) => id === eurCard.id)!;
+		assert.equal(eurCardAccount.balanceMinor, '-200');
+		assert.equal(eurCardAccount.creditLimitMinor, '10000');
+		assert.equal(eurCardAccount.statementDate, '2026-08-02');
+		assert.equal(eurCardAccount.paymentDueDate, '2026-08-20');
+		assert.equal(eurCardAccount.paymentDueMinor, '200');
+		assert.equal(eurCardAccount.paymentStatus, 'overdue');
 		assert.equal(accounts.find(({ id }) => id === usdCard.id)?.balanceMinor, '-600');
 		const [sameCurrencyPayment] = await f.ledger.listTransfers(f.context, eurCard.id);
 		assert.equal(sameCurrencyPayment.sentAmountMinor, '500');

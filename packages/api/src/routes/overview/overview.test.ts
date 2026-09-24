@@ -57,6 +57,7 @@ function services(): APIServices {
 					},
 					recentTransactions: [],
 					accounts: [],
+					cardObligations: [],
 					upcoming: [],
 					workspaces: []
 				};

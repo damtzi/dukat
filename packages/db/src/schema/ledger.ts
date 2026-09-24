@@ -45,6 +45,9 @@ export const financialAccount = sqliteTable(
 		currency: text('currency').notNull(),
 		openingDate: text('opening_date').notNull(),
 		openingBalanceMinor: int64('opening_balance_minor').notNull(),
+		creditLimitMinor: int64('credit_limit_minor'),
+		statementDate: text('statement_date'),
+		paymentDueDate: text('payment_due_date'),
 		version: safeInteger('version').default(1).notNull(),
 		activityStartedAt: secondsTimestamp('activity_started_at'),
 		archivedAt: secondsTimestamp('archived_at'),
@@ -69,6 +72,30 @@ export const financialAccount = sqliteTable(
 		check(
 			'financial_account_opening_date_check',
 			sql`${table.openingDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
+		),
+		check(
+			'financial_account_credit_limit_check',
+			sql`${table.creditLimitMinor} IS NULL OR ${table.creditLimitMinor} > 0`
+		),
+		check(
+			'financial_account_statement_date_check',
+			sql`${table.statementDate} IS NULL OR ${table.statementDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
+		),
+		check(
+			'financial_account_payment_due_date_check',
+			sql`${table.paymentDueDate} IS NULL OR ${table.paymentDueDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`
+		),
+		check(
+			'financial_account_payment_dates_check',
+			sql`${table.statementDate} IS NULL OR ${table.paymentDueDate} IS NULL OR ${table.paymentDueDate} >= ${table.statementDate}`
+		),
+		check(
+			'financial_account_statement_opening_date_check',
+			sql`${table.statementDate} IS NULL OR ${table.statementDate} >= ${table.openingDate}`
+		),
+		check(
+			'financial_account_card_details_check',
+			sql`${table.type} = 'credit_card' OR (${table.creditLimitMinor} IS NULL AND ${table.statementDate} IS NULL AND ${table.paymentDueDate} IS NULL)`
 		),
 		check('financial_account_version_check', sql`${table.version} > 0`)
 	]

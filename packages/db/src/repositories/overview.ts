@@ -156,6 +156,11 @@ export function createOverviewRepository(dependencies: {
 						currency: account.currency,
 						balanceMinor: account.balanceMinor,
 						convertedBalanceMinor: account.convertedBalanceMinor,
+						creditLimitMinor: account.creditLimitMinor,
+						statementDate: account.statementDate,
+						paymentDueDate: account.paymentDueDate,
+						paymentDueMinor: account.paymentDueMinor,
+						paymentStatus: account.paymentStatus,
 						archivedAt: account.archivedAt
 					}))
 				);
@@ -278,6 +283,30 @@ export function createOverviewRepository(dependencies: {
 			const currentAsOf = cumulative(currentMonth, asOfDay);
 			const typicalAsOf =
 				typicalMonths.reduce((sum, month) => sum + cumulative(month, asOfDay), 0n) / 3n;
+			const cardObligations = accountRows
+				.filter(
+					(account) =>
+						account.type === 'credit_card' &&
+						account.paymentDueMinor !== null &&
+						BigInt(account.paymentDueMinor) > 0n
+				)
+				.map((account) => ({
+					accountId: account.id,
+					workspaceId: account.workspaceId,
+					workspaceName: account.workspaceName,
+					accountName: account.name,
+					currency: account.currency,
+					amountMinor: account.paymentDueMinor!,
+					statementDate: account.statementDate,
+					paymentDueDate: account.paymentDueDate,
+					status: account.paymentStatus!
+				}))
+				.sort(
+					(left, right) =>
+						(left.paymentDueDate ?? '9999-12-31').localeCompare(
+							right.paymentDueDate ?? '9999-12-31'
+						) || left.accountName.localeCompare(right.accountName)
+				);
 			return {
 				reportingCurrency,
 				personalAvailableMoney: total(personal),
@@ -314,6 +343,7 @@ export function createOverviewRepository(dependencies: {
 					.slice(0, 5)
 					.map(({ createdAt: _, ...transaction }) => transaction),
 				accounts: accountRows,
+				cardObligations,
 				upcoming: upcoming.sort(
 					(left, right) =>
 						left.date.localeCompare(right.date) ||

@@ -29,6 +29,9 @@
       currency: string
       openingDate: string
       amount: string
+      creditLimit: string
+      statementDate: string
+      paymentDueDate: string
     }
     editingAccount: Account | null
     error: string
@@ -137,6 +140,37 @@
               credit.
             </Field.Description>{/if}
         </Field.Field>
+        {#if form.type === 'credit_card'}
+          <Field.Field>
+            <Field.Label for="credit-limit">Credit limit</Field.Label>
+            <Input
+              id="credit-limit"
+              inputmode="decimal"
+              placeholder="Optional"
+              bind:value={form.creditLimit}
+            />
+          </Field.Field>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <Field.Field>
+              <Field.Label for="statement-date">Statement date</Field.Label>
+              <Input
+                id="statement-date"
+                type="date"
+                min={form.openingDate}
+                bind:value={form.statementDate}
+              />
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for="payment-due-date">Payment due date</Field.Label>
+              <Input
+                id="payment-due-date"
+                type="date"
+                min={form.statementDate || undefined}
+                bind:value={form.paymentDueDate}
+              />
+            </Field.Field>
+          </div>
+        {/if}
         <Dialog.Footer
           ><Button type="submit" disabled={pending}>Save account</Button
           ></Dialog.Footer

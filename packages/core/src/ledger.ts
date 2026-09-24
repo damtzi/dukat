@@ -43,6 +43,10 @@ export const positiveMinorUnitsSchema = minorUnitsSchema.refine(
 	(value) => canonicalIntegerPattern.test(value) && BigInt(value) > 0n,
 	'Amount must be positive'
 );
+const nonnegativeMinorUnitsSchema = minorUnitsSchema.refine(
+	(value) => canonicalIntegerPattern.test(value) && BigInt(value) >= 0n,
+	'Amount cannot be negative'
+);
 
 export const isoCalendarDateSchema = z.string().superRefine((value, context) => {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -67,21 +71,46 @@ export const calendarDateSchema = isoCalendarDateSchema.superRefine((value, cont
 });
 
 export const mutationSchema = z.object({ idempotencyKey: z.string().min(8).max(200) });
-export const createAccountSchema = mutationSchema.extend({
+const accountInputFields = {
 	name: z.string().trim().min(1).max(120),
 	type: accountTypeSchema,
 	currency: currencySchema,
 	openingDate: calendarDateSchema,
-	openingBalanceMinor: minorUnitsSchema
-});
-export const updateAccountSchema = mutationSchema.extend({
-	version: z.number().int().positive(),
-	name: z.string().trim().min(1).max(120),
-	type: accountTypeSchema,
-	currency: legacyCurrencySchema,
-	openingDate: calendarDateSchema,
-	openingBalanceMinor: minorUnitsSchema
-});
+	openingBalanceMinor: minorUnitsSchema,
+	creditLimitMinor: positiveMinorUnitsSchema.nullable().optional(),
+	statementDate: isoCalendarDateSchema.nullable().optional(),
+	paymentDueDate: isoCalendarDateSchema.nullable().optional()
+};
+const validateCreditCardDetails = (
+	value: {
+		type: z.infer<typeof accountTypeSchema>;
+		openingDate: string;
+		creditLimitMinor?: string | null;
+		statementDate?: string | null;
+		paymentDueDate?: string | null;
+	},
+	context: z.core.$RefinementCtx<unknown>
+) => {
+	if (
+		value.type !== 'credit_card' &&
+		(value.creditLimitMinor || value.statementDate || value.paymentDueDate)
+	)
+		context.addIssue({ code: 'custom', message: 'Card details require a credit-card account' });
+	if (value.statementDate && value.paymentDueDate && value.paymentDueDate < value.statementDate)
+		context.addIssue({ code: 'custom', message: 'Payment due date cannot precede statement date' });
+	if (value.statementDate && value.statementDate < value.openingDate)
+		context.addIssue({ code: 'custom', message: 'Statement date cannot precede opening date' });
+};
+export const createAccountSchema = mutationSchema
+	.extend(accountInputFields)
+	.superRefine(validateCreditCardDetails);
+export const updateAccountSchema = mutationSchema
+	.extend({
+		...accountInputFields,
+		currency: legacyCurrencySchema,
+		version: z.number().int().positive()
+	})
+	.superRefine(validateCreditCardDetails);
 export const versionedMutationSchema = mutationSchema.extend({
 	version: z.number().int().positive()
 });
@@ -216,6 +245,11 @@ export const accountSchema = z.object({
 	currency: z.string(),
 	openingDate: isoCalendarDateSchema,
 	openingBalanceMinor: minorUnitsSchema,
+	creditLimitMinor: positiveMinorUnitsSchema.nullable(),
+	statementDate: isoCalendarDateSchema.nullable(),
+	paymentDueDate: isoCalendarDateSchema.nullable(),
+	paymentDueMinor: nonnegativeMinorUnitsSchema.nullable(),
+	paymentStatus: z.enum(['paid', 'due', 'overdue']).nullable(),
 	version: z.number().int(),
 	activityStartedAt: nullableTimestampSchema,
 	archivedAt: nullableTimestampSchema,
@@ -227,6 +261,15 @@ export const accountSchema = z.object({
 	canArchive: z.boolean(),
 	canRestore: z.boolean()
 });
+export const creditCardPaymentStatusSchema = z.enum(['paid', 'due', 'overdue']);
+export function creditCardPaymentStatus(
+	paymentDueMinor: string,
+	paymentDueDate: string | null,
+	today = todayInDefaultTimeZone()
+): z.infer<typeof creditCardPaymentStatusSchema> {
+	if (BigInt(paymentDueMinor) <= 0n) return 'paid';
+	return paymentDueDate && paymentDueDate < today ? 'overdue' : 'due';
+}
 export const accountArchiveImpactPlanSchema = z.object({
 	id: z.string(),
 	version: z.number().int().positive(),
