@@ -31,6 +31,7 @@ import type { createExchangeRateRepository } from '@dukat/db/repositories/exchan
 import type { PlanningRepository } from '@dukat/db/repositories/planning';
 import type { BudgetRepository } from '@dukat/db/repositories/budgets';
 import type { ExportRepository } from '@dukat/db/repositories/exports';
+import type { NetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import type { MyOverview } from '@dukat/core/overview';
 
 import type { ProfileImageCleanupService, ProfileImageService } from './profile-images';
@@ -310,6 +311,7 @@ export interface APIServices {
 	budgets?: BudgetRepository;
 	overview?: OverviewService;
 	insights: InsightsRepository;
+	netWorthHistory?: NetWorthHistoryRepository;
 	exchangeRates?: ReturnType<typeof createExchangeRateRepository>;
 	workspaces: WorkspaceService;
 }

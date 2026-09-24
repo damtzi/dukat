@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import type { FinancialDatabase } from '../connection';
 import { netWorthSnapshot, user } from '../schema';
 import type { createExchangeRateRepository } from './exchange-rates';
-import type { LedgerRepository } from './ledger';
+import { LedgerError, type LedgerRepository } from './ledger';
 
 type WorkspaceRepository = {
 	listAuthorized(
@@ -111,6 +111,26 @@ export function createNetWorthHistoryRepository(dependencies: {
 			return rows.map(({ payloadJson }) =>
 				netWorthHistoryPointSchema.parse(JSON.parse(payloadJson))
 			);
+		},
+		async listWorkspace(userId: string, workspaceId: string) {
+			const authorized = await dependencies.workspaces.listAuthorized(userId);
+			if (!authorized.some(({ id }) => id === workspaceId))
+				throw new LedgerError('not_found', 'Workspace not found');
+			const history = await this.list(userId);
+			return history.flatMap((point) => {
+				const workspace = point.workspaces.find(({ id }) => id === workspaceId);
+				return workspace
+					? [
+							{
+								date: point.date,
+								reportingCurrency: point.reportingCurrency,
+								balanceMinor: workspace.netWorthMinor,
+								missingRate: workspace.missingRate,
+								accounts: workspace.accounts
+							}
+						]
+					: [];
+			});
 		}
 	};
 }

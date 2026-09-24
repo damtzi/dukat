@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
+  monthlyBalanceHistory,
   monthlyForecastPoints,
   overviewAttentionItems,
   overviewSpendingCategories,
   significantAccounts,
 } from './overview'
+
+it('keeps the last account-balance snapshot from each month', () => {
+  expect(
+    monthlyBalanceHistory([
+      { date: '2026-07-03', balanceMinor: '12000' },
+      { date: '2026-07-29', balanceMinor: '18500' },
+      { date: '2026-08-01', balanceMinor: null },
+      { date: '2026-08-27', balanceMinor: '9000' },
+    ]),
+  ).toEqual([
+    { date: '2026-07-29', balanceMinor: '18500' },
+    { date: '2026-08-27', balanceMinor: '9000' },
+  ])
+})
 
 const account = (
   id: string,

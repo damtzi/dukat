@@ -16,6 +16,7 @@ import {
 	trashImportInputSchema,
 	updateCategoryInputSchema
 } from '@dukat/core';
+import { workspaceBalanceHistoryPointSchema } from '@dukat/core/overview';
 
 import { jsonContent } from '../../openapi/helpers';
 
@@ -80,6 +81,13 @@ export const cashFlow = createRoute({
 	path: '/workspaces/{workspaceId}/cash-flow',
 	request: { params, query: cashFlowInputSchema },
 	responses: responses(cashFlowSchema, 'Cash flow')
+});
+export const balanceHistory = createRoute({
+	...common(),
+	method: 'get',
+	path: '/workspaces/{workspaceId}/balance-history',
+	request: { params },
+	responses: responses(z.array(workspaceBalanceHistoryPointSchema), 'Account balance history')
 });
 export const preview = createRoute({
 	...common(),

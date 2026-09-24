@@ -70,6 +70,16 @@ export const insightsRouter = router
 			200
 		);
 	})
+	.openapi(routes.balanceHistory, async (c) => {
+		if (!c.var.services.netWorthHistory) throw new Error('Balance history is unavailable');
+		return c.json(
+			await c.var.services.netWorthHistory.listWorkspace(
+				c.var.userId,
+				c.req.valid('param').workspaceId
+			),
+			200
+		);
+	})
 	.openapi(routes.preview, async (c) =>
 		c.json(await c.var.services.insights.preview(context(c), c.req.valid('json')), 200)
 	)

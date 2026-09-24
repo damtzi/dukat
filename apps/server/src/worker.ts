@@ -189,6 +189,7 @@ function createRuntime(bindings: WorkerEnv) {
 			budgets: createBudgetRepository(financialDb, exchangeRates),
 			exchangeRates,
 			insights,
+			netWorthHistory: history,
 			overview: createOverviewRepository({
 				workspaces: workspaceRepository,
 				ledger,

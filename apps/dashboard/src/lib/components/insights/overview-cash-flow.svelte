@@ -64,8 +64,8 @@
         ).toString()
       : null,
   )
-  let cashFlowPath = $derived(
-    resolve('/(app)/workspaces/[workspaceId]/cash-flow', { workspaceId }),
+  let insightsPath = $derived(
+    resolve('/(app)/workspaces/[workspaceId]/insights', { workspaceId }),
   )
   let ratesPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/rates', { workspaceId }),
@@ -94,8 +94,8 @@
           Month-to-date income and spending in the reporting currency.
         </Card.Description>
       </div>
-      {#if current && previous && current.currencies.length > 0 && !unavailable}
-        <Button variant="outline" href={cashFlowPath}>View cash flow</Button>
+      {#if current && current.currencies.length > 0}
+        <Button variant="outline" href={insightsPath}>View insights</Button>
       {/if}
     </div>
   </Card.Header>
@@ -109,7 +109,7 @@
           </Empty.Description>
         </Empty.Header>
         <Empty.Content>
-          <Button href={cashFlowPath}>View cash flow</Button>
+          <Button href={insightsPath}>View insights</Button>
         </Empty.Content>
       </Empty.Root>
     {:else if current.currencies.length === 0}

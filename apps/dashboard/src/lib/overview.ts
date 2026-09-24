@@ -5,6 +5,7 @@ type ConvertedAccount = {
 }
 
 type ForecastPoint = { date: string; projectedBalanceMinor: string }
+type BalanceHistoryPoint = { date: string }
 
 type SpendingCategory = {
   categoryId: string | null
@@ -147,4 +148,12 @@ export function monthlyForecastPoints(
         balance?.projectedBalanceMinor ?? startingBalanceMinor,
     }
   })
+}
+
+export function monthlyBalanceHistory<T extends BalanceHistoryPoint>(
+  history: readonly T[],
+) {
+  const months = new Map<string, T>()
+  for (const point of history) months.set(point.date.slice(0, 7), point)
+  return [...months.values()]
 }

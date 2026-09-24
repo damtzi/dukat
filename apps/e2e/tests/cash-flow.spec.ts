@@ -17,6 +17,11 @@ const account = {
 	paymentStatus: null,
 	balanceMinor: '840000',
 	negativeBalance: false,
+	creditLimitMinor: null,
+	statementDate: null,
+	paymentDueDate: null,
+	paymentDueMinor: null,
+	paymentStatus: null,
 	canDelete: false,
 	canArchive: true,
 	canRestore: false,
@@ -96,6 +101,7 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 					name: 'Personal',
 					type: 'personal',
 					reportingCurrency: 'PLN',
+					settlementEnabled: false,
 					version: 1,
 					role: null
 				}
@@ -122,10 +128,39 @@ async function mock(page: Page, state: 'data' | 'missing' | 'empty' = 'data') {
 				missingRate: false,
 				startingBalanceMinor: '840000',
 				endingBalanceMinor: '840000',
-				occurrences: [],
+				occurrences: [
+					{
+						planId: 'rent-plan',
+						accountId: account.id,
+						kind: 'expense',
+						amountMinor: '250000',
+						status: 'expected',
+						originalDate: '2026-09-01',
+						date: '2026-09-01',
+						sourceCurrency: 'PLN',
+						sourceAmountMinor: '250000'
+					}
+				],
 				points: [],
 				accounts: []
 			});
+		if (pathname === `/api/workspaces/${workspaceId}/balance-history`)
+			return json(route, [
+				{
+					date: '2026-07-31',
+					reportingCurrency: 'PLN',
+					balanceMinor: '810000',
+					missingRate: false,
+					accounts: [account]
+				},
+				{
+					date: '2026-08-27',
+					reportingCurrency: 'PLN',
+					balanceMinor: '840000',
+					missingRate: false,
+					accounts: [account]
+				}
+			]);
 		if (pathname === `/api/workspaces/${workspaceId}/cash-flow`) {
 			cashFlowRequests.push(search);
 			const result = response(state === 'missing');
@@ -158,10 +193,14 @@ test('navigates, compares periods, exposes chart values, and drills into transac
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.clock.setFixedTime(new Date('2026-08-27T12:00:00Z'));
 	const requests = await mock(page);
-	await page.goto(`/workspaces/${workspaceId}/cash-flow`);
+	await page.goto(`/workspaces/${workspaceId}/insights`);
 
-	await expect(page).toHaveURL(`/workspaces/${workspaceId}/cash-flow`);
-	await expect(page.getByRole('heading', { name: 'Cash flow', level: 1 })).toBeVisible();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/insights`);
+	await expect(page.getByRole('heading', { name: 'Insights', level: 1 })).toBeVisible();
+	await expect(page.getByText('Upcoming recurring money')).toBeVisible();
+	await expect(page.getByText('−2500,00 zł')).toBeVisible();
+	await expect(page.getByText('Account balance history', { exact: true })).toBeVisible();
+	await expect(page.getByText('Latest original account balances · 2026-08-27')).toBeVisible();
 	await expect(page.getByRole('button', { name: '12 months' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -210,7 +249,7 @@ test('replaces charts with one useful action when data or rates are unavailable'
 }, testInfo) => {
 	test.skip(testInfo.project.name !== 'desktop-chromium');
 	await mock(page, 'missing');
-	await page.goto(`/workspaces/${workspaceId}/cash-flow`);
+	await page.goto(`/workspaces/${workspaceId}/insights`);
 	await expect(page.getByText('Combined cash flow unavailable')).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toBeVisible();
 	await expect(page.getByText('Original-currency totals')).toBeVisible();

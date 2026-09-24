@@ -317,9 +317,9 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await expect(thisMonthCard).toContainText('Groceries');
 	await expect(thisMonthCard).toContainText('Other');
 	await expect(thisMonthCard).toContainText('400,00 zł');
-	await expect(page.getByRole('link', { name: 'View cash flow' })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'View insights' })).toHaveAttribute(
 		'href',
-		`/workspaces/${workspaceId}/cash-flow`
+		`/workspaces/${workspaceId}/insights`
 	);
 	await expect(page.getByRole('button', { name: '12 months' })).toHaveCount(0);
 	for (const name of [

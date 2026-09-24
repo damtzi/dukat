@@ -216,6 +216,7 @@ const api = createAPI(
 		budgets: createBudgetRepository(financialDb, exchangeRateRepository),
 		exchangeRates: exchangeRateRepository,
 		insights: insightsRepository,
+		netWorthHistory: netWorthHistoryRepository,
 		overview: createOverviewRepository({
 			workspaces: workspaceRepository,
 			ledger: ledgerRepository,

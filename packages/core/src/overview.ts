@@ -51,6 +51,14 @@ export const netWorthHistoryPointSchema = z.object({
 	)
 });
 
+export const workspaceBalanceHistoryPointSchema = z.object({
+	date: isoCalendarDateSchema,
+	reportingCurrency: z.string().length(3),
+	balanceMinor: amountSchema.nullable(),
+	missingRate: z.boolean(),
+	accounts: netWorthHistoryPointSchema.shape.workspaces.element.shape.accounts
+});
+
 export const myOverviewSchema = z.object({
 	reportingCurrency: z.string().length(3),
 	personalAvailableMoney: totalSchema,
@@ -152,3 +160,4 @@ export const myOverviewSchema = z.object({
 
 export type MyOverview = z.infer<typeof myOverviewSchema>;
 export type NetWorthHistoryPoint = z.infer<typeof netWorthHistoryPointSchema>;
+export type WorkspaceBalanceHistoryPoint = z.infer<typeof workspaceBalanceHistoryPointSchema>;
