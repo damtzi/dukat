@@ -7,6 +7,7 @@
     id: string
     name: string
     reportingCurrency: string | null
+    settlementEnabled: boolean
     version: number
     role: 'owner' | 'member' | null
   }
@@ -106,6 +107,25 @@
       pending = false
     }
   }
+  async function enableSettlement() {
+    if (pending) return
+    pending = true
+    error = ''
+    try {
+      await request(`/workspaces/${workspace.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          version: workspace.version,
+          settlementEnabled: true,
+        }),
+      })
+      await onchanged()
+    } catch (cause) {
+      error = (cause as Error).message
+    } finally {
+      pending = false
+    }
+  }
   async function invite(event: SubmitEvent) {
     event.preventDefault()
     const form = event.currentTarget as HTMLFormElement
@@ -193,6 +213,27 @@
       >
     </section>
     {#if workspace.role === 'owner'}
+      <section class="inset-panel flex flex-col gap-2">
+        <h3 class="font-semibold">Member settlement</h3>
+        {#if workspace.settlementEnabled}
+          <p class="text-sm text-muted-foreground">
+            Enabled. New Household expenses can use equal or custom allocations,
+            and members can settle up. Personal account details stay private.
+          </p>
+        {:else}
+          <p class="text-sm text-muted-foreground">
+            Household spending currently uses a common pool, so members do not
+            owe each other. Enabling settlement applies only to new expenses and
+            cannot be turned off.
+          </p>
+          <Button
+            class="self-start"
+            variant="outline"
+            disabled={pending}
+            onclick={enableSettlement}>Enable member settlement</Button
+          >
+        {/if}
+      </section>
       <form class="flex flex-col gap-2" onsubmit={save}>
         <h3 class="font-semibold">Details</h3>
         <Label for="household-name">Household name</Label><Input

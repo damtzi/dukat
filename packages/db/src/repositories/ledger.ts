@@ -229,6 +229,7 @@ const publicHouseholdExpense = async (
 		description: row.description,
 		categoryId: row.categoryId,
 		payer: publicActor(payer),
+		settlementEligible: row.settlementEligible,
 		allocations: allocations.map(({ allocation, member }) => ({
 			member: publicActor(member),
 			amountMinor: allocation.amountMinor.toString()
@@ -1234,10 +1235,15 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					input,
 					async () => {
 						const [household] = await tx
-							.select({ id: workspace.id })
+							.select({
+								id: workspace.id,
+								settlementEnabled: workspace.settlementEnabled
+							})
 							.from(workspace)
 							.where(and(eq(workspace.id, context.workspaceId), eq(workspace.type, 'household')));
 						if (!household) throw new LedgerError('not_found', 'Household workspace not found');
+						if (!household.settlementEnabled && input.allocations)
+							throw new LedgerError('conflict', 'Member settlement is not enabled');
 						const [sourceAccount] = await tx
 							.select({ account: financialAccount })
 							.from(financialAccount)
@@ -1293,7 +1299,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							currency: sourceAccount.account.currency,
 							date: input.date,
 							merchant: input.merchant ?? null,
-							description: input.description ?? null
+							description: input.description ?? null,
+							settlementEligible: household.settlementEnabled
 						});
 						await replaceAllocations(tx, context.workspaceId, expenseId, allocations);
 						const [[transaction], [expense], [payer]] = await Promise.all([
@@ -1343,6 +1350,8 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 								)
 							);
 						if (!before) throw new LedgerError('not_found', 'Household expense not found');
+						if (!before.settlementEligible && input.allocations)
+							throw new LedgerError('conflict', 'This is a common-pool expense');
 						if (before.trashedAt)
 							throw new LedgerError('conflict', 'Trashed Household expenses cannot be edited');
 						if (before.version !== input.version)
@@ -1593,6 +1602,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 						.where(
 							and(
 								eq(householdExpense.workspaceId, context.workspaceId),
+								eq(householdExpense.settlementEligible, true),
 								isNull(householdExpense.trashedAt)
 							)
 						),
@@ -1607,6 +1617,7 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							householdExpense,
 							and(
 								eq(householdExpense.id, householdExpenseAllocation.expenseId),
+								eq(householdExpense.settlementEligible, true),
 								isNull(householdExpense.trashedAt)
 							)
 						)
@@ -1683,6 +1694,12 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 					input.idempotencyKey,
 					input,
 					async () => {
+						const [household] = await tx
+							.select({ settlementEnabled: workspace.settlementEnabled })
+							.from(workspace)
+							.where(eq(workspace.id, context.workspaceId));
+						if (!household?.settlementEnabled)
+							throw new LedgerError('conflict', 'Member settlement is not enabled');
 						if (input.fromUserId === input.toUserId)
 							throw new LedgerError('invalid', 'Settlement members must be different');
 						const memberRows = await tx

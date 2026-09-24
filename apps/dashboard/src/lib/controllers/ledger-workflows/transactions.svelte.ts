@@ -317,36 +317,44 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
       const selectedAllocations = state.form.allocations.filter(
         ({ selected }) => selected,
       )
-      if (state.creatingHouseholdExpense && selectedAllocations.length === 0)
+      const settlementEligible =
+        state.editingHouseholdExpense?.settlementEligible ??
+        data.settlementEnabled
+      if (
+        state.creatingHouseholdExpense &&
+        settlementEligible &&
+        selectedAllocations.length === 0
+      )
         throw new Error('Select at least one member for the allocation.')
       const currency =
         state.editingHouseholdExpense?.currency ?? account!.currency
-      const allocations = state.creatingHouseholdExpense
-        ? state.form.allocationMode === 'equal'
-          ? (() => {
-              const sorted = [...selectedAllocations].sort((a, b) =>
-                a.memberUserId.localeCompare(b.memberUserId),
-              )
-              const total = BigInt(transactionBody.amountMinor)
-              const count = BigInt(sorted.length)
-              const base = total / count
-              const remainder = total % count
-              if (base === 0n)
-                throw new Error(
-                  'The expense is too small to allocate to every selected member.',
+      const allocations =
+        state.creatingHouseholdExpense && settlementEligible
+          ? state.form.allocationMode === 'equal'
+            ? (() => {
+                const sorted = [...selectedAllocations].sort((a, b) =>
+                  a.memberUserId.localeCompare(b.memberUserId),
                 )
-              return sorted.map((allocation, index) => ({
+                const total = BigInt(transactionBody.amountMinor)
+                const count = BigInt(sorted.length)
+                const base = total / count
+                const remainder = total % count
+                if (base === 0n)
+                  throw new Error(
+                    'The expense is too small to allocate to every selected member.',
+                  )
+                return sorted.map((allocation, index) => ({
+                  memberUserId: allocation.memberUserId,
+                  amountMinor: (
+                    base + (BigInt(index) < remainder ? 1n : 0n)
+                  ).toString(),
+                }))
+              })()
+            : selectedAllocations.map((allocation) => ({
                 memberUserId: allocation.memberUserId,
-                amountMinor: (
-                  base + (BigInt(index) < remainder ? 1n : 0n)
-                ).toString(),
+                amountMinor: parseAmount(allocation.amount, currency),
               }))
-            })()
-          : selectedAllocations.map((allocation) => ({
-              memberUserId: allocation.memberUserId,
-              amountMinor: parseAmount(allocation.amount, currency),
-            }))
-        : undefined
+          : undefined
       const body = state.refundingExpense
         ? {
             amountMinor: transactionBody.amountMinor,

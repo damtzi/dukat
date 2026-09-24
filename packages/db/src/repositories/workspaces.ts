@@ -32,6 +32,7 @@ const summary = {
 	name: workspace.name,
 	type: workspace.type,
 	reportingCurrency: workspace.reportingCurrency,
+	settlementEnabled: workspace.settlementEnabled,
 	version: workspace.version,
 	role: workspaceMembership.role
 };
@@ -185,6 +186,7 @@ export function createWorkspaceRepository(database: Database) {
 					name: input.name,
 					type: 'household' as const,
 					reportingCurrency: input.reportingCurrency.toUpperCase(),
+					settlementEnabled: false,
 					version: 1,
 					role: 'owner' as const
 				};
@@ -192,12 +194,20 @@ export function createWorkspaceRepository(database: Database) {
 		},
 		updateHousehold(
 			context: WorkspaceAuthorizationContext,
-			input: { name?: string; reportingCurrency?: string; version: number }
+			input: {
+				name?: string;
+				reportingCurrency?: string;
+				settlementEnabled?: true;
+				version: number;
+			}
 		) {
 			return database.transaction(async (tx) => {
 				await owner(tx, context.userId, context.workspaceId);
 				const [before] = await tx
-					.select({ reportingCurrency: workspace.reportingCurrency })
+					.select({
+						reportingCurrency: workspace.reportingCurrency,
+						settlementEnabled: workspace.settlementEnabled
+					})
 					.from(workspace)
 					.where(eq(workspace.id, context.workspaceId));
 				const requestedCurrency = input.reportingCurrency?.toUpperCase();
@@ -212,7 +222,8 @@ export function createWorkspaceRepository(database: Database) {
 					);
 				const version = await bump(tx, context.workspaceId, input.version, {
 					name: input.name,
-					reportingCurrency: requestedCurrency
+					reportingCurrency: requestedCurrency,
+					settlementEnabled: input.settlementEnabled === true ? true : before.settlementEnabled
 				});
 				await audit(tx, context.workspaceId, context.userId, 'household.updated');
 				return { version };

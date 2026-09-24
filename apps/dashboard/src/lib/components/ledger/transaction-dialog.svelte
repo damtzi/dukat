@@ -23,6 +23,7 @@
     editingTransaction,
     editingHouseholdExpense,
     creatingHouseholdExpense,
+    settlementEligible = false,
     refundingExpense,
     quickEntry = false,
     error,
@@ -55,6 +56,7 @@
     editingTransaction: Transaction | null
     editingHouseholdExpense: HouseholdExpense | null
     creatingHouseholdExpense: boolean
+    settlementEligible?: boolean
     refundingExpense: Transaction | null
     quickEntry?: boolean
     error: string
@@ -200,7 +202,7 @@
             bind:value={form.amount}
           />
         </Field.Field>
-        {#if creatingHouseholdExpense}
+        {#if creatingHouseholdExpense && settlementEligible}
           <Field.FieldSet>
             <Field.Legend>Allocation</Field.Legend>
             <Field.Description>

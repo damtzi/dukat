@@ -8,6 +8,7 @@ const workspaceSummarySchema = z.object({
 	name: z.string(),
 	type: z.enum(['personal', 'household']),
 	reportingCurrency: z.string().nullable(),
+	settlementEnabled: z.boolean(),
 	version: z.number().int(),
 	role: z.enum(['owner', 'member']).nullable()
 });
@@ -90,7 +91,8 @@ export const settings = createRoute({
 		body: jsonContent(
 			version.extend({
 				name: z.string().trim().min(1).optional(),
-				reportingCurrency: legacyCurrencySchema.optional()
+				reportingCurrency: legacyCurrencySchema.optional(),
+				settlementEnabled: z.literal(true).optional()
 			}),
 			'Settings'
 		)

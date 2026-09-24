@@ -4,6 +4,7 @@ import {
 	customType,
 	foreignKey,
 	index,
+	integer,
 	sqliteTable,
 	text,
 	uniqueIndex
@@ -272,6 +273,9 @@ export const householdExpense = sqliteTable(
 		date: text('date').notNull(),
 		merchant: text('merchant'),
 		description: text('description'),
+		settlementEligible: integer('settlement_eligible', { mode: 'boolean' })
+			.default(false)
+			.notNull(),
 		version: safeInteger('version').default(1).notNull(),
 		trashedAt: secondsTimestamp('trashed_at'),
 		createdAt: secondsTimestamp('created_at')

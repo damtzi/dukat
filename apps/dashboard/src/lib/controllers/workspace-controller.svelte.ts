@@ -10,6 +10,7 @@ export type Workspace = {
   name: string
   type: 'personal' | 'household'
   reportingCurrency: string | null
+  settlementEnabled: boolean
   version: number
   role: 'owner' | 'member' | null
   hasBudgets?: boolean
@@ -93,6 +94,7 @@ export type WorkspaceRouteData = {
   state: 'ready' | 'error'
   message: string
   workspaceId: string
+  settlementEnabled: boolean
   accounts: Account[]
   categories: Category[]
   members: HouseholdMember[]

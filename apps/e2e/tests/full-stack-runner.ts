@@ -218,7 +218,8 @@ try {
 			id: environment.FULL_STACK_HOUSEHOLD_ID,
 			name: 'Full-stack Household',
 			type: 'household',
-			reportingCurrency: 'PLN'
+			reportingCurrency: 'PLN',
+			settlementEnabled: true
 		});
 		await setup.db.insert(workspaceMembership).values([
 			{

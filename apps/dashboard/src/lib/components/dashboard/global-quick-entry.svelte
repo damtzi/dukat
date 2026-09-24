@@ -26,6 +26,7 @@
     state: 'ready',
     message: '',
     workspaceId: '',
+    settlementEnabled: false,
     accounts: [],
     categories: [],
     members: [],
@@ -94,6 +95,7 @@
       routeData = {
         ...routeData,
         workspaceId: workspace.id,
+        settlementEnabled: workspace.settlementEnabled,
         accounts,
         categories,
         selectedAccountId: activeAccounts[0].id,
@@ -146,6 +148,7 @@
   editingTransaction={ledger.transaction.dialog.editing}
   editingHouseholdExpense={ledger.transaction.dialog.editingHouseholdExpense}
   creatingHouseholdExpense={ledger.transaction.dialog.creatingHouseholdExpense}
+  settlementEligible={false}
   refundingExpense={ledger.transaction.dialog.refundingExpense}
   quickEntry={ledger.transaction.dialog.quickEntry}
   error={ledger.transaction.dialog.error}

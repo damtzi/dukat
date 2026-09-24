@@ -242,14 +242,16 @@
                       {item.description}
                     </p>
                   {/if}
-                  <p class="text-sm text-muted-foreground">
-                    {item.allocations
-                      .map(
-                        ({ member, amountMinor }) =>
-                          `${member.name}: ${formatMoney(amountMinor, item.currency)}`,
-                      )
-                      .join(' · ')}
-                  </p>
+                  {#if item.settlementEligible}
+                    <p class="text-sm text-muted-foreground">
+                      {item.allocations
+                        .map(
+                          ({ member, amountMinor }) =>
+                            `${member.name}: ${formatMoney(amountMinor, item.currency)}`,
+                        )
+                        .join(' · ')}
+                    </p>
+                  {/if}
                 </div>
                 <div class="flex flex-wrap items-center gap-2 sm:justify-end">
                   <strong class="text-destructive">
@@ -295,107 +297,126 @@
       </Card.Content>
     </Card.Root>
 
-    <div class="grid gap-4 lg:grid-cols-2">
-      <Card.Root>
-        <Card.Header>
-          <Card.Title>Member settlement</Card.Title>
-          <Card.Description>
-            Positive balances are owed. Negative balances should receive money.
-          </Card.Description>
-          <Card.Action>
-            <Button
-              size="sm"
-              onclick={newSettlement}
-              disabled={data.members.length < 2}>Record payment</Button
-            >
-          </Card.Action>
-        </Card.Header>
-        <Card.Content>
-          {#if data.settlementBalances.length === 0}
-            <p class="text-sm text-muted-foreground">No settlement balance.</p>
-          {:else}
-            <div class="flex flex-col gap-2">
-              {#each data.settlementBalances as balance (`${balance.currency}:${balance.member.userId}`)}
-                <div class="flex items-center justify-between gap-3">
-                  <span>{balance.member.name}</span>
-                  <strong
-                    class:text-destructive={BigInt(balance.balanceMinor) > 0n}
-                  >
-                    {BigInt(balance.balanceMinor) > 0n
-                      ? 'Owes '
-                      : BigInt(balance.balanceMinor) < 0n
-                        ? 'Is owed '
-                        : ''}{formatMoney(
-                      BigInt(balance.balanceMinor) < 0n
-                        ? (-BigInt(balance.balanceMinor)).toString()
-                        : balance.balanceMinor,
-                      balance.currency,
-                    )}
-                  </strong>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </Card.Content>
-      </Card.Root>
-
-      <Card.Root>
-        <Card.Header>
-          <Card.Title>Settlement payments</Card.Title>
-          <Card.Description>
-            Payments reduce balances. They are not income or spending.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
-          {#if data.settlementPayments.length === 0}
-            <p class="text-sm text-muted-foreground">No settlement payments.</p>
-          {:else}
-            <div class="flex flex-col gap-3">
-              {#each data.settlementPayments as payment (payment.id)}
-                <div
-                  class={[
-                    'flex items-center justify-between gap-3 rounded-lg border p-3',
-                    payment.trashedAt && 'opacity-60',
-                  ]}
-                >
-                  <div>
-                    <p class="font-medium">
-                      {payment.from.name} paid {payment.to.name}
-                    </p>
-                    <p class="text-sm text-muted-foreground">
-                      {payment.date}{payment.description
-                        ? ` · ${payment.description}`
-                        : ''}{payment.linkedTransfer
-                        ? ' · Linked transfer'
-                        : ''}
-                    </p>
-                  </div>
-                  <div class="flex items-center gap-2">
+    {#if data.settlementEnabled}
+      <div class="grid gap-4 lg:grid-cols-2">
+        <Card.Root>
+          <Card.Header>
+            <Card.Title>Member settlement</Card.Title>
+            <Card.Description>
+              Positive balances are owed. Negative balances should receive
+              money.
+            </Card.Description>
+            <Card.Action>
+              <Button
+                size="sm"
+                onclick={newSettlement}
+                disabled={data.members.length < 2}>Record payment</Button
+              >
+            </Card.Action>
+          </Card.Header>
+          <Card.Content>
+            {#if data.settlementBalances.length === 0}
+              <p class="text-sm text-muted-foreground">
+                No settlement balance.
+              </p>
+            {:else}
+              <div class="flex flex-col gap-2">
+                {#each data.settlementBalances as balance (`${balance.currency}:${balance.member.userId}`)}
+                  <div class="flex items-center justify-between gap-3">
+                    <span>{balance.member.name}</span>
                     <strong
-                      >{formatMoney(
-                        payment.amountMinor,
-                        payment.currency,
-                      )}</strong
+                      class:text-destructive={BigInt(balance.balanceMinor) > 0n}
                     >
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={settlementPending}
-                      onclick={() =>
-                        settlementAction(
-                          payment,
-                          payment.trashedAt ? 'restore' : 'trash',
-                        )}
-                      >{payment.trashedAt ? 'Restore' : 'Move to trash'}</Button
-                    >
+                      {BigInt(balance.balanceMinor) > 0n
+                        ? 'Owes '
+                        : BigInt(balance.balanceMinor) < 0n
+                          ? 'Is owed '
+                          : ''}{formatMoney(
+                        BigInt(balance.balanceMinor) < 0n
+                          ? (-BigInt(balance.balanceMinor)).toString()
+                          : balance.balanceMinor,
+                        balance.currency,
+                      )}
+                    </strong>
                   </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </Card.Content>
+                {/each}
+              </div>
+            {/if}
+          </Card.Content>
+        </Card.Root>
+
+        <Card.Root>
+          <Card.Header>
+            <Card.Title>Settlement payments</Card.Title>
+            <Card.Description>
+              Payments reduce balances. They are not income or spending.
+            </Card.Description>
+          </Card.Header>
+          <Card.Content>
+            {#if data.settlementPayments.length === 0}
+              <p class="text-sm text-muted-foreground">
+                No settlement payments.
+              </p>
+            {:else}
+              <div class="flex flex-col gap-3">
+                {#each data.settlementPayments as payment (payment.id)}
+                  <div
+                    class={[
+                      'flex items-center justify-between gap-3 rounded-lg border p-3',
+                      payment.trashedAt && 'opacity-60',
+                    ]}
+                  >
+                    <div>
+                      <p class="font-medium">
+                        {payment.from.name} paid {payment.to.name}
+                      </p>
+                      <p class="text-sm text-muted-foreground">
+                        {payment.date}{payment.description
+                          ? ` · ${payment.description}`
+                          : ''}{payment.linkedTransfer
+                          ? ' · Linked transfer'
+                          : ''}
+                      </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <strong
+                        >{formatMoney(
+                          payment.amountMinor,
+                          payment.currency,
+                        )}</strong
+                      >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={settlementPending}
+                        onclick={() =>
+                          settlementAction(
+                            payment,
+                            payment.trashedAt ? 'restore' : 'trash',
+                          )}
+                        >{payment.trashedAt
+                          ? 'Restore'
+                          : 'Move to trash'}</Button
+                      >
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </Card.Content>
+        </Card.Root>
+      </div>
+    {:else}
+      <Card.Root>
+        <Card.Header>
+          <Card.Title>Common-pool spending</Card.Title>
+          <Card.Description>
+            Member settlement is off. Household expenses do not create amounts
+            owed between members.
+          </Card.Description>
+        </Card.Header>
       </Card.Root>
-    </div>
+    {/if}
   {/if}
 
   {#snippet ExpenseFilters(idPrefix: string)}

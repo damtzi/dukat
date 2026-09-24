@@ -84,11 +84,11 @@ A transaction that reverses all or part of an earlier expense. It reduces spendi
 
 ### Household expense
 
-Spending visible in a Household workspace, with a configurable share assigned to each participating member. It can link to a transaction in a member's personal workspace without revealing the personal account's identity, balance, or other transactions. A payment from a personal account affects Household spending and member settlement but does not change Household cash.
+Spending visible in a Household workspace. By default it belongs to the Household's common pool and creates no amount owed between members. When member settlement is enabled, new expenses have a configurable share assigned to each participating member. It can link to a transaction in a member's personal workspace without revealing the personal account's identity, balance, or other transactions. A payment from a personal account affects Household spending but does not change Household cash.
 
 ### Member settlement
 
-The net amount Household workspace members owe each other based on their shares of Household expenses and recorded settlement payments.
+An optional, one-way Household workspace setting. When enabled, it tracks the net amount members owe each other based on shares of eligible Household expenses and recorded settlement payments. Enabling it does not add allocations or amounts owed to earlier common-pool expenses. Existing Household workspaces created before optional settlement retain settlement-enabled behavior during migration.
 
 ### Settlement payment
 

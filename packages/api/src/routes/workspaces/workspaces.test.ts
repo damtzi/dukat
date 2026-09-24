@@ -19,6 +19,7 @@ const personalWorkspace: WorkspaceSummary = {
 	name: 'Personal',
 	type: 'personal',
 	reportingCurrency: null,
+	settlementEnabled: false,
 	version: 1,
 	role: null
 };

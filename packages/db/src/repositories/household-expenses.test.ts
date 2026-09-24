@@ -21,8 +21,9 @@ import {
 import { assertDatabaseIntegrity } from '../recovery';
 import { createInsightsRepository } from './insights';
 import { createLedgerRepository, LedgerError } from './ledger';
+import { createWorkspaceRepository } from './workspaces';
 
-test('private-funded Household expenses preserve privacy, balances, spending, lifecycle, and access', async () => {
+test('optional Household settlement preserves common-pool history and Personal-account privacy', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-household-expense-'));
 	const url = `file:${join(directory, 'ledger.db')}`;
 	const connection = createDatabase({ url });
@@ -97,7 +98,18 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 
 		const ledger = createLedgerRepository(financial.db);
 		const insights = createInsightsRepository(financial.db);
+		const workspaces = createWorkspaceRepository(connection.db);
 		const payerContext = { userId: 'payer', workspaceId: 'household' };
+		const commonPoolExpense = await ledger.createHouseholdExpense(payerContext, {
+			idempotencyKey: 'common-pool-expense',
+			accountId: 'secret-account',
+			amountMinor: '500',
+			date: '2026-07-31',
+			description: 'Household supplies'
+		});
+		assert.equal(commonPoolExpense.settlementEligible, false);
+		assert.deepEqual(await ledger.listSettlementBalances(payerContext), []);
+		await workspaces.updateHousehold(payerContext, { settlementEnabled: true, version: 1 });
 		const input = {
 			idempotencyKey: 'private-household-expense',
 			accountId: 'secret-account',
@@ -112,10 +124,11 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			]
 		};
 		const created = await ledger.createHouseholdExpense(payerContext, input);
+		assert.equal(created.settlementEligible, true);
 		const replayed = await ledger.createHouseholdExpense(payerContext, input);
 		assert.deepEqual(replayed, created);
-		assert.equal((await financial.db.select().from(householdExpense)).length, 1);
-		assert.equal((await financial.db.select().from(ledgerTransaction)).length, 1);
+		assert.equal((await financial.db.select().from(householdExpense)).length, 2);
+		assert.equal((await financial.db.select().from(ledgerTransaction)).length, 2);
 		await assertDatabaseIntegrity(financial.client);
 		await financial.db
 			.update(householdExpenseAllocation)
@@ -174,18 +187,19 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			(error) => error instanceof LedgerError && error.code === 'invalid'
 		);
 
-		const [memberView] = await ledger.listHouseholdExpenses({
+		const memberViews = await ledger.listHouseholdExpenses({
 			userId: 'member',
 			workspaceId: 'household'
 		});
+		const [memberView] = memberViews;
 		assert.equal(memberView.canManage, false);
-		const serialized = JSON.stringify(memberView);
+		const serialized = JSON.stringify(memberViews);
 		for (const privateValue of [personal.id, 'secret-account', 'Secret Personal Card'])
 			assert.ok(!serialized.includes(privateValue));
 
 		assert.equal(
 			(await ledger.listAccounts({ userId: 'payer', workspaceId: personal.id }))[0].balanceMinor,
-			'7500'
+			'7000'
 		);
 		assert.equal((await ledger.listAccounts(payerContext))[0].balanceMinor, '7000');
 		assert.deepEqual(
@@ -199,7 +213,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			startDate: '2026-01-01',
 			endDate: '2026-12-31'
 		});
-		assert.equal(householdSummary.currencies[0]?.spendingMinor, '2500');
+		assert.equal(householdSummary.currencies[0]?.spendingMinor, '3000');
 		assert.equal(householdSummary.currencies[0]?.groups[0]?.transactions[0]?.accountId, null);
 
 		await assert.rejects(
@@ -227,7 +241,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 		assert.equal(updated.version, 2);
 		assert.equal(
 			(await ledger.listAccounts({ userId: 'payer', workspaceId: personal.id }))[0].balanceMinor,
-			'7000'
+			'6500'
 		);
 		assert.equal(
 			(
@@ -236,12 +250,17 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 					endDate: '2026-12-31'
 				})
 			).currencies[0]?.spendingMinor,
-			'3000'
+			'3500'
 		);
 		const [source] = await financial.db
 			.select()
 			.from(ledgerTransaction)
-			.where(eq(ledgerTransaction.accountId, 'secret-account'));
+			.where(
+				and(
+					eq(ledgerTransaction.accountId, 'secret-account'),
+					eq(ledgerTransaction.description, 'Updated food')
+				)
+			);
 		assert.equal(source.amountMinor, 3000n);
 		assert.deepEqual(
 			(await ledger.listSettlementBalances(payerContext)).map(({ member, balanceMinor }) => [
@@ -280,7 +299,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 					endDate: '2026-12-31'
 				})
 			).currencies[0]?.spendingMinor,
-			'3000'
+			'3500'
 		);
 		const concurrentPaymentActions = await Promise.allSettled([
 			ledger.settlementPaymentAction(payerContext, payment.id, 'trash', {
@@ -334,7 +353,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 					endDate: '2026-12-31'
 				})
 			).currencies[0]?.spendingMinor,
-			'3000'
+			'3500'
 		);
 
 		const trashed = await ledger.householdExpenseAction(payerContext, created.id, 'trash', {
@@ -342,17 +361,19 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 			version: 2
 		});
 		assert.ok(trashed.trashedAt);
-		assert.equal((await ledger.listHouseholdExpenses(payerContext)).length, 0);
+		assert.equal((await ledger.listHouseholdExpenses(payerContext)).length, 1);
 		assert.equal(
 			(await ledger.listAccounts({ userId: 'payer', workspaceId: personal.id }))[0].balanceMinor,
-			'9900'
+			'9400'
 		);
-		assert.deepEqual(
-			await insights.summary(payerContext, {
-				startDate: '2026-01-01',
-				endDate: '2026-12-31'
-			}),
-			{ currencies: [] }
+		assert.equal(
+			(
+				await insights.summary(payerContext, {
+					startDate: '2026-01-01',
+					endDate: '2026-12-31'
+				})
+			).currencies[0]?.spendingMinor,
+			'500'
 		);
 		const restored = await ledger.householdExpenseAction(payerContext, created.id, 'restore', {
 			idempotencyKey: 'payer-restore',
@@ -366,7 +387,7 @@ test('private-funded Household expenses preserve privacy, balances, spending, li
 					endDate: '2026-12-31'
 				})
 			).currencies[0]?.spendingMinor,
-			'3000'
+			'3500'
 		);
 
 		await connection.db

@@ -81,6 +81,7 @@ export interface WorkspaceSummary {
 	name: string;
 	type: 'personal' | 'household';
 	reportingCurrency: string | null;
+	settlementEnabled: boolean;
 	version: number;
 	role?: 'owner' | 'member' | null;
 	hasBudgets?: boolean;
@@ -107,7 +108,12 @@ export interface WorkspaceService {
 	): Promise<unknown>;
 	updateHousehold(
 		context: WorkspaceContext,
-		input: { name?: string; reportingCurrency?: string; version: number }
+		input: {
+			name?: string;
+			reportingCurrency?: string;
+			settlementEnabled?: true;
+			version: number;
+		}
 	): Promise<unknown>;
 	listMembers(context: WorkspaceContext): Promise<HouseholdMember[]>;
 	listInvitations(context: WorkspaceContext): Promise<unknown>;

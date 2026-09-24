@@ -105,6 +105,8 @@
   editingTransaction={ledger.transaction.dialog.editing}
   editingHouseholdExpense={ledger.transaction.dialog.editingHouseholdExpense}
   creatingHouseholdExpense={ledger.transaction.dialog.creatingHouseholdExpense}
+  settlementEligible={ledger.transaction.dialog.editingHouseholdExpense
+    ?.settlementEligible ?? data.settlementEnabled}
   refundingExpense={ledger.transaction.dialog.refundingExpense}
   quickEntry={ledger.transaction.dialog.quickEntry}
   error={ledger.transaction.dialog.error}

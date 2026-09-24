@@ -41,6 +41,7 @@ export const load: PageLoad = async ({
       settlementBalances: [] as SettlementBalance[],
       settlementPayments: [] as SettlementPayment[],
       isHousehold: false,
+      settlementEnabled: false,
     }
 
   try {
@@ -73,6 +74,9 @@ export const load: PageLoad = async ({
     const isHousehold =
       parentData.workspaces.find(({ id }) => id === params.workspaceId)
         ?.type === 'household'
+    const settlementEnabled =
+      parentData.workspaces.find(({ id }) => id === params.workspaceId)
+        ?.settlementEnabled ?? false
     const [
       transactions,
       householdExpenses,
@@ -91,14 +95,14 @@ export const load: PageLoad = async ({
             z.array(householdExpenseSchema),
           )
         : Promise.resolve([]),
-      isHousehold
+      isHousehold && settlementEnabled
         ? loadApiJson(
             fetch,
             `/workspaces/${params.workspaceId}/settlement-balances`,
             z.array(settlementBalanceSchema),
           )
         : Promise.resolve([]),
-      isHousehold
+      isHousehold && settlementEnabled
         ? loadApiJson(
             fetch,
             `/workspaces/${params.workspaceId}/settlement-payments${filters.includeTrashed ? '?includeTrashed=true' : ''}`,
@@ -114,6 +118,7 @@ export const load: PageLoad = async ({
       settlementBalances,
       settlementPayments,
       isHousehold,
+      settlementEnabled,
     }
   } catch (error) {
     return {
@@ -124,6 +129,7 @@ export const load: PageLoad = async ({
       settlementBalances: [] as SettlementBalance[],
       settlementPayments: [] as SettlementPayment[],
       isHousehold: false,
+      settlementEnabled: false,
     }
   }
 }

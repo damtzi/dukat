@@ -313,6 +313,7 @@ export const householdExpenseSchema = z.object({
 	merchant: z.string().nullable(),
 	description: z.string().nullable(),
 	categoryId: z.string().nullable(),
+	settlementEligible: z.boolean(),
 	payer: z.object({
 		userId: z.string(),
 		name: z.string(),
