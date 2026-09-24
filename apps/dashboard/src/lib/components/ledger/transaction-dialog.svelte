@@ -111,7 +111,9 @@
               : editingTransaction?.kind === 'refund'
                 ? 'Edit refund'
                 : editingTransaction
-                  ? 'Edit transaction'
+                  ? quickEntry
+                    ? 'Edit expense'
+                    : 'Edit transaction'
                   : quickEntry
                     ? `New ${form.kind}`
                     : 'Add transaction'}</Dialog.Title
@@ -121,7 +123,9 @@
           : creatingHouseholdExpense
             ? 'Record Household spending paid from your Personal account. Other members cannot see the account.'
             : quickEntry
-              ? `Record ${form.kind} in this workspace.`
+              ? editingTransaction
+                ? 'Update this expense.'
+                : `Record ${form.kind} in this workspace.`
               : 'Record completed income or spending.'}</Dialog.Description
       ></Dialog.Header
     >

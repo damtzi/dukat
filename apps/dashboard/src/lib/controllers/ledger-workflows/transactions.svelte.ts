@@ -139,8 +139,10 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     if (!quickEntry) void loadSuggestions(workspaceId)
   }
 
-  function edit(item: Transaction) {
-    const account = runtime.selected()
+  function edit(item: Transaction, quickEntry = false) {
+    const account = runtime.callbacks
+      .getRouteData()
+      .accounts.find(({ id }) => id === item.accountId)
     if (!account) return
     dialogWorkspaceId = runtime.callbacks.getWorkspaceId()
     state.error = ''
@@ -150,7 +152,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.refundingExpense = null
     state.editingHouseholdExpense = null
     state.creatingHouseholdExpense = false
-    state.quickEntry = false
+    state.quickEntry = quickEntry
     state.editing = item
     state.form = {
       ...emptyForm(),

@@ -1808,6 +1808,9 @@ export function createLedgerRepository(rawDatabase: FinancialDatabase) {
 							amountMax === undefined ? undefined : lte(ledgerTransaction.amountMinor, amountMax),
 							filters.dateFrom ? gte(ledgerTransaction.date, filters.dateFrom) : undefined,
 							filters.dateTo ? lte(ledgerTransaction.date, filters.dateTo) : undefined,
+							filters.spendingOnly === 'true'
+								? inArray(ledgerTransaction.kind, ['expense', 'refund'])
+								: undefined,
 							query
 								? or(
 										sql`instr(lower(coalesce(${ledgerTransaction.merchant}, '')), ${query}) > 0`,

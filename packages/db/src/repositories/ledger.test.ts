@@ -113,6 +113,28 @@ test('transaction search filters one workspace and returns recent matches first'
 				description: 'Fresh food'
 			},
 			{
+				id: 'refund-match',
+				workspaceId,
+				accountId: 'search-card',
+				categoryId: groceries.id,
+				refundOfTransactionId: 'newer-match',
+				kind: 'refund',
+				amountMinor: 300n,
+				date: '2026-08-04',
+				merchant: 'Corner Market',
+				description: 'Returned food'
+			},
+			{
+				id: 'income-match',
+				workspaceId,
+				accountId: 'search-cash',
+				kind: 'income',
+				amountMinor: 5000n,
+				date: '2026-08-05',
+				merchant: 'Corner Market',
+				description: 'Market research income'
+			},
+			{
 				id: 'other-private-match',
 				workspaceId: otherWorkspaceId,
 				accountId: 'other-cash',
@@ -129,7 +151,16 @@ test('transaction search filters one workspace and returns recent matches first'
 		const textMatches = await ledger.searchTransactions(context, { query: 'market' });
 		assert.deepEqual(
 			textMatches.map(({ id }) => id),
-			['newer-match', 'older-match']
+			['income-match', 'refund-match', 'newer-match', 'older-match']
+		);
+		assert.deepEqual(
+			(
+				await ledger.searchTransactions(context, {
+					query: 'market',
+					spendingOnly: 'true'
+				})
+			).map(({ id }) => id),
+			['refund-match', 'newer-match', 'older-match']
 		);
 		assert.deepEqual(
 			(await ledger.searchTransactions(context, { query: 'weekly' })).map(({ id }) => id),

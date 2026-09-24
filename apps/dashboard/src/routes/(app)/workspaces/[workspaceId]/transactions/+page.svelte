@@ -53,6 +53,27 @@
     'Unknown account'
   const accountCurrency = (id: string) =>
     data.accounts.find((account) => account.id === id)?.currency ?? 'PLN'
+  const accountArchived = (id: string) =>
+    Boolean(data.accounts.find((account) => account.id === id)?.archivedAt)
+  let activeExpenses = $derived(
+    data.transactions.filter(({ trashedAt }) => !trashedAt),
+  )
+  let spendingTotals = $derived.by(() => {
+    const totals: Record<string, bigint> = {}
+    for (const item of activeExpenses) {
+      const currency = accountCurrency(item.accountId)
+      const amount = BigInt(item.amountMinor)
+      totals[currency] =
+        (totals[currency] ?? 0n) + (item.kind === 'refund' ? -amount : amount)
+    }
+    return Object.entries(totals)
+  })
+  let expenseCount = $derived(
+    activeExpenses.filter(({ kind }) => kind === 'expense').length,
+  )
+  let refundCount = $derived(
+    activeExpenses.filter(({ kind }) => kind === 'refund').length,
+  )
   const categoryName = (id: string | null) =>
     id === 'uncategorized'
       ? 'Uncategorized'
@@ -133,13 +154,13 @@
   }
 </script>
 
-<svelte:head><title>Transactions · Dukat</title></svelte:head>
+<svelte:head><title>Expenses · Dukat</title></svelte:head>
 
-<section class="flex flex-col gap-6" aria-labelledby="transactions-title">
+<section class="flex flex-col gap-6" aria-labelledby="expenses-title">
   <PageHeader
-    id="transactions-title"
-    title="Transactions"
-    description="Search completed income and spending in this workspace."
+    id="expenses-title"
+    title="Expenses"
+    description="Review completed spending and refunds in this workspace."
   >
     {#snippet actions()}
       <div class="flex flex-wrap gap-2">
@@ -151,12 +172,37 @@
         {#if data.accounts.some(({ archivedAt }) => !archivedAt)}
           <Button
             variant={data.isHousehold ? 'outline' : 'default'}
-            onclick={() => ledger.transaction.create()}>Add transaction</Button
+            onclick={() =>
+              ledger.transaction.create(undefined, 'expense', true)}
+            >Add expense</Button
           >
         {/if}
       </div>
     {/snippet}
   </PageHeader>
+
+  <Card.Root>
+    <Card.Header>
+      <Card.Title>Spending shown</Card.Title>
+      <Card.Description>
+        {expenseCount}
+        {expenseCount === 1 ? 'expense' : 'expenses'} ·
+        {refundCount}
+        {refundCount === 1 ? 'refund' : 'refunds'}
+      </Card.Description>
+    </Card.Header>
+    <Card.Content class="flex flex-wrap gap-x-6 gap-y-2">
+      {#if spendingTotals.length}
+        {#each spendingTotals as [currency, amount] (currency)}
+          <strong class="text-xl tabular-nums">
+            {formatMoney(amount.toString(), currency)}
+          </strong>
+        {/each}
+      {:else}
+        <span class="text-sm text-muted-foreground">No spending to total.</span>
+      {/if}
+    </Card.Content>
+  </Card.Root>
 
   {#if data.isHousehold}
     <Card.Root>
@@ -352,7 +398,7 @@
 
   <Card.Root>
     <Card.Header>
-      <Card.Title>Search and filters</Card.Title>
+      <Card.Title>Find expenses</Card.Title>
       <Card.Description
         >Merchant and description search is not case-sensitive.</Card.Description
       >
@@ -478,15 +524,15 @@
 
   {#if data.searchError}
     <Alert.Root variant="destructive" role="alert">
-      <Alert.Title>Could not search transactions</Alert.Title>
+      <Alert.Title>Could not search expenses</Alert.Title>
       <Alert.Description>{data.searchError}</Alert.Description>
     </Alert.Root>
   {:else if data.transactions.length === 0}
     <Empty.Root>
       <Empty.Header>
-        <Empty.Title>No matching transactions</Empty.Title>
+        <Empty.Title>No matching expenses</Empty.Title>
         <Empty.Description
-          >Change or clear the search filters.</Empty.Description
+          >Add an expense or change the search filters.</Empty.Description
         >
       </Empty.Header>
     </Empty.Root>
@@ -520,6 +566,9 @@
               )}
             </strong>
           </Card.Content>
+          <Card.Footer class="flex flex-wrap gap-2">
+            {@render ExpenseActions(item)}
+          </Card.Footer>
         </Card.Root>
       {/each}
     </div>
@@ -530,8 +579,9 @@
             <Table.Head>Date</Table.Head><Table.Head>Merchant</Table.Head
             ><Table.Head>Description</Table.Head>
             <Table.Head>Category</Table.Head><Table.Head>Account</Table.Head
-            ><Table.Head>Kind</Table.Head>
+            ><Table.Head>Type</Table.Head>
             <Table.Head class="text-right">Amount</Table.Head>
+            <Table.Head><span class="sr-only">Actions</span></Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
@@ -544,7 +594,7 @@
                 >{categoryName(item.categoryId)}</Table.Cell
               >
               <Table.Cell>{accountName(item.accountId)}</Table.Cell><Table.Cell
-                class="capitalize">{item.kind}</Table.Cell
+                >{item.kind === 'refund' ? 'Refund' : 'Expense'}</Table.Cell
               >
               <Table.Cell class="text-right"
                 >{item.kind === 'expense' ? '−' : '+'}{formatMoney(
@@ -552,6 +602,11 @@
                   accountCurrency(item.accountId),
                 )}</Table.Cell
               >
+              <Table.Cell>
+                <div class="flex justify-end gap-2">
+                  {@render ExpenseActions(item)}
+                </div>
+              </Table.Cell>
             </Table.Row>
           {/each}
         </Table.Body>
@@ -559,6 +614,48 @@
     </div>
   {/if}
 </section>
+
+{#snippet ExpenseActions(item: (typeof data.transactions)[number])}
+  <Button
+    size="sm"
+    variant="outline"
+    onclick={() =>
+      ledger.history.show('transactions', item.id, 'Expense history')}
+    >History</Button
+  >
+  {#if !accountArchived(item.accountId)}
+    {#if item.trashedAt}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={ledger.status.pending}
+        onclick={() => ledger.transaction.action(item, 'restore')}
+        >Restore</Button
+      >
+    {:else}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={ledger.status.pending}
+        onclick={() => ledger.transaction.edit(item, true)}>Edit</Button
+      >
+      {#if item.kind === 'expense'}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={ledger.status.pending}
+          onclick={() => ledger.transaction.refund(item)}>Refund</Button
+        >
+      {/if}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={ledger.status.pending}
+        onclick={() => ledger.transaction.action(item, 'trash')}>Remove</Button
+      >
+    {/if}
+  {/if}
+{/snippet}
 
 <Dialog.Root bind:open={settlementOpen}>
   <Dialog.Content class="max-h-[calc(100svh-2rem)] overflow-y-auto">

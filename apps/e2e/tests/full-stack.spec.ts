@@ -363,7 +363,7 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 	await expect(accountSummary).toContainText(/105,00\sUSD/);
 
 	await page.goto(`/workspaces/${workspaceId}/transactions`);
-	await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Expenses' })).toBeVisible();
 	await page.getByLabel('Search').fill('Full-stack expense');
 	await page.getByRole('button', { name: 'Search', exact: true }).click();
 	await expect(page).toHaveURL(/transactions\?query=Full-stack\+expense/);

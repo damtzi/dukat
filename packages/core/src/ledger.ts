@@ -166,6 +166,7 @@ export const transactionSearchSchema = z
 		amountMaxMinor: positiveMinorUnitsSchema.optional(),
 		dateFrom: isoCalendarDateSchema.optional(),
 		dateTo: isoCalendarDateSchema.optional(),
+		spendingOnly: z.enum(['true', 'false']).optional(),
 		includeTrashed: z.enum(['true', 'false']).optional(),
 		limit: z.coerce.number().int().min(1).max(200).default(100)
 	})

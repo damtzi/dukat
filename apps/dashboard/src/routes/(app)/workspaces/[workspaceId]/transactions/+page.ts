@@ -44,7 +44,7 @@ export const load: PageLoad = async ({
     }
 
   try {
-    const query = new URLSearchParams({ limit: '200' })
+    const query = new URLSearchParams({ limit: '200', spendingOnly: 'true' })
     for (const key of [
       'query',
       'accountId',
