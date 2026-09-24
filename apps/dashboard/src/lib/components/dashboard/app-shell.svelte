@@ -3,6 +3,7 @@
   import { Separator, Sidebar } from '@dukat/ui'
   import type { Snippet } from 'svelte'
   import AppSidebar from '$lib/components/dashboard/app-sidebar.svelte'
+  import GlobalQuickEntry from '$lib/components/dashboard/global-quick-entry.svelte'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
   import type { SessionUser } from '$lib/session'
 
@@ -28,6 +29,9 @@
       <Sidebar.Trigger />
       <Separator orientation="vertical" class="h-4" />
       <span class="text-sm font-medium">Dukat</span>
+      <div class="ml-auto">
+        <GlobalQuickEntry {workspaces} />
+      </div>
     </header>
 
     <div

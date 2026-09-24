@@ -28,6 +28,7 @@
     open = $bindable(),
     form = $bindable(),
     editingTransfer,
+    quickEntry = false,
     error,
     pending,
     accounts,
@@ -47,6 +48,7 @@
       feeDescription: string
     }
     editingTransfer: Transfer | null
+    quickEntry?: boolean
     error: string
     pending: boolean
     accounts: Account[]
@@ -149,8 +151,8 @@
       ><Dialog.Title
         >{editingTransfer ? 'Edit transfer' : 'New transfer'}</Dialog.Title
       ><Dialog.Description
-        >Transfers are not income or spending. An optional fee is saved as a
-        separate expense on the source account.</Dialog.Description
+        >Transfers are not income or spending.{#if !quickEntry}
+          An optional fee is saved as a separate expense on the source account.{/if}</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
@@ -257,7 +259,7 @@
             bind:value={form.description}
           />
         </Field.Field>
-        {#if !editingTransfer}<Field.Set class="inset-panel">
+        {#if !editingTransfer && !quickEntry}<Field.Set class="inset-panel">
             <Field.Legend>Optional fee</Field.Legend>
             <Field.Description>
               Optional fee — this creates a separate ordinary spending

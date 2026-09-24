@@ -24,6 +24,7 @@
     editingHouseholdExpense,
     creatingHouseholdExpense,
     refundingExpense,
+    quickEntry = false,
     error,
     pending,
     onsubmit,
@@ -53,6 +54,7 @@
     editingHouseholdExpense: HouseholdExpense | null
     creatingHouseholdExpense: boolean
     refundingExpense: Transaction | null
+    quickEntry?: boolean
     error: string
     pending: boolean
     onsubmit: (event: SubmitEvent) => void
@@ -110,13 +112,17 @@
                 ? 'Edit refund'
                 : editingTransaction
                   ? 'Edit transaction'
-                  : 'Add transaction'}</Dialog.Title
+                  : quickEntry
+                    ? `New ${form.kind}`
+                    : 'Add transaction'}</Dialog.Title
       ><Dialog.Description
         >{refundMode
           ? 'Link returned money to the original expense. It reduces spending, not income.'
           : creatingHouseholdExpense
             ? 'Record Household spending paid from your Personal account. Other members cannot see the account.'
-            : 'Record completed income or spending.'}</Dialog.Description
+            : quickEntry
+              ? `Record ${form.kind} in this workspace.`
+              : 'Record completed income or spending.'}</Dialog.Description
       ></Dialog.Header
     >
     <form {onsubmit}>
@@ -132,7 +138,7 @@
                 ? 'Personal account'
                 : 'Account'}</Field.Label
             >
-            ><Select.Root type="single" bind:value={form.accountId}>
+            <Select.Root type="single" bind:value={form.accountId}>
               <Select.Trigger id="transaction-account" class="w-full">
                 {selectedAccount
                   ? `${selectedAccount.name} · ${selectedAccount.currency}`
@@ -152,7 +158,7 @@
             </Select.Root>
           </Field.Field>
         {/if}
-        {#if !refundMode && !creatingHouseholdExpense}
+        {#if !refundMode && !creatingHouseholdExpense && !quickEntry}
           <Field.Field>
             <Field.Label for="kind">Kind</Field.Label><Select.Root
               type="single"
@@ -245,78 +251,84 @@
             bind:value={form.date}
           />
         </Field.Field>
-        <Field.Field>
-          <Field.Label for="transaction-category">Category</Field.Label>
-          {#if refundMode}
-            <Input
-              id="transaction-category"
-              value={selectedCategory?.name ?? 'Uncategorized'}
-              disabled
-            />
-            <Field.Description
-              >Refunds keep the original expense category.</Field.Description
-            >
-          {:else}<Select.Root type="single" bind:value={form.categoryId}>
-              <Select.Trigger id="transaction-category" class="w-full">
-                {selectedCategory
-                  ? `${selectedCategory.name}${selectedCategory.archivedAt ? ' (archived, retained)' : ''}`
-                  : 'Uncategorized'}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Group>
-                  <Select.Item value="" label="Uncategorized"
-                    >Uncategorized</Select.Item
-                  >
-                </Select.Group>
-                {#if recentCategories.length}
+        {#if !quickEntry || form.kind === 'expense'}<Field.Field>
+            <Field.Label for="transaction-category">Category</Field.Label>
+            {#if refundMode}
+              <Input
+                id="transaction-category"
+                value={selectedCategory?.name ?? 'Uncategorized'}
+                disabled
+              />
+              <Field.Description
+                >Refunds keep the original expense category.</Field.Description
+              >
+            {:else}<Select.Root
+                type="single"
+                bind:value={form.categoryId}
+                required={quickEntry && form.kind === 'expense'}
+              >
+                <Select.Trigger id="transaction-category" class="w-full">
+                  {selectedCategory
+                    ? `${selectedCategory.name}${selectedCategory.archivedAt ? ' (archived, retained)' : ''}`
+                    : 'Uncategorized'}
+                </Select.Trigger>
+                <Select.Content>
                   <Select.Group>
-                    <Select.GroupHeading>Recent</Select.GroupHeading>
-                    {#each recentCategories as category (category.id)}
-                      <Select.Item value={category.id} label={category.name}
-                        >{category.name}</Select.Item
+                    <Select.Item value="" label="Uncategorized"
+                      >Uncategorized</Select.Item
+                    >
+                  </Select.Group>
+                  {#if recentCategories.length}
+                    <Select.Group>
+                      <Select.GroupHeading>Recent</Select.GroupHeading>
+                      {#each recentCategories as category (category.id)}
+                        <Select.Item value={category.id} label={category.name}
+                          >{category.name}</Select.Item
+                        >
+                      {/each}
+                    </Select.Group>
+                  {/if}
+                  <Select.Group>
+                    {#if recentCategories.length}
+                      <Select.GroupHeading>All categories</Select.GroupHeading>
+                    {/if}
+                    {#each otherCategories as category (category.id)}
+                      <Select.Item
+                        value={category.id}
+                        label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
                       >
+                        {category.name}{category.archivedAt
+                          ? ' (archived, retained)'
+                          : ''}
+                      </Select.Item>
                     {/each}
                   </Select.Group>
-                {/if}
-                <Select.Group>
-                  {#if recentCategories.length}
-                    <Select.GroupHeading>All categories</Select.GroupHeading>
-                  {/if}
-                  {#each otherCategories as category (category.id)}
-                    <Select.Item
-                      value={category.id}
-                      label={`${category.name}${category.archivedAt ? ' (archived, retained)' : ''}`}
-                    >
-                      {category.name}{category.archivedAt
-                        ? ' (archived, retained)'
-                        : ''}
-                    </Select.Item>
-                  {/each}
-                </Select.Group>
-              </Select.Content>
-            </Select.Root>{/if}
-        </Field.Field>
+                </Select.Content>
+              </Select.Root>{/if}
+          </Field.Field>{/if}
+        {#if !quickEntry}<Field.Field>
+            <Field.Label for="merchant">Merchant</Field.Label><Input
+              id="merchant"
+              list="recent-merchants"
+              maxlength={200}
+              autocomplete="organization"
+              bind:value={form.merchant}
+            />
+            {#if recentMerchants.length}
+              <Field.Description
+                >Recent merchants are suggested.</Field.Description
+              >
+            {/if}
+            <datalist id="recent-merchants">
+              {#each recentMerchants as merchant (merchant)}
+                <option value={merchant}></option>
+              {/each}
+            </datalist>
+          </Field.Field>{/if}
         <Field.Field>
-          <Field.Label for="merchant">Merchant</Field.Label><Input
-            id="merchant"
-            list="recent-merchants"
-            maxlength={200}
-            autocomplete="organization"
-            bind:value={form.merchant}
-          />
-          {#if recentMerchants.length}
-            <Field.Description
-              >Recent merchants are suggested.</Field.Description
-            >
-          {/if}
-          <datalist id="recent-merchants">
-            {#each recentMerchants as merchant (merchant)}
-              <option value={merchant}></option>
-            {/each}
-          </datalist>
-        </Field.Field>
-        <Field.Field>
-          <Field.Label for="description">Description</Field.Label><Textarea
+          <Field.Label for="description"
+            >{quickEntry ? 'Note (optional)' : 'Description'}</Field.Label
+          ><Textarea
             id="description"
             maxlength={500}
             bind:value={form.description}
@@ -328,7 +340,9 @@
               ? 'Save refund'
               : creatingHouseholdExpense
                 ? 'Save Household expense'
-                : 'Save transaction'}</Button
+                : quickEntry
+                  ? `Save ${form.kind}`
+                  : 'Save transaction'}</Button
           ></Dialog.Footer
         >
       </Field.Group>

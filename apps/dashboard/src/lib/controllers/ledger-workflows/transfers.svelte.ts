@@ -9,6 +9,7 @@ type RetainedIntent = { path: string; body: string }
 export function createTransferWorkflow(runtime: LedgerRuntime) {
   const state = $state({
     open: false,
+    quickEntry: false,
     error: '',
     editing: null as Transfer | null,
     form: {
@@ -45,22 +46,23 @@ export function createTransferWorkflow(runtime: LedgerRuntime) {
       .getPickerAccounts()
       .filter((account) => !account.archivedAt && account.id !== sourceId)
 
-  async function create() {
+  async function openCreate(quickEntry: boolean) {
     const source = runtime.selected()
-    if (!source || activeFeeIntent()) return
+    if (!source || activeFeeIntent()) return false
     const workspaceId = runtime.callbacks.getWorkspaceId()
     try {
       await runtime.callbacks.loadPickerAccounts()
     } catch (error) {
       runtime.message = (error as Error).message
-      return
+      return false
     }
     if (
       runtime.callbacks.getWorkspaceId() !== workspaceId ||
       runtime.callbacks.getRouteData().selectedAccountId !== source.id
     )
-      return
+      return false
     state.editing = null
+    state.quickEntry = quickEntry
     dialogWorkspaceId = workspaceId
     intentKey = runtime.key()
     state.form = {
@@ -74,7 +76,11 @@ export function createTransferWorkflow(runtime: LedgerRuntime) {
       feeDescription: '',
     }
     state.open = true
+    return true
   }
+
+  const create = () => openCreate(false)
+  const createQuick = () => openCreate(true)
 
   async function edit(item: Transfer, isCurrent: () => boolean) {
     const workspaceId = runtime.callbacks.getWorkspaceId()
@@ -92,6 +98,7 @@ export function createTransferWorkflow(runtime: LedgerRuntime) {
     )
       return
     state.editing = item
+    state.quickEntry = false
     dialogWorkspaceId = workspaceId
     intentKey = runtime.key()
     const fromAccountId =
@@ -303,9 +310,13 @@ export function createTransferWorkflow(runtime: LedgerRuntime) {
       get error() {
         return state.error
       },
+      get quickEntry() {
+        return state.quickEntry
+      },
     },
     destinations,
     create,
+    createQuick,
     edit,
     save,
     action,

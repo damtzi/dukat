@@ -288,21 +288,28 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 
 	const accountCard = page.locator('[data-slot="card"]').filter({ hasText: accountName });
 	await expect(accountCard).toContainText(/100,00\sUSD/);
-	await accountCard.getByRole('button', { name: 'View details' }).click();
-	await page.getByRole('button', { name: 'Add transaction' }).click();
-	const transactionDialog = page.getByRole('dialog');
+	const originalViewport = page.viewportSize();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole('button', { name: 'New', exact: true }).click();
+	await expect(page.getByRole('menuitem')).toHaveText(['Expense', 'Income', 'Transfer']);
+	await page.getByRole('menuitem', { name: 'Expense' }).click();
+	const transactionDialog = page.getByRole('dialog', { name: 'New expense' });
+	await expect(transactionDialog.getByLabel('Merchant')).toHaveCount(0);
+	await expect(transactionDialog.getByText(/receipt/i)).toHaveCount(0);
+	await chooseSelect(page, 'Account', `${accountName} · USD`);
 	await transactionDialog.getByLabel('Amount', { exact: true }).fill('25.00');
 	await transactionDialog.getByLabel('Date', { exact: true }).fill('2026-08-01');
 	await chooseSelect(page, 'Category', 'Groceries');
-	await transactionDialog.getByLabel('Merchant').fill('Corner Market');
-	await transactionDialog.getByLabel('Description').fill('Full-stack expense');
-	await transactionDialog.getByRole('button', { name: 'Save transaction' }).click();
+	await transactionDialog.getByLabel('Note (optional)').fill('Full-stack expense');
+	await transactionDialog.getByRole('button', { name: 'Save expense' }).click();
+	if (originalViewport) await page.setViewportSize(originalViewport);
 
+	await expect(accountCard).toContainText(/75,00\sUSD/);
+	await accountCard.getByRole('button', { name: 'View details' }).click();
 	const accountSummary = page
 		.locator('[data-slot="card"]')
 		.filter({ hasText: accountName })
 		.first();
-	await expect(accountSummary).toContainText(/75,00\sUSD/);
 	const expenseRow = page
 		.getByText('Full-stack expense', { exact: true })
 		.locator('xpath=ancestor::*[self::tr or @data-slot="card"][1]');
@@ -352,12 +359,9 @@ test('persists a dated account, backdated snapshot and confirmed correction', as
 
 	await page.goto(`/workspaces/${workspaceId}/transactions`);
 	await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible();
-	await page.getByLabel('Search').fill('corner');
+	await page.getByLabel('Search').fill('Full-stack expense');
 	await page.getByRole('button', { name: 'Search', exact: true }).click();
-	await expect(page).toHaveURL(/transactions\?query=corner/);
-	await expect(
-		page.getByText('Corner Market', { exact: true }).filter({ visible: true }).first()
-	).toBeVisible();
+	await expect(page).toHaveURL(/transactions\?query=Full-stack\+expense/);
 	await expect(
 		page.getByText('Full-stack expense', { exact: true }).filter({ visible: true })
 	).toBeVisible();

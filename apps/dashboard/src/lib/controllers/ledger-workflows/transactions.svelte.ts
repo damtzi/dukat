@@ -32,6 +32,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
   })
   const state = $state({
     open: false,
+    quickEntry: false,
     error: '',
     editing: null as Transaction | null,
     editingHouseholdExpense: null as HouseholdExpense | null,
@@ -102,7 +103,11 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     }
   }
 
-  function create(preferredAccountId?: string) {
+  function create(
+    preferredAccountId?: string,
+    kind: 'expense' | 'income' = 'expense',
+    quickEntry = false,
+  ) {
     const workspaceId = runtime.callbacks.getWorkspaceId()
     dialogWorkspaceId = workspaceId
     const data = runtime.callbacks.getRouteData()
@@ -115,10 +120,12 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.editingHouseholdExpense = null
     state.creatingHouseholdExpense = false
     state.refundingExpense = null
+    state.quickEntry = quickEntry
     state.error = ''
     intentKey = runtime.key()
     state.form = {
       ...emptyForm(),
+      kind,
       accountId:
         usableAccount(preferredAccountId)?.id ||
         usableAccount(rememberedAccount(workspaceId))?.id ||
@@ -129,7 +136,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.open = true
     state.recentMerchants = []
     state.recentCategoryIds = []
-    void loadSuggestions(workspaceId)
+    if (!quickEntry) void loadSuggestions(workspaceId)
   }
 
   function edit(item: Transaction) {
@@ -143,6 +150,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.refundingExpense = null
     state.editingHouseholdExpense = null
     state.creatingHouseholdExpense = false
+    state.quickEntry = false
     state.editing = item
     state.form = {
       ...emptyForm(),
@@ -166,6 +174,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.editingHouseholdExpense = null
     state.creatingHouseholdExpense = false
     state.refundingExpense = expense
+    state.quickEntry = false
     state.error = ''
     intentKey = runtime.key()
     state.recentMerchants = []
@@ -194,6 +203,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.editingHouseholdExpense = null
     state.creatingHouseholdExpense = true
     state.refundingExpense = null
+    state.quickEntry = false
     state.error = ''
     intentKey = runtime.key()
     state.form = {
@@ -219,6 +229,7 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     state.editingHouseholdExpense = item
     state.creatingHouseholdExpense = true
     state.refundingExpense = null
+    state.quickEntry = false
     state.error = ''
     intentKey = runtime.key()
     const allocationMembers = [...members]
@@ -269,6 +280,12 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
     try {
       if (state.form.date > todayInWarsaw())
         throw new Error('Date cannot be in the future.')
+      if (
+        state.quickEntry &&
+        state.form.kind === 'expense' &&
+        !state.form.categoryId
+      )
+        throw new Error('Choose a category.')
       const transactionBody = {
         kind: state.form.kind,
         amountMinor: parseAmount(
@@ -438,6 +455,9 @@ export function createTransactionWorkflow(runtime: LedgerRuntime) {
       },
       get error() {
         return state.error
+      },
+      get quickEntry() {
+        return state.quickEntry
       },
       get recentMerchants() {
         return state.recentMerchants
