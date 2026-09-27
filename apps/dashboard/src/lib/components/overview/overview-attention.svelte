@@ -6,14 +6,14 @@
   let {
     items,
     currency,
-    forecastPath,
+    recurringPath,
     categorizationPath,
     ratesPath,
     latestRateDate,
   }: {
     items: OverviewAttentionItem[]
     currency: string
-    forecastPath: string
+    recurringPath: string
     categorizationPath: string
     ratesPath: string
     latestRateDate: string | null
@@ -28,9 +28,9 @@
   <Card.Root>
     <Card.Header>
       <Card.Title id="needs-attention-title">Needs attention</Card.Title>
-      <Card.Description>
-        Objective issues with a direct action, ordered by financial urgency.
-      </Card.Description>
+      <Card.Description
+        >Objective issues ordered by financial urgency.</Card.Description
+      >
     </Card.Header>
     <Card.Content>
       <ol class="divide-y border-y">
@@ -64,8 +64,8 @@
               {:else if item.kind === 'missing-rate'}
                 <strong>Missing exchange rates</strong>
                 <p class="text-sm text-muted-foreground">
-                  Combined balance, Cash flow, and Forecast values cannot be
-                  calculated. Original-currency values remain available.
+                  Combined balance and projected values cannot be calculated.
+                  Original-currency values remain available in Insights.
                 </p>
               {:else if item.kind === 'uncategorized'}
                 <strong>Uncategorized transactions</strong>
@@ -84,13 +84,9 @@
               {/if}
             </div>
 
-            {#if item.kind === 'shortfall'}
-              <Button class="self-start" variant="outline" href={forecastPath}
-                >Review forecast</Button
-              >
-            {:else if item.kind === 'overdue'}
-              <Button class="self-start" variant="outline" href={forecastPath}
-                >Review overdue plans</Button
+            {#if item.kind === 'overdue'}
+              <Button class="self-start" variant="outline" href={recurringPath}
+                >Review recurring entries</Button
               >
             {:else if item.kind === 'uncategorized'}
               <Button
@@ -98,7 +94,7 @@
                 variant="outline"
                 href={categorizationPath}>Categorize transactions</Button
               >
-            {:else}
+            {:else if item.kind === 'missing-rate' || item.kind === 'stale-rate'}
               <Button class="self-start" variant="outline" href={ratesPath}
                 >Review exchange rates</Button
               >

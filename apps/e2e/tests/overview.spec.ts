@@ -301,10 +301,7 @@ test('shows the Now to Ahead summary and ranked account preview', async ({ page 
 	await expect(page.getByText(/These values may change and are not guaranteed/)).toBeVisible();
 	await expect(page.getByText('Tentative ending impact')).toBeVisible();
 	await expect(page.getByText('Not included in the expected line')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'View forecast' })).toHaveAttribute(
-		'href',
-		`/workspaces/${workspaceId}/forecast`
-	);
+	await expect(page.getByRole('link', { name: 'View forecast' })).toHaveCount(0);
 	const thisMonthCard = page
 		.getByText('This month', { exact: true })
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
@@ -413,14 +410,9 @@ test('shows objective attention items in priority order and limits initial densi
 	await expect(visibleItems).toHaveCount(4);
 	await expect(visibleItems.nth(3)).toContainText('Stale exchange rates');
 	await expect(visibleItems.nth(3)).toContainText('2026-08-18');
-	await expect(attention.getByRole('link', { name: 'Review forecast' })).toHaveAttribute(
-		'href',
-		`/workspaces/${workspaceId}/forecast`
-	);
-	await expect(attention.getByRole('link', { name: 'Review overdue plans' })).toHaveAttribute(
-		'href',
-		`/workspaces/${workspaceId}/forecast`
-	);
+	await expect(
+		visibleItems.nth(1).getByRole('link', { name: 'Review recurring entries' })
+	).toHaveAttribute('href', `/workspaces/${workspaceId}/accounts/checking/activity#recurring`);
 	await expect(attention.getByRole('link', { name: 'Categorize transactions' })).toHaveAttribute(
 		'href',
 		`/workspaces/${workspaceId}/accounts/checking/activity`
@@ -442,8 +434,8 @@ test('shows objective attention items in priority order and limits initial densi
 	}
 	await expectNoSeriousAxeViolations(page);
 
-	await attention.getByRole('link', { name: 'Review overdue plans' }).click();
-	await expect(page).toHaveURL(`/workspaces/${workspaceId}/forecast`);
+	await page.goto(`/workspaces/${workspaceId}/forecast`);
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}`);
 	await page.goto(`/workspaces/${workspaceId}`);
 	await page
 		.getByRole('region', { name: 'Needs attention' })
@@ -469,8 +461,7 @@ test('distinguishes a tentative shortfall and navigates to recovery', async ({ p
 		'Including Tentative plans creates a possible lowest balance'
 	);
 	await expect(attention).toContainText('Expected plans alone stay at or above zero');
-	await attention.getByRole('link', { name: 'Review forecast' }).click();
-	await expect(page).toHaveURL(`/workspaces/${workspaceId}/forecast`);
+	await expect(attention.getByRole('link', { name: 'Review forecast' })).toHaveCount(0);
 });
 
 test('uses direct empty and missing-rate states', async ({ page }) => {
@@ -502,7 +493,7 @@ test('uses direct empty and missing-rate states', async ({ page }) => {
 	const missingRateAttention = page.getByRole('region', { name: 'Needs attention' });
 	await expect(missingRateAttention).toContainText('Missing exchange rates');
 	await expect(missingRateAttention).toContainText(
-		'Combined balance, Cash flow, and Forecast values cannot be calculated'
+		'Combined balance and projected values cannot be calculated'
 	);
 	await expect(
 		missingRateAttention.getByRole('link', { name: 'Review exchange rates' })
@@ -511,7 +502,10 @@ test('uses direct empty and missing-rate states', async ({ page }) => {
 		.getByText('Combined cash flow unavailable')
 		.locator('xpath=ancestor::*[@data-slot="card"][1]');
 	await expect(missingCashFlow).toContainText('PLN');
-	await expect(missingCashFlow.getByRole('link')).toHaveCount(0);
+	await expect(missingCashFlow.getByRole('link', { name: 'View insights' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/insights`
+	);
 	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toHaveCount(2);
 	await expect(page.getByText('Income and spending comparison')).toBeHidden();
 	await expect(page.getByText('Outlook: 12-month projected balance')).toHaveCount(0);

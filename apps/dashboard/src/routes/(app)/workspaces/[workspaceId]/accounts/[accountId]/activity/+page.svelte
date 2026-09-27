@@ -1,16 +1,32 @@
 <script lang="ts">
-  import { invalidate } from '$app/navigation'
+  import { goto, invalidate } from '$app/navigation'
+  import { resolve } from '$app/paths'
   import { Alert, Button } from '@dukat/ui'
   import { workspaceDataDependency } from '$lib/api'
   import { getWorkspaceDashboardContext } from '$lib/components/dashboard/WorkspaceDashboardContext'
   import ReconciliationSection from '$lib/components/ledger/reconciliation-section.svelte'
   import TransactionsSection from '$lib/components/ledger/transactions-section.svelte'
   import TransfersSection from '$lib/components/ledger/transfers-section.svelte'
+  import PlanningSection from '$lib/components/planning/planning-section.svelte'
+  import { api } from '$lib/controllers/workspace-controller.svelte'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()
-  const { ledger } = getWorkspaceDashboardContext()
+  const { ledger, workspace } = getWorkspaceDashboardContext()
   let account = $derived(ledger.account.selected())
+
+  function setIncludeTentative(include: boolean) {
+    if (!account) return
+    void goto(
+      resolve(
+        include
+          ? '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity?includeTentative=true#recurring'
+          : '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity#recurring',
+        { workspaceId: workspace.workspaceId, accountId: account.id },
+      ),
+      { keepFocus: true, noScroll: true, replaceState: true },
+    )
+  }
 </script>
 
 {#if account}
@@ -86,4 +102,19 @@
       {/if}
     </div>
   {/if}
+  <div id="recurring" class="mt-8">
+    {#key `${workspace.workspaceId}:${account.id}`}
+      <PlanningSection
+        workspaceId={workspace.workspaceId}
+        {account}
+        {api}
+        plans={data.plans}
+        forecast={data.forecast}
+        includeTentative={data.includeTentative}
+        loadError={data.planningError}
+        onrefresh={() => invalidate(workspaceDataDependency)}
+        onincludeTentative={setIncludeTentative}
+      />
+    {/key}
+  </div>
 {/if}

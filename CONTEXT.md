@@ -2,7 +2,7 @@
 
 ## Product promise
 
-Dukat gives a user a trustworthy view of what money they have now, where it went, and what their available cash is projected to be over the coming months. Users can keep financial data personal or collaborate with other people in Household workspaces.
+Dukat gives a user a trustworthy view of Available money now, where it went, and a simple outlook for the coming months. Insights combines optional spending, income, recurring, and balance-history reporting. Users can keep financial data personal or collaborate with other people in Household workspaces.
 
 ## Glossary
 
@@ -124,7 +124,7 @@ Expected future income or expense assigned to a financial account, with an amoun
 
 ### Recurring plan
 
-A repeating rule for income or spending on a weekly, monthly, or yearly schedule. Future occurrences remain visible in the forecast; each due occurrence atomically posts one completed transaction. Retrying the scheduler never posts the same occurrence twice, and edits to one occurrence or the future series preserve completed history.
+A repeating rule created while entering income or spending on a weekly, monthly, or yearly schedule. Upcoming occurrences appear in account activity and Insights; each due occurrence atomically posts one completed transaction. Retrying the scheduler never posts the same occurrence twice, and edits to one occurrence or the future series preserve completed history.
 
 ### Transaction match
 
@@ -136,11 +136,11 @@ Financial records removed from active views for 30 days before permanent deletio
 
 ### Forecast
 
-A 12-month projection from current account balances through expected, unmatched planned transactions, shown monthly with optional daily and per-account detail. Tentative plans can be included as a possible outcome, and overdue plans are treated as due today until resolved. Investment values remain at their latest known prices unless a future scenario explicitly states another assumption.
+A 12-month projection from current account balances through expected, unmatched planned transactions. The Overview shows a simplified monthly outlook rather than a separate Forecast destination. Tentative plans can be included as a possible outcome, and overdue plans are treated as due today until resolved. Investment values remain at their latest known prices unless a future scenario explicitly states another assumption.
 
 ### Cash flow
 
-Completed income and spending over a selected period. Net cash flow is income minus spending. Transfers and balance corrections are excluded because they are not income or spending; transaction fees are spending. Cash flow describes recorded activity, while a forecast describes expected future activity.
+Completed income and spending over a selected period, reported in Insights. Net cash flow is income minus spending. Transfers and balance corrections are excluded because they are not income or spending; transaction fees are spending. Cash flow describes recorded activity, while an outlook describes expected future activity.
 
 ### Account currency
 

@@ -42,12 +42,6 @@
           ({ currency }) => currency !== currentReporting?.currency,
         )),
   )
-  let forecastPath = $derived(
-    resolve('/(app)/workspaces/[workspaceId]/forecast', {
-      workspaceId: workspace.workspaceId,
-    }),
-  )
-
   async function load(selected: DateRange, generation: number) {
     const request = () =>
       api(
@@ -179,11 +173,6 @@
             >Next scheduled entries in original currencies.</Card.Description
           >
         </div>
-        {#if workspace.workspaceForecast}
-          <Button class="self-start" variant="outline" href={forecastPath}
-            >View all</Button
-          >
-        {/if}
       </div>
     </Card.Header>
     <Card.Content>

@@ -973,8 +973,8 @@ test('forecasts expected cash and matches a completed expense once, rejecting st
 	expect(conflict.body.message).toMatch(/stale|changed|reload|refresh/i);
 	expect((await apiJson<Forecast>(page, forecastPath)).endingBalanceMinor).toBe('7500');
 	await page.goto(`${path}/forecast`);
-	await expect(page.getByRole('heading', { name: 'Forecast', level: 1 })).toBeVisible();
-	await expect(page.getByText('Projected balance', { exact: true }).first()).toBeVisible();
+	await expect(page).toHaveURL(path);
+	await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
 });
 
 function assertAccountBalance(

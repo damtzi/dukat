@@ -112,11 +112,18 @@
       workspaceId: workspace.workspaceId,
     }),
   )
-  let forecastPath = $derived(
-    resolve('/(app)/workspaces/[workspaceId]/forecast', {
-      workspaceId: workspace.workspaceId,
-    }),
-  )
+  let recurringPath = $derived.by(() => {
+    const occurrences = (tentative ?? expected)?.occurrences ?? []
+    const accountId =
+      occurrences.find(({ originalDate }) => originalDate < today)?.accountId ??
+      occurrences[0]?.accountId
+    return accountId
+      ? `${resolve(
+          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
+          { workspaceId: workspace.workspaceId, accountId },
+        )}#recurring`
+      : accountsPath
+  })
   let ratesPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/rates', {
       workspaceId: workspace.workspaceId,
@@ -209,7 +216,6 @@
                 {formatMoney(combinedBalance, currency)}
               </p>
             </div>
-            <Button variant="outline" href={forecastPath}>View forecast</Button>
           </div>
           <div>
             <h2 class="text-xl font-semibold">Outlook</h2>
@@ -326,7 +332,7 @@
       <OverviewAttention
         items={attentionItems}
         {currency}
-        {forecastPath}
+        {recurringPath}
         {categorizationPath}
         {ratesPath}
         latestRateDate={workspace.rateStatus?.latest?.effectiveDate ?? null}

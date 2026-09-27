@@ -331,6 +331,7 @@ async function mockLedger(page: Page) {
 				startingBalanceMinor: account?.balanceMinor ?? '0',
 				endingBalanceMinor: account?.balanceMinor ?? '0',
 				occurrences: [],
+				matchedOccurrences: [],
 				points: [],
 				accounts: []
 			});
@@ -1717,6 +1718,19 @@ test('completes the personal account and manual ledger workflow', async ({ page 
 	await expect(accountNavigation).toBeVisible();
 	await expect(accountNavigation).toContainText('100,00 USD');
 	await accountNavigation.click();
+	await expect(page).toHaveURL(`/workspaces/${workspaceId}/accounts/${accountId}/activity`);
+	await expect(page.getByRole('heading', { name: 'Recurring entries' })).toBeVisible();
+	await page.goto(
+		`/workspaces/${workspaceId}/accounts/${accountId}/planning?includeTentative=true`
+	);
+	await expect(page).toHaveURL(
+		`/workspaces/${workspaceId}/accounts/${accountId}/activity?includeTentative=true#recurring`
+	);
+	await expect(page.getByRole('heading', { name: 'Recurring entries' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Recurring' })).toHaveAttribute(
+		'aria-current',
+		'location'
+	);
 	await page.getByRole('button', { name: 'Account history' }).click();
 	await expect(page.getByRole('dialog')).toContainText('user-e2e');
 	await expect(page.getByRole('dialog')).toContainText('Rent corrected');

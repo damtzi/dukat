@@ -59,29 +59,26 @@
             { workspaceId: workspace.workspaceId, accountId: account.id },
           )}
           variant={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity'
+            '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity' &&
+          page.url.hash !== '#recurring'
             ? 'secondary'
             : 'ghost'}
           size="sm"
           aria-current={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity'
+            '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity' &&
+          page.url.hash !== '#recurring'
             ? 'page'
             : undefined}>Activity</Button
         >
         <Button
-          href={resolve(
-            '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning',
+          href={`${resolve(
+            '/(app)/workspaces/[workspaceId]/accounts/[accountId]/activity',
             { workspaceId: workspace.workspaceId, accountId: account.id },
-          )}
-          variant={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'
-            ? 'secondary'
-            : 'ghost'}
+          )}#recurring`}
+          variant={page.url.hash === '#recurring' ? 'secondary' : 'ghost'}
           size="sm"
-          aria-current={page.route.id ===
-          '/(app)/workspaces/[workspaceId]/accounts/[accountId]/planning'
-            ? 'page'
-            : undefined}>Recurring</Button
+          aria-current={page.url.hash === '#recurring' ? 'location' : undefined}
+          >Recurring</Button
         >
       </nav>
 
