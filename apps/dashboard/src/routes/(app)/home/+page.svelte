@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invalidate } from '$app/navigation'
   import { resolve } from '$app/paths'
-  import { Alert, Badge, Button, Card } from '@dukat/ui'
+  import { Alert, Button, Card } from '@dukat/ui'
   import { overviewDataDependency } from '$lib/api'
   import PageHeader from '$lib/components/dashboard/page-header.svelte'
   import AccountSummarySection from '$lib/components/overview/account-summary-section.svelte'
@@ -40,57 +40,6 @@
   {:else if overview}
     <OverallBalanceCard {overview} />
 
-    <Card.Root>
-      <Card.Header>
-        <Card.Title>Explore when you’re ready</Card.Title>
-        <Card.Description>
-          Your Home works without these optional tools.
-        </Card.Description>
-      </Card.Header>
-      <Card.Content class="grid gap-3 sm:grid-cols-2">
-        <a
-          class="border p-4 transition-colors hover:bg-muted/40"
-          href={resolve('/workspaces/new')}
-        >
-          <strong class="text-sm font-medium">Household</strong>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Create a shared workspace, then invite someone.
-          </p>
-        </a>
-        {#if personalWorkspace}
-          <a
-            class="border p-4 transition-colors hover:bg-muted/40"
-            href={resolve('/(app)/workspaces/[workspaceId]/budgets', {
-              workspaceId: personalWorkspace.id,
-            })}
-          >
-            <strong class="text-sm font-medium">Budgets</strong>
-            <p class="mt-1 text-sm text-muted-foreground">
-              Set monthly limits for spending categories.
-            </p>
-          </a>
-        {/if}
-        <div class="border p-4">
-          <div class="flex items-center justify-between gap-3">
-            <strong class="text-sm font-medium">Mortgage</strong>
-            <Badge variant="secondary">Coming later</Badge>
-          </div>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Compare repayment and overpayment scenarios.
-          </p>
-        </div>
-        <div class="border p-4">
-          <div class="flex items-center justify-between gap-3">
-            <strong class="text-sm font-medium">Investments</strong>
-            <Badge variant="secondary">Coming later</Badge>
-          </div>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Track holdings and their current value.
-          </p>
-        </div>
-      </Card.Content>
-    </Card.Root>
-
     <CreditCardObligations obligations={overview.cardObligations} />
 
     <section
@@ -125,5 +74,35 @@
       workspaces={overview.workspaces}
       reportingCurrency={overview.reportingCurrency}
     />
+
+    <section class="border-t pt-5" aria-labelledby="explore-title">
+      <h2 id="explore-title" class="text-base font-semibold">
+        Explore when you’re ready
+      </h2>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Optional ways to make more of Dukat.
+      </p>
+      <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <a
+          class="font-medium underline-offset-4 hover:underline"
+          href={resolve('/workspaces/new')}
+        >
+          Create a Household
+        </a>
+        {#if personalWorkspace}
+          <a
+            class="font-medium underline-offset-4 hover:underline"
+            href={resolve('/(app)/workspaces/[workspaceId]/budgets', {
+              workspaceId: personalWorkspace.id,
+            })}
+          >
+            Set a budget
+          </a>
+        {/if}
+      </div>
+      <p class="mt-3 text-xs text-muted-foreground">
+        Mortgage and Investments · Coming later
+      </p>
+    </section>
   {/if}
 </div>

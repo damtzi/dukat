@@ -648,6 +648,24 @@ test('guides a new user through reporting currency and their first account', asy
 	await expect(page).toHaveURL(/\/home$/);
 	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
 	await expect(page.getByText('Explore when you’re ready')).toBeVisible();
+	const explore = page.getByRole('region', { name: 'Explore when you’re ready' });
+	await expect(explore.getByRole('link', { name: 'Create a Household' })).toHaveAttribute(
+		'href',
+		'/workspaces/new'
+	);
+	await expect(explore.getByRole('link', { name: 'Set a budget' })).toHaveAttribute(
+		'href',
+		`/workspaces/${workspaceId}/budgets`
+	);
+	expect(
+		await page
+			.getByRole('heading', { name: 'Workspaces' })
+			.evaluate(
+				(element) =>
+					element.compareDocumentPosition(document.getElementById('explore-title')!) &
+					Node.DOCUMENT_POSITION_FOLLOWING
+			)
+	).toBeTruthy();
 });
 
 test('keeps authentication keyboard-operable with no automated accessibility violations', async ({
