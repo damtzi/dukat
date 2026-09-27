@@ -43,12 +43,12 @@ async function chooseSelect(page: Page, label: string, option: string) {
 	await page.getByRole('option', { name: option, exact: true }).click();
 }
 
-async function signIn(page: Page, email: string, password: string) {
+async function signIn(page: Page, email: string, password: string, destination = '/home') {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email').fill(email);
 	await page.getByLabel('Password').fill(password);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-	await expect(page).toHaveURL('/home');
+	await expect(page).toHaveURL(destination);
 }
 
 async function emailLink(to: string, subject: string) {
@@ -82,10 +82,14 @@ test('registers, verifies and saves a profile through the real stack', async ({
 	await page.getByLabel('Password').fill(password);
 	await page.getByRole('button', { name: 'Create account', exact: true }).click();
 	await page.goto(await emailLink(email, 'Verify'));
-	await signIn(page, email, password);
+	await signIn(page, email, password, '/onboarding');
 	const workspaces = await apiJson<Array<{ type: string }>>(page, '/workspaces');
 	expect(workspaces).toHaveLength(1);
 	expect(workspaces[0].type).toBe('personal');
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await page.getByLabel('Account name').fill('Release account');
+	await page.getByRole('button', { name: 'Finish setup' }).click();
+	await expect(page).toHaveURL('/home');
 	await page.goto('/profile');
 	await page.getByLabel('Name', { exact: true }).focus();
 	await page.keyboard.press('Tab');

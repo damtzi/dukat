@@ -207,6 +207,11 @@ try {
 			email: environment.FULL_STACK_MEMBER_EMAIL,
 			emailVerified: true
 		});
+		// This fixture represents an existing member, not a first-run user.
+		await setup.client.execute({
+			sql: 'UPDATE workspace SET onboarding_complete = 1 WHERE personal_owner_user_id = ?',
+			args: ['full-stack-member']
+		});
 		await setup.db.insert(account).values({
 			id: 'full-stack-member-credential',
 			accountId: 'full-stack-member',
