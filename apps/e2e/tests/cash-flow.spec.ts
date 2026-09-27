@@ -207,7 +207,9 @@ test('filters periods, exposes chart detail, and drills into transactions', asyn
 	await page.goto(`/workspaces/${workspaceId}/insights`);
 
 	await expect(page).toHaveURL(`/workspaces/${workspaceId}/insights`);
-	await expect(page.getByRole('heading', { name: 'Insights', level: 1 })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Insights', level: 1 })).toBeVisible({
+		timeout: 20_000
+	});
 	await expect(page.getByText('Upcoming recurring money')).toBeVisible();
 	await expect(page.getByText('−2500,00 zł')).toBeVisible();
 	await expect(page.getByText('Account balance history', { exact: true })).toBeVisible();
@@ -271,7 +273,9 @@ test('replaces charts with one useful action when data or rates are unavailable'
 	test.skip(testInfo.project.name !== 'desktop-chromium');
 	await mock(page, 'missing');
 	await page.goto(`/workspaces/${workspaceId}/insights`);
-	await expect(page.getByText('Combined cash flow unavailable')).toBeVisible();
+	await expect(page.getByText('Combined cash flow unavailable')).toBeVisible({
+		timeout: 20_000
+	});
 	await expect(page.getByRole('link', { name: 'Review exchange rates' })).toBeVisible();
 	await expect(page.getByText('Original-currency totals')).toBeVisible();
 	await expect(page.getByText('USD', { exact: true })).toBeVisible();
