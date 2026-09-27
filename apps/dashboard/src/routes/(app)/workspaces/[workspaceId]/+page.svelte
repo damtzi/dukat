@@ -112,6 +112,11 @@
       workspaceId: workspace.workspaceId,
     }),
   )
+  let mortgagePath = $derived(
+    resolve('/(app)/workspaces/[workspaceId]/mortgage', {
+      workspaceId: workspace.workspaceId,
+    }),
+  )
   let recurringPath = $derived.by(() => {
     const occurrences = (tentative ?? expected)?.occurrences ?? []
     const accountId =
@@ -163,6 +168,21 @@
       {/if}
     {/snippet}
   </PageHeader>
+
+  {#if !workspace.activeWorkspace?.hasMortgage && activeAccounts.length > 0}
+    <Card.Root>
+      <Card.Header
+        ><Card.Title>Mortgage</Card.Title><Card.Description
+          >Track your loan balance and see a projected repayment schedule when
+          you're ready.</Card.Description
+        ></Card.Header
+      >
+      <Card.Content
+        ><Button variant="outline" href={mortgagePath}>Set up mortgage</Button
+        ></Card.Content
+      >
+    </Card.Root>
+  {/if}
 
   {#key `${workspace.workspaceId}-${workspace.refreshVersion}`}
     {#if activeAccounts.length === 0}

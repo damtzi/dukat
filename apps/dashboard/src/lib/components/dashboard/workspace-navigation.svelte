@@ -9,6 +9,7 @@
   import ReceiptIcon from 'phosphor-svelte/lib/Receipt'
   import LayoutDashboardIcon from 'phosphor-svelte/lib/SquaresFour'
   import PiggyBankIcon from 'phosphor-svelte/lib/PiggyBank'
+  import HouseIcon from 'phosphor-svelte/lib/House'
   import WalletIcon from 'phosphor-svelte/lib/Wallet'
   import { formatAccountBalance } from '$lib/account'
   import type { Workspace } from '$lib/controllers/workspace-controller.svelte'
@@ -17,11 +18,13 @@
     workspace,
     accounts,
     hasBudgets,
+    hasMortgage,
     accountsOpen = $bindable(true),
   }: {
     workspace: Workspace
     accounts: Account[]
     hasBudgets: boolean
+    hasMortgage: boolean
     accountsOpen?: boolean
   } = $props()
 
@@ -45,6 +48,9 @@
   )
   let budgetsPath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/budgets', { workspaceId }),
+  )
+  let mortgagePath = $derived(
+    resolve('/(app)/workspaces/[workspaceId]/mortgage', { workspaceId }),
   )
   let managePath = $derived(
     resolve('/(app)/workspaces/[workspaceId]/manage', { workspaceId }),
@@ -204,6 +210,31 @@
           >
             <PiggyBankIcon aria-hidden="true" />
             <span>Budgets</span>
+          </a>
+        {/snippet}
+      </Sidebar.MenuButton>
+    </Sidebar.MenuItem>
+  {/if}
+
+  {#if hasMortgage}
+    <Sidebar.MenuItem>
+      <Sidebar.MenuButton
+        isActive={workspaceActive &&
+          routeId === '/(app)/workspaces/[workspaceId]/mortgage'}
+        tooltipContent="Mortgage"
+      >
+        {#snippet child({ props })}
+          <a
+            {...props}
+            href={mortgagePath}
+            onclick={closeMobile}
+            aria-current={workspaceActive &&
+            routeId === '/(app)/workspaces/[workspaceId]/mortgage'
+              ? 'page'
+              : undefined}
+          >
+            <HouseIcon aria-hidden="true" />
+            <span>Mortgage</span>
           </a>
         {/snippet}
       </Sidebar.MenuButton>

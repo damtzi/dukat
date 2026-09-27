@@ -30,6 +30,7 @@ import type { InsightsRepository } from '@dukat/db/repositories/insights';
 import type { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
 import type { PlanningRepository } from '@dukat/db/repositories/planning';
 import type { BudgetRepository } from '@dukat/db/repositories/budgets';
+import type { MortgageRepository } from '@dukat/db/repositories/mortgage';
 import type { ExportRepository } from '@dukat/db/repositories/exports';
 import type { NetWorthHistoryRepository } from '@dukat/db/repositories/net-worth-history';
 import type { MyOverview } from '@dukat/core/overview';
@@ -87,6 +88,7 @@ export interface WorkspaceSummary {
 	version: number;
 	role?: 'owner' | 'member' | null;
 	hasBudgets?: boolean;
+	hasMortgage?: boolean;
 }
 
 export interface HouseholdMember {
@@ -314,6 +316,7 @@ export interface APIServices {
 	ledger: LedgerService;
 	planning: PlanningRepository;
 	budgets?: BudgetRepository;
+	mortgage?: MortgageRepository;
 	overview?: OverviewService;
 	insights: InsightsRepository;
 	netWorthHistory?: NetWorthHistoryRepository;

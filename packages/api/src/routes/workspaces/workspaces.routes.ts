@@ -14,7 +14,8 @@ const workspaceSummarySchema = z.object({
 	role: z.enum(['owner', 'member']).nullable()
 });
 const workspaceListSummarySchema = workspaceSummarySchema.extend({
-	hasBudgets: z.boolean()
+	hasBudgets: z.boolean(),
+	hasMortgage: z.boolean()
 });
 const householdMemberSchema = z.object({
 	userId: z.string(),

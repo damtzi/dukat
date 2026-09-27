@@ -184,11 +184,11 @@ The difference between an investment holding's current value and purchase cost. 
 
 ### Mortgage
 
-A liability with a repayment schedule and effective-dated interest terms. A draft mortgage compares offers without affecting finances; an active mortgage contributes to net worth and future cash projections. Overpayment comparisons can reduce either its term or future instalments.
+A liability belonging to exactly one Personal or Household workspace, linked to a payment account in that workspace. Setup records original principal, current balance, start date, original term, and current fixed or variable annual rate. The balance is a snapshot at setup, not a reconstruction of earlier payments. The repayment schedule projects future monthly principal and interest from that balance and current rate; variable-rate projections can change. Mortgage balances are separate from Available money, not combined into net worth.
 
 ### Mortgage payment
 
-A cash outflow split into principal, interest, and fees. Principal reduces the mortgage liability; interest and fees are spending. The full payment remains visible in cash-flow reporting.
+A future recorded mortgage payment is one expense and full cash outflow, with an internal principal/interest breakdown. Principal also reduces the liability. Setup projections are not recorded payments; posting payments is a separate delivery step.
 
 ### Activity history
 

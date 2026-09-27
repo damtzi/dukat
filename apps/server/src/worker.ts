@@ -3,6 +3,7 @@ import { createAuth } from '@dukat/auth/create-auth';
 import { createResendEmailSender } from '@dukat/auth/email';
 import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
 import { createBudgetRepository } from '@dukat/db/repositories/budgets';
+import { createMortgageRepository } from '@dukat/db/repositories/mortgage';
 import {
 	createExchangeRateRepository,
 	createNbpAdapter
@@ -187,6 +188,7 @@ function createRuntime(bindings: WorkerEnv) {
 			ledger,
 			planning,
 			budgets: createBudgetRepository(financialDb, exchangeRates),
+			mortgage: createMortgageRepository(financialDb),
 			exchangeRates,
 			insights,
 			netWorthHistory: history,

@@ -15,7 +15,8 @@ export const list: AppRouteHandler<ListRoute> = async (c) => {
 		workspaces.map((workspace) => ({
 			...workspace,
 			role: workspace.role ?? null,
-			hasBudgets: workspace.hasBudgets ?? false
+			hasBudgets: workspace.hasBudgets ?? false,
+			hasMortgage: workspace.hasMortgage ?? false
 		})),
 		200
 	);

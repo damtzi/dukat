@@ -10,6 +10,7 @@ import type { APIServices } from './services';
 import { planningRouter } from './routes/planning/planning.index';
 import { profileImagesRouter } from './routes/profile-images/profile-images.index';
 import { budgetsRouter } from './routes/budgets/budgets.index';
+import { mortgageRouter } from './routes/mortgage/mortgage.index';
 import { overviewRouter } from './routes/overview/overview.index';
 import type { LogLevel } from './middleware';
 import { administrationRouter } from './routes/administration/administration.index';
@@ -31,6 +32,7 @@ export function createAPI(services: APIServices, options: { logLevel?: LogLevel 
 		.route('/api', exchangeRatesRouter)
 		.route('/api', planningRouter)
 		.route('/api', budgetsRouter)
+		.route('/api', mortgageRouter)
 		.route('/api', ledgerRouter);
 }
 

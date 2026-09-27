@@ -142,6 +142,7 @@
             workspace={personalWorkspace}
             accounts={personalAccounts}
             hasBudgets={personalWorkspace.hasBudgets ?? false}
+            hasMortgage={personalWorkspace.hasMortgage ?? false}
             bind:accountsOpen={personalAccountsOpen}
           />
         </Sidebar.GroupContent>
@@ -170,6 +171,7 @@
               accounts={routeWorkspaceId === workspace.id ? routeAccounts : []}
               active={routeWorkspaceId === workspace.id}
               hasBudgets={workspace.hasBudgets ?? false}
+              hasMortgage={workspace.hasMortgage ?? false}
             />
           {/each}
         </Sidebar.Menu>

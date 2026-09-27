@@ -6,6 +6,7 @@ import { OWNED_HOUSEHOLD_QUOTA, PENDING_INVITATION_QUOTA } from './administratio
 import {
 	emailOutbox,
 	categoryBudget,
+	mortgage,
 	financialAccount,
 	mutationReceipt,
 	session,
@@ -43,6 +44,10 @@ const summaryWithBudgetVisibility = {
 	hasBudgets: sql<number>`exists (
 		select 1 from ${categoryBudget}
 		where ${categoryBudget.workspaceId} = ${workspace.id}
+	)`.mapWith(Boolean),
+	hasMortgage: sql<number>`exists (
+		select 1 from ${mortgage}
+		where ${mortgage.workspaceId} = ${workspace.id}
 	)`.mapWith(Boolean)
 };
 const authorizedWorkspace = (userId: string, workspaceId?: string) =>

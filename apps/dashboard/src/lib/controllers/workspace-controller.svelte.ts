@@ -15,6 +15,7 @@ export type Workspace = {
   version: number
   role: 'owner' | 'member' | null
   hasBudgets?: boolean
+  hasMortgage?: boolean
 }
 
 export type HouseholdMember = {
