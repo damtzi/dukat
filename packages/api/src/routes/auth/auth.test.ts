@@ -8,9 +8,6 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 	let delegatedRequest: Request | undefined;
 	const services: APIServices = {
 		auth: {
-			async usernameAvailability(username) {
-				return { available: true, username, message: 'Username is available.' };
-			},
 			async handler(request) {
 				delegatedRequest = request;
 				return Response.json({ delegated: true });
@@ -18,22 +15,10 @@ test('auth routes delegate the unchanged same-origin request', async () => {
 			api: {
 				async getSession() {
 					return null;
-				},
-				async verifyPassword() {}
+				}
 			}
 		},
-		async readiness() {},
-		ledger: {} as APIServices['ledger'],
-		planning: {} as APIServices['planning'],
-		insights: {} as APIServices['insights'],
-		workspaces: {
-			async listAuthorized() {
-				return [];
-			},
-			async findAuthorized() {
-				return undefined;
-			}
-		} as unknown as APIServices['workspaces']
+		async readiness() {}
 	};
 
 	const response = await createAPI(services).request(

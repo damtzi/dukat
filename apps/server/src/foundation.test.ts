@@ -5,28 +5,16 @@ import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { createAPI, createProfileImageService } from '@dukat/api';
+import { createAPI } from '@dukat/api';
 import { createAuth } from '@dukat/auth/create-auth';
 import { createResendEmailSender, type TransactionalEmail } from '@dukat/auth/email';
-import { createDatabase, createFinancialDatabase } from '@dukat/db/connection';
-import { createAdministrationRepository } from '@dukat/db/repositories/administration';
-import { createExchangeRateRepository } from '@dukat/db/repositories/exchange-rates';
-import { createInsightsRepository } from '@dukat/db/repositories/insights';
-import { createLedgerRepository } from '@dukat/db/repositories/ledger';
-import { createPlanningRepository } from '@dukat/db/repositories/planning';
-import { createProfileImageCleanupRepository } from '@dukat/db/repositories/profile-image-cleanup';
-import { createWorkspaceRepository } from '@dukat/db/repositories/workspaces';
+import { createDatabase } from '@dukat/db/connection';
 import { backupDatabase, restoreDatabase } from '@dukat/db/recovery';
-import { profileImageCleanupJob, session, user } from '@dukat/db/schema/auth';
-import { workspace, workspaceMembership } from '@dukat/db/schema/workspaces';
+import { session, user } from '@dukat/db/schema/auth';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import sharp from 'sharp';
 
 import { createServerApp, resolveDashboardDirectory } from './create-server-app';
-import { createProfileImageCleanup } from './profile-image-cleanup';
-import { normalizeProfileImage } from './profile-image-normalizer';
-import { createLocalProfileImageStorage } from './profile-image-storage';
 
 const origin = 'http://localhost:9999';
 const secret = 'test-secret-that-is-at-least-thirty-two-characters';
@@ -49,9 +37,7 @@ async function createFoundationFixture() {
 	const directory = await mkdtemp(join(tmpdir(), 'dukat-foundation-'));
 	const sourceUrl = `file:${join(directory, 'source.db')}`;
 	const dashboardDirectory = join(directory, 'dashboard');
-	const profileImagesDirectory = join(directory, 'profile-images');
 	const source = createDatabase({ url: sourceUrl });
-	const sourceFinancial = createFinancialDatabase({ url: sourceUrl });
 	const emails: TransactionalEmail[] = [];
 
 	try {
@@ -67,45 +53,20 @@ async function createFoundationFixture() {
 			'<h1>Dukat administration</h1>'
 		);
 
-		const administration = createAdministrationRepository(source.db);
 		const auth = createAuth({
 			database: source.db,
 			baseURL: origin,
 			secret,
 			trustedOrigins: [origin],
-			registrationOpen: administration.registrationOpen,
 			emailSender: {
 				async send(message) {
 					emails.push(message);
 				}
 			}
 		});
-		const exchangeRates = createExchangeRateRepository(sourceFinancial.db);
-		const profileImageStorage = createLocalProfileImageStorage(profileImagesDirectory);
-		const profileImageCleanup = createProfileImageCleanup({
-			repository: createProfileImageCleanupRepository(source.db),
-			storage: profileImageStorage
-		});
 		const app = createServerApp({
-			api: createAPI({
-				administration,
-				auth,
-				profileImageCleanup,
-				profileImages: createProfileImageService({
-					auth,
-					storage: profileImageStorage,
-					cleanup: profileImageCleanup,
-					normalize: normalizeProfileImage
-				}),
-				readiness: () => source.db.run('select 1'),
-				ledger: createLedgerRepository(sourceFinancial.db),
-				planning: createPlanningRepository(sourceFinancial.db),
-				insights: createInsightsRepository(sourceFinancial.db),
-				exchangeRates,
-				workspaces: createWorkspaceRepository(source.db)
-			}),
-			dashboardDirectory,
-			profileImagesDirectory
+			api: createAPI({ auth, readiness: () => source.db.run('select 1') }),
+			dashboardDirectory
 		});
 
 		async function signup(name: string, username: string, email: string, password: string) {
@@ -146,23 +107,18 @@ async function createFoundationFixture() {
 		}
 
 		return {
-			administration,
 			app,
 			dashboardDirectory,
 			directory,
 			emails,
-			exchangeRates,
-			profileImageCleanup,
 			signIn,
 			signup,
 			signupAndVerify,
 			source,
-			sourceFinancial,
 			sourceUrl,
 			verifyLatestEmail
 		};
 	} catch (error) {
-		sourceFinancial.client.close();
 		source.client.close();
 		await rm(directory, { recursive: true, force: true });
 		throw error;
@@ -176,7 +132,6 @@ async function withFoundationFixture(run: (fixture: FoundationFixture) => Promis
 	try {
 		await run(fixture);
 	} finally {
-		fixture.sourceFinancial.client.close();
 		fixture.source.client.close();
 		await rm(fixture.directory, { recursive: true, force: true });
 	}
@@ -191,16 +146,6 @@ async function getSession(fixture: FoundationFixture, cookie: string) {
 		user: { id: string; name: string; username: string; email: string; image: string | null };
 		session: { id: string };
 	};
-}
-
-async function getOnlyWorkspaceId(fixture: FoundationFixture, cookie: string) {
-	const response = await fixture.app.request(`${origin}/api/workspaces`, {
-		headers: { cookie }
-	});
-	assert.equal(response.status, 200);
-	const workspaces = (await response.json()) as Array<{ id: string }>;
-	assert.equal(workspaces.length, 1);
-	return workspaces[0].id;
 }
 
 test('migration chain creates the foundation schema and server', async () => {
@@ -219,16 +164,6 @@ test('migration chain creates the foundation schema and server', async () => {
 				email: 'noncanonical@example.com'
 			})
 		);
-		assert.equal(
-			(
-				await source.db
-					.select()
-					.from(workspace)
-					.where(eq(workspace.personalOwnerUserId, 'migration-trigger-user'))
-			).length,
-			1
-		);
-
 		assert.equal((await app.request(`${origin}/api/health/live`)).status, 200);
 		const readyResponse = await app.request(`${origin}/api/health/ready`);
 		assert.equal(readyResponse.status, 200);
@@ -249,21 +184,7 @@ test('migration chain creates the foundation schema and server', async () => {
 
 test('authentication lifecycle validates identity and session security', async () => {
 	await withFoundationFixture(async (fixture) => {
-		const { administration, app, dashboardDirectory, emails, signIn, signup, source } = fixture;
-		await administration.setRegistrationOpen(false);
-		assert.equal(
-			(
-				await postJson(app, '/api/auth/sign-up/email', {
-					name: 'Closed User',
-					username: 'closed_user',
-					email: 'closed@example.com',
-					password: 'initial-password-closed'
-				})
-			).status,
-			403
-		);
-		await administration.setRegistrationOpen(true);
-
+		const { app, dashboardDirectory, emails, signIn, signup, source } = fixture;
 		assert.deepEqual(
 			await (
 				await app.request(`${origin}/api/auth/username-availability?username=%20First_User%20`)
@@ -326,15 +247,6 @@ test('authentication lifecycle validates identity and session security', async (
 			{ name: unverified.name, username: unverified.username, verified: unverified.verified },
 			{ name: 'First  User!', username: 'first_user', verified: false }
 		);
-		assert.equal(
-			(
-				await source.db
-					.select()
-					.from(workspace)
-					.where(eq(workspace.personalOwnerUserId, unverified.id))
-			).length,
-			1
-		);
 		await fixture.verifyLatestEmail();
 
 		const raceResponses = await Promise.all([
@@ -356,16 +268,6 @@ test('authentication lifecycle validates identity and session security', async (
 			.select({ id: user.id })
 			.from(user)
 			.where(eq(user.username, 'race_winner'));
-		assert.equal(
-			(
-				await source.db
-					.select()
-					.from(workspace)
-					.where(eq(workspace.personalOwnerUserId, raceUser.id))
-			).length,
-			1
-		);
-
 		const firstCookie = await signIn('first@example.com', 'initial-password-1');
 		const firstSession = await getSession(fixture, firstCookie);
 		assert.equal(firstSession.user.name, 'First  User!');
@@ -457,16 +359,6 @@ test('authentication lifecycle validates identity and session security', async (
 			).available,
 			true
 		);
-		assert.equal(
-			(
-				await app.request(`${origin}/api/auth/update-user`, {
-					method: 'POST',
-					headers: { 'content-type': 'application/json', cookie: firstCookie, origin },
-					body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
-				})
-			).status,
-			400
-		);
 		await signup('Username Reuser', 'first_user', 'reuser@example.com', 'initial-password-reuser');
 		const [reuser] = await source.db
 			.select({ id: user.id })
@@ -523,14 +415,7 @@ test('authentication lifecycle validates identity and session security', async (
 			emailSender: { async send() {} }
 		});
 		const productionApp = createServerApp({
-			api: createAPI({
-				auth: productionAuth,
-				readiness: () => source.db.run('select 1'),
-				ledger: createLedgerRepository(fixture.sourceFinancial.db),
-				planning: createPlanningRepository(fixture.sourceFinancial.db),
-				insights: createInsightsRepository(fixture.sourceFinancial.db),
-				workspaces: createWorkspaceRepository(source.db)
-			}),
+			api: createAPI({ auth: productionAuth, readiness: () => source.db.run('select 1') }),
 			dashboardDirectory,
 			isProduction: true
 		});
@@ -613,268 +498,16 @@ test('authentication lifecycle validates identity and session security', async (
 			).text(),
 			'null'
 		);
-		const disabledCookie = await signIn('first@example.com', 'replacement-password-1');
-		await administration.setUserDisabled(firstSession.user.id, true);
-		assert.equal(
-			(await app.request(`${origin}/api/workspaces`, { headers: { cookie: disabledCookie } }))
-				.status,
-			401
-		);
-		assert.equal(
-			(
-				await postJson(app, '/api/auth/sign-in/email', {
-					email: 'first@example.com',
-					password: 'replacement-password-1'
-				})
-			).status,
-			403
-		);
 	});
 });
 
-test('profile images upload, serve, and delete independently', async () => {
-	await withFoundationFixture(async (fixture) => {
-		await fixture.signupAndVerify(
-			'Image User',
-			'image_user',
-			'image@example.com',
-			'image-password'
-		);
-		const cookie = await fixture.signIn('image@example.com', 'image-password');
-		const genericImageUpdate = await fixture.app.request(`${origin}/api/auth/update-user`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie, origin },
-			body: JSON.stringify({ image: '/profile-images/users/another-user/image.webp' })
-		});
-		assert.equal(genericImageUpdate.status, 400);
-
-		const source = await sharp({
-			create: { width: 2, height: 2, channels: 3, background: 'red' }
-		})
-			.png()
-			.toBuffer();
-		const bytes = source.buffer.slice(
-			source.byteOffset,
-			source.byteOffset + source.byteLength
-		) as ArrayBuffer;
-		const form = new FormData();
-		form.set('image', new File([bytes], 'profile.png', { type: 'image/png' }));
-		form.set('x', '0.5');
-		form.set('y', '0.5');
-		form.set('zoom', '1');
-		const upload = await fixture.app.request(`${origin}/api/profile/image`, {
-			method: 'POST',
-			headers: { cookie, origin },
-			body: form
-		});
-		assert.equal(upload.status, 200, await upload.clone().text());
-		const imageUrl = ((await upload.json()) as { image: string }).image;
-		assert.equal((await getSession(fixture, cookie)).user.image, imageUrl);
-		assert.equal((await fixture.app.request(`${origin}${imageUrl}`)).status, 200);
-		assert.equal(
-			(
-				await fixture.app.request(`${origin}/api/profile/image`, {
-					method: 'DELETE',
-					headers: { cookie, origin }
-				})
-			).status,
-			204
-		);
-		assert.equal((await getSession(fixture, cookie)).user.image, null);
-	});
-});
-
-test('exchange rates prefer workspace manual rates over NBP rates', async () => {
-	await withFoundationFixture(async (fixture) => {
-		await fixture.signupAndVerify('Rate User', 'rate_user', 'rate@example.com', 'rate-password');
-		const cookie = await fixture.signIn('rate@example.com', 'rate-password');
-		const workspaceId = await getOnlyWorkspaceId(fixture, cookie);
-		await fixture.exchangeRates.cacheTables([
-			{
-				table: 'A',
-				no: '151/A/NBP/2026',
-				effectiveDate: '2026-08-05',
-				rates: [
-					{ code: 'EUR', mid: '4.3' },
-					{ code: 'USD', mid: '4' }
-				]
-			}
-		]);
-		const quote = await fixture.app.request(`${origin}/api/workspaces/${workspaceId}/rates/quote`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie },
-			body: JSON.stringify({
-				fromCurrency: 'EUR',
-				toCurrency: 'USD',
-				date: '2026-08-05',
-				amountMinor: '100'
-			})
-		});
-		assert.equal(quote.status, 200, await quote.clone().text());
-		assert.equal(
-			((await quote.json()) as { suggestedAmountMinor: string }).suggestedAmountMinor,
-			'108'
-		);
-
-		const manualRate = await fixture.app.request(
-			`${origin}/api/workspaces/${workspaceId}/rates/manual`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie },
-				body: JSON.stringify({
-					currency: 'EUR',
-					rateToPln: '4.4',
-					effectiveDate: '2026-08-05',
-					reason: 'Foundation settlement proof'
-				})
-			}
-		);
-		assert.equal(manualRate.status, 200, await manualRate.clone().text());
-		const manualQuote = await fixture.app.request(
-			`${origin}/api/workspaces/${workspaceId}/rates/quote`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie },
-				body: JSON.stringify({
-					fromCurrency: 'EUR',
-					toCurrency: 'USD',
-					date: '2026-08-05',
-					amountMinor: '100'
-				})
-			}
-		);
-		const body = (await manualQuote.json()) as {
-			suggestedAmountMinor: string;
-			rates: Array<{ currency: string; source: string }>;
-		};
-		assert.equal(body.suggestedAmountMinor, '110');
-		assert.deepEqual(
-			body.rates.map((rate) => [rate.currency, rate.source]),
-			[
-				['EUR', 'manual'],
-				['USD', 'NBP']
-			]
-		);
-	});
-});
-
-test('workspace authorization isolates personal workspaces', async () => {
-	await withFoundationFixture(async (fixture) => {
-		await fixture.signupAndVerify('First User', 'first_user', 'first@example.com', 'password-1');
-		const firstCookie = await fixture.signIn('first@example.com', 'password-1');
-		const firstWorkspaceId = await getOnlyWorkspaceId(fixture, firstCookie);
-		await fixture.signupAndVerify('Second User', 'second_user', 'second@example.com', 'password-2');
-		const secondCookie = await fixture.signIn('second@example.com', 'password-2');
-		const secondSession = await getSession(fixture, secondCookie);
-		await fixture.source.db.insert(workspaceMembership).values({
-			workspaceId: firstWorkspaceId,
-			userId: secondSession.user.id,
-			role: 'member'
-		});
-		assert.equal(
-			(
-				(await (
-					await fixture.app.request(`${origin}/api/workspaces`, {
-						headers: { cookie: secondCookie }
-					})
-				).json()) as Array<unknown>
-			).length,
-			1
-		);
-		assert.equal(
-			(
-				await fixture.app.request(`${origin}/api/workspaces/${firstWorkspaceId}`, {
-					headers: { cookie: secondCookie }
-				})
-			).status,
-			404
-		);
-	});
-});
-
-test('account deletion blocks access until administration restores the account', async () => {
-	await withFoundationFixture(async (fixture) => {
-		await fixture.signupAndVerify(
-			'Deletion User',
-			'deletion_user',
-			'deletion@example.com',
-			'deletion-password'
-		);
-		const cookie = await fixture.signIn('deletion@example.com', 'deletion-password');
-		const identity = await getSession(fixture, cookie);
-		const deletion = await fixture.app.request(`${origin}/api/account/delete`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', cookie, origin },
-			body: JSON.stringify({ password: 'deletion-password', confirmation: 'DELETE' })
-		});
-		assert.equal(deletion.status, 200, await deletion.clone().text());
-		assert.equal(
-			(await fixture.app.request(`${origin}/api/workspaces`, { headers: { cookie } })).status,
-			401
-		);
-		assert.equal(
-			(
-				await postJson(fixture.app, '/api/auth/sign-in/email', {
-					email: 'deletion@example.com',
-					password: 'deletion-password'
-				})
-			).status,
-			403
-		);
-		await fixture.administration.restoreAccount(identity.user.id);
-		await fixture.signIn('deletion@example.com', 'deletion-password');
-	});
-});
-
-test('encrypted recovery preserves integer precision and cleanup jobs', async () => {
+test('encrypted recovery restores the database', async () => {
 	await withFoundationFixture(async (fixture) => {
 		await fixture.signupAndVerify(
 			'Recovery User',
 			'recovery_user',
 			'recovery@example.com',
 			'recovery-password'
-		);
-		const cookie = await fixture.signIn('recovery@example.com', 'recovery-password');
-		const identity = await getSession(fixture, cookie);
-		const workspaceId = await getOnlyWorkspaceId(fixture, cookie);
-		const accountResponse = await fixture.app.request(
-			`${origin}/api/workspaces/${workspaceId}/accounts`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie },
-				body: JSON.stringify({
-					name: 'Boundary account',
-					type: 'cash',
-					currency: 'USD',
-					openingDate: '2026-07-30',
-					openingBalanceMinor: '9223372036854775807',
-					idempotencyKey: 'foundation-boundary-account'
-				})
-			}
-		);
-		assert.equal(accountResponse.status, 200);
-		const account = (await accountResponse.json()) as { id: string };
-		const transactionResponse = await fixture.app.request(
-			`${origin}/api/workspaces/${workspaceId}/accounts/${account.id}/transactions`,
-			{
-				method: 'POST',
-				headers: { 'content-type': 'application/json', cookie },
-				body: JSON.stringify({
-					kind: 'expense',
-					amountMinor: '9223372036854775807',
-					date: '2026-07-31',
-					idempotencyKey: 'foundation-boundary-transaction'
-				})
-			}
-		);
-		assert.equal(transactionResponse.status, 200);
-		assert.equal(
-			((await transactionResponse.json()) as { balanceMinor: string }).balanceMinor,
-			'0'
-		);
-		await fixture.profileImageCleanup.enqueue(
-			identity.user.id,
-			'/profile-images/users/recovery/pending.webp'
 		);
 
 		const backupPath = join(fixture.directory, 'backup.json');
@@ -883,22 +516,13 @@ test('encrypted recovery preserves integer precision and cleanup jobs', async ()
 		await backupDatabase(fixture.sourceUrl, undefined, backupPath, key);
 		await restoreDatabase(restoredUrl, undefined, backupPath, key);
 		const restored = createDatabase({ url: restoredUrl });
-		const restoredFinancial = createFinancialDatabase({ url: restoredUrl });
 		try {
-			assert.equal((await restored.db.select().from(workspace)).length, 1);
-			assert.deepEqual(
-				(await restored.db.select().from(profileImageCleanupJob)).map((job) => job.publicUrl),
-				['/profile-images/users/recovery/pending.webp']
-			);
-			const restoredAccounts = await createLedgerRepository(restoredFinancial.db).listAccounts({
-				userId: identity.user.id,
-				workspaceId
-			});
-			const restoredBoundary = restoredAccounts.find((item) => item.id === account.id);
-			assert.equal(restoredBoundary?.openingBalanceMinor, '9223372036854775807');
-			assert.equal(restoredBoundary?.balanceMinor, '0');
+			const [restoredUser] = await restored.db
+				.select({ username: user.username, emailVerified: user.emailVerified })
+				.from(user)
+				.where(eq(user.email, 'recovery@example.com'));
+			assert.deepEqual(restoredUser, { username: 'recovery_user', emailVerified: true });
 		} finally {
-			restoredFinancial.client.close();
 			restored.client.close();
 		}
 	});

@@ -5,12 +5,11 @@
     usernameValidationMessage,
   } from '@dukat/core/identity'
   import { Alert, Button, Card, Field, Input, Spinner } from '@dukat/ui'
-  import { onDestroy, onMount } from 'svelte'
+  import { onDestroy } from 'svelte'
 
   let error = $state('')
   let notice = $state('')
   let pending = $state(false)
-  let registrationOpen = $state(true)
   let usernameMessage = $state('')
   let usernameState = $state<'idle' | 'checking' | 'available' | 'unavailable'>(
     'idle',
@@ -20,13 +19,6 @@
   const usernamePattern = '[a-z][a-z0-9_]{2,29}'
 
   onDestroy(() => clearTimeout(availabilityTimer))
-  onMount(async () => {
-    const response = await fetch('/api/service/registration')
-    if (response.ok)
-      registrationOpen = (
-        (await response.json()) as { registrationOpen: boolean }
-      ).registrationOpen
-  })
 
   function checkUsername(event: Event) {
     const input = event.currentTarget as HTMLInputElement
@@ -123,11 +115,6 @@
       >
     </Card.Header>
     <Card.Content>
-      {#if !registrationOpen}<Alert.Root class="mb-4" role="status"
-          ><Alert.Title>Registration is closed</Alert.Title><Alert.Description
-            >Existing users can still sign in.</Alert.Description
-          ></Alert.Root
-        >{/if}
       {#if error}<Alert.Root variant="destructive" class="mb-4" role="alert"
           ><Alert.Title>Could not continue</Alert.Title><Alert.Description
             >{error}</Alert.Description
@@ -201,10 +188,7 @@
             </Field.Description>
           </Field.Field>
           <Field.Field>
-            <Button
-              type="submit"
-              class="w-full"
-              disabled={pending || !registrationOpen}
+            <Button type="submit" class="w-full" disabled={pending}
               >{#if pending}<Spinner aria-hidden="true" />{/if}Create account</Button
             >
             <Field.Description class="px-6 text-center">

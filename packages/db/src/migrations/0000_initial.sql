@@ -33,13 +33,16 @@ CREATE INDEX `session_userId_idx` ON `session` (`user_id`);--> statement-breakpo
 CREATE TABLE `user` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
+	`username` text NOT NULL,
 	`email` text NOT NULL,
 	`email_verified` integer DEFAULT false NOT NULL,
 	`image` text,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	CONSTRAINT "user_username_canonical_check" CHECK(length("user"."username") BETWEEN 3 AND 30 AND "user"."username" GLOB '[a-z]*' AND "user"."username" NOT GLOB '*[^a-z0-9_]*')
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `user_username_unique` ON `user` (`username`);--> statement-breakpoint
 CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
 CREATE TABLE `verification` (
 	`id` text PRIMARY KEY NOT NULL,

@@ -16,9 +16,9 @@ This repository contains the Dukat TypeScript applications and shared packages.
 
 - `packages/api` — Hono API definition with `@hono/zod-openapi` and a Scalar API reference.
 - `packages/api-client` — typed client for `@dukat/api`, sharing types end to end.
-- `packages/core` — shared example domain schemas and types.
+- `packages/core` — shared domain schemas and types.
 - `packages/auth` — Better Auth and provider-neutral transactional email setup.
-- `packages/db` — SQLite Drizzle schema, migrations, workspace repositories, and recovery commands.
+- `packages/db` — SQLite Drizzle schema, migrations, and recovery commands.
 - `packages/env` — type-safe environment variables via `@t3-oss/env-core`.
 - `packages/ui` — shared shadcn-svelte UI components and Tailwind theme styles.
 - `packages/utils` — shared utilities.
@@ -77,18 +77,9 @@ pnpm --filter @dukat/db db:migrate
 pnpm --filter @dukat/db db:studio
 ```
 
-Seed the local database with a verified demo user and sample finances:
-
-```sh
-pnpm db:seed
-```
-
-Sign in with `demo@dukat.local` and password `dukat-demo`. The command applies migrations and
-replaces this demo user's data each time. It refuses hosted database URLs.
-
 ### Run the full app locally
 
-After configuring `.env` and optionally seeding the demo data, run:
+After configuring `.env`, run:
 
 ```sh
 pnpm dev:app
@@ -100,9 +91,4 @@ Open [http://localhost:3001](http://localhost:3001). Vite reloads dashboard chan
 `pnpm dev` starts every app in the monorepo. Use `pnpm dev:app` when you only need the dashboard and
 API.
 
-Production releases use `db:migrate:release`. See the
-[Cloudflare deployment runbook](docs/operations/cloudflare-deployment.md) and
-[backup and restore runbook](docs/operations/recovery.md).
-
-Use the [core release acceptance checklist](docs/operations/core-release-acceptance.md)
-for four practical release checks and optional first-month guidance.
+Production releases use `db:migrate:release`.

@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 import { serverEnv } from '@dukat/env/server';
 
-import { app, shutdownOutbox } from './app';
+import { app } from './app';
 
 const server = serve(
 	{
@@ -17,10 +17,7 @@ let shuttingDown = false;
 const shutdown = () => {
 	if (shuttingDown) return;
 	shuttingDown = true;
-	server.close(async () => {
-		await shutdownOutbox();
-		process.exit(0);
-	});
+	server.close(() => process.exit(0));
 };
 
 process.once('SIGTERM', shutdown);

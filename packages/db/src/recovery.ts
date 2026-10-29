@@ -115,54 +115,6 @@ export async function assertDatabaseIntegrity(client: Client) {
 	}
 	const foreignKeys = await client.execute('PRAGMA foreign_key_check');
 	if (foreignKeys.rows.length > 0) throw new Error('Foreign key check failed');
-	const invalidPersonalWorkspaceCounts = await client.execute(`
-		SELECT user.id
-		FROM user
-		LEFT JOIN workspace
-			ON workspace.personal_owner_user_id = user.id
-			AND workspace.type = 'personal'
-		GROUP BY user.id
-		HAVING COUNT(workspace.id) != 1
-	`);
-	if (invalidPersonalWorkspaceCounts.rows.length > 0) {
-		throw new Error('Personal workspace ownership check failed');
-	}
-	const invalidTransfers = await client.execute(`
-		SELECT t.id
-		FROM ledger_transfer t
-		LEFT JOIN ledger_transaction lf
-			ON lf.transfer_id = t.id AND lf.source = 'transfer' AND lf.transfer_side = 'from'
-		LEFT JOIN ledger_transaction lt
-			ON lt.transfer_id = t.id AND lt.source = 'transfer' AND lt.transfer_side = 'to'
-		LEFT JOIN financial_account af ON af.id = lf.account_id
-		LEFT JOIN financial_account at ON at.id = lt.account_id
-		WHERE (t.detached_at IS NULL AND (lf.id IS NULL OR lt.id IS NULL))
-			OR (t.detached_at IS NOT NULL AND ((lf.id IS NULL) = (lt.id IS NULL)))
-			OR t.sent_amount_minor IS NULL OR t.received_amount_minor IS NULL
-			OR t.sent_amount_minor <= 0 OR t.received_amount_minor <= 0
-			OR (lf.id IS NOT NULL AND lf.amount_minor != t.sent_amount_minor)
-			OR (lt.id IS NOT NULL AND lt.amount_minor != t.received_amount_minor)
-			OR (lf.id IS NOT NULL AND lt.id IS NOT NULL AND af.currency = at.currency
-				AND t.sent_amount_minor != t.received_amount_minor)
-	`);
-	if (invalidTransfers.rows.length > 0) throw new Error('Transfer canonical shape check failed');
-	const invalidHouseholdExpenses = await client.execute(`
-		SELECT expense.id
-		FROM household_expense expense
-		JOIN ledger_transaction source ON source.id = expense.source_transaction_id
-		JOIN financial_account account ON account.id = source.account_id
-		LEFT JOIN household_expense_allocation allocation ON allocation.expense_id = expense.id
-		GROUP BY expense.id
-		HAVING source.kind != 'expense'
-			OR source.amount_minor != expense.amount_minor
-			OR source.date != expense.date
-			OR account.currency != expense.currency
-			OR COUNT(allocation.member_user_id) = 0
-			OR SUM(allocation.amount_minor) != expense.amount_minor
-	`);
-	if (invalidHouseholdExpenses.rows.length > 0) {
-		throw new Error('Household expense financial integrity check failed');
-	}
 }
 
 export async function backupDatabase(

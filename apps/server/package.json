@@ -13,7 +13,6 @@
 		"test": "tsx --test src/*.test.ts"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "3.850.0",
 		"@dukat/api": "workspace:*",
 		"@dukat/auth": "workspace:*",
 		"@dukat/db": "workspace:*",
@@ -28,7 +27,6 @@
 		"@types/node": "^20.11.17",
 		"drizzle-orm": "^0.45.2",
 		"eslint": "catalog:",
-		"sharp": "^0.34.5",
 		"typescript": "catalog:",
 		"wrangler": "^4.129.0"
 	}

@@ -2,13 +2,10 @@
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
-  import { page } from '$app/state'
   import { Alert, Button, Spinner } from '@dukat/ui'
-  import AppShell from '$lib/components/dashboard/app-shell.svelte'
   import { getBrowserSession, type SessionUser } from '$lib/session'
-  import type { LayoutProps } from './$types'
 
-  let { data, children }: LayoutProps = $props()
+  let { children } = $props()
   let guardState = $state<'loading' | 'authenticated' | 'error'>('loading')
   let user = $state<SessionUser | null>(null)
   let message = $state('')
@@ -17,18 +14,6 @@
     guardState = 'loading'
     const result = await getBrowserSession()
     if (result.status === 'authenticated') {
-      const personalWorkspace = data.workspaces.find(
-        ({ type }) => type === 'personal',
-      )
-      const onboardingRoute = page.route.id === '/(app)/onboarding'
-      if (personalWorkspace?.onboardingComplete === false && !onboardingRoute) {
-        await goto(resolve('/onboarding'), { replaceState: true })
-      } else if (
-        personalWorkspace?.onboardingComplete !== false &&
-        onboardingRoute
-      ) {
-        await goto(resolve('/home'), { replaceState: true })
-      }
       user = result.session.user
       guardState = 'authenticated'
     } else if (result.status === 'unauthenticated')
@@ -37,6 +22,11 @@
       message = result.message
       guardState = 'error'
     }
+  }
+
+  async function signOut() {
+    await fetch('/api/auth/sign-out', { method: 'POST' })
+    await goto(resolve('/sign-in'), { replaceState: true })
   }
 
   onMount(guard)
@@ -55,15 +45,12 @@
     </Alert.Root>
   </main>
 {:else if user}
-  {#if page.route.id === '/(app)/onboarding'}
+  <header class="flex h-14 items-center gap-3 border-b px-4">
+    <span class="text-sm font-medium">Dukat</span>
+    <span class="ml-auto text-sm text-muted-foreground">{user.name}</span>
+    <Button variant="outline" size="sm" onclick={signOut}>Sign out</Button>
+  </header>
+  <main class="mx-auto w-full max-w-7xl p-4 md:p-6 lg:p-8">
     {@render children()}
-  {:else}
-    <AppShell
-      {user}
-      workspaces={data.workspaces}
-      personalAccounts={data.personalAccounts}
-    >
-      {@render children()}
-    </AppShell>
-  {/if}
+  </main>
 {/if}

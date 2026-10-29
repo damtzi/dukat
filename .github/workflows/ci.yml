@@ -97,7 +97,7 @@ jobs:
         run: pnpm build
 
   foundation-tests:
-    name: Migration, auth, authorization, and recovery
+    name: Migration, auth, and recovery
     runs-on: ubuntu-latest
 
     steps:
@@ -123,10 +123,7 @@ jobs:
         run: pnpm test
 
       - name: Run built dashboard security smoke test
-        run: pnpm --filter @dukat/e2e test:production
-
-      - name: Run real full-stack browser test
-        run: pnpm test:e2e:full-stack
+        run: pnpm test:e2e
 
   deploy:
     name: Deploy to Cloudflare
@@ -256,8 +253,7 @@ jobs:
               TURSO_DATABASE_URL: $databaseUrl,
               TURSO_AUTH_TOKEN: $databaseToken,
               RESEND_API_KEY: $resendKey,
-              AUTH_EMAIL_FROM: "Dukat Preview <onboarding@resend.dev>",
-              AUTH_ADMIN_EMAILS: ""
+              AUTH_EMAIL_FROM: "Dukat Preview <onboarding@resend.dev>"
             }' > "$RUNNER_TEMP/preview-secrets.json"
           chmod 600 "$RUNNER_TEMP/preview-secrets.json"
 

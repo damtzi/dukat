@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "bf47da1b-d515-4c96-b87f-e717003f76c3",
+	"id": "4f82d615-ea8f-47f2-935f-28ef5824ef43",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"tables": {
 		"account": {
@@ -227,6 +227,13 @@
 					"notNull": true,
 					"autoincrement": false
 				},
+				"username": {
+					"name": "username",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
 				"email": {
 					"name": "email",
 					"type": "text",
@@ -267,6 +274,11 @@
 				}
 			},
 			"indexes": {
+				"user_username_unique": {
+					"name": "user_username_unique",
+					"columns": ["username"],
+					"isUnique": true
+				},
 				"user_email_unique": {
 					"name": "user_email_unique",
 					"columns": ["email"],
@@ -276,7 +288,12 @@
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
-			"checkConstraints": {}
+			"checkConstraints": {
+				"user_username_canonical_check": {
+					"name": "user_username_canonical_check",
+					"value": "length(\"user\".\"username\") BETWEEN 3 AND 30 AND \"user\".\"username\" GLOB '[a-z]*' AND \"user\".\"username\" NOT GLOB '*[^a-z0-9_]*'"
+				}
+			}
 		},
 		"verification": {
 			"name": "verification",

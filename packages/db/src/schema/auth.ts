@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const user = sqliteTable(
 	'user',
@@ -10,9 +10,6 @@ export const user = sqliteTable(
 		email: text('email').notNull().unique(),
 		emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
 		image: text('image'),
-		isAdmin: integer('is_admin', { mode: 'boolean' }).default(false).notNull(),
-		disabledAt: integer('disabled_at', { mode: 'timestamp' }),
-		deletionRequestedAt: integer('deletion_requested_at', { mode: 'timestamp' }),
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.default(sql`(unixepoch())`)
 			.notNull(),
@@ -28,15 +25,6 @@ export const user = sqliteTable(
 		)
 	]
 );
-
-export const serviceSetting = sqliteTable('service_setting', {
-	id: integer('id').primaryKey(),
-	registrationOpen: integer('registration_open', { mode: 'boolean' }).default(true).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp' })
-		.default(sql`(unixepoch())`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull()
-});
 
 export const session = sqliteTable(
 	'session',
@@ -101,25 +89,6 @@ export const verification = sqliteTable(
 			.notNull()
 	},
 	(table) => [index('verification_identifier_idx').on(table.identifier)]
-);
-
-export const profileImageCleanupJob = sqliteTable(
-	'profile_image_cleanup_job',
-	{
-		id: text('id').primaryKey(),
-		userId: text('user_id').notNull(),
-		publicUrl: text('public_url').notNull(),
-		attempts: integer('attempts').default(0).notNull(),
-		lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp' }),
-		lastError: text('last_error'),
-		createdAt: integer('created_at', { mode: 'timestamp' })
-			.default(sql`(unixepoch())`)
-			.notNull()
-	},
-	(table) => [
-		uniqueIndex('profile_image_cleanup_job_object_unique').on(table.userId, table.publicUrl),
-		index('profile_image_cleanup_job_created_at_idx').on(table.createdAt)
-	]
 );
 
 export const userRelations = relations(user, ({ many }) => ({

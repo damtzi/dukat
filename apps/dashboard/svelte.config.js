@@ -1,10 +1,5 @@
 import adapter from '@sveltejs/adapter-static'
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
-import { URL } from 'node:url'
-
-const profileImageOrigin = process.env.PROFILE_IMAGE_PUBLIC_BASE_URL
-  ? new URL(process.env.PROFILE_IMAGE_PUBLIC_BASE_URL).origin
-  : undefined
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -19,12 +14,7 @@ const config = {
         'connect-src': ['self'],
         'font-src': ['self'],
         'form-action': ['self'],
-        'img-src': [
-          'self',
-          'data:',
-          'blob:',
-          ...(profileImageOrigin ? [profileImageOrigin] : []),
-        ],
+        'img-src': ['self', 'data:', 'blob:'],
         'object-src': ['none'],
         'script-src': ['self'],
         'style-src': ['self', 'unsafe-inline'],

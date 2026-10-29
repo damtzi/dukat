@@ -3,15 +3,10 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"test": "playwright test --project desktop-chromium --project phone-chromium",
-		"test:matrix": "playwright test",
-		"test:full-stack": "tsx tests/full-stack-runner.ts",
-		"test:production": "playwright test --config playwright.production.config.ts",
+		"test": "playwright test",
 		"test:list": "playwright test --list"
 	},
 	"devDependencies": {
-		"@axe-core/playwright": "^4.10.2",
-		"@dukat/core": "workspace:*",
 		"@hono/node-server": "^1.19.14",
 		"@playwright/test": "^1.54.1",
 		"tsx": "^4.7.1"

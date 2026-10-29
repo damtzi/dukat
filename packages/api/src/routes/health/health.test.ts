@@ -7,31 +7,16 @@ import type { APIServices } from '../../services';
 function createServices(readiness: () => Promise<unknown>): APIServices {
 	return {
 		auth: {
-			async usernameAvailability(username) {
-				return { available: true, username, message: 'Username is available.' };
-			},
 			async handler() {
 				return new Response(null, { status: 404 });
 			},
 			api: {
 				async getSession() {
 					return null;
-				},
-				async verifyPassword() {}
+				}
 			}
 		},
-		readiness,
-		ledger: {} as APIServices['ledger'],
-		planning: {} as APIServices['planning'],
-		insights: {} as APIServices['insights'],
-		workspaces: {
-			async listAuthorized() {
-				return [];
-			},
-			async findAuthorized() {
-				return undefined;
-			}
-		} as unknown as APIServices['workspaces']
+		readiness
 	};
 }
 
@@ -50,13 +35,11 @@ test('health routes distinguish liveness from readiness', async () => {
 	assert.deepEqual(await unavailable.json(), { status: 'unavailable' });
 });
 
-test('OpenAPI exposes the composed health and workspace contracts', async () => {
+test('OpenAPI exposes the health contracts', async () => {
 	const response = await createAPI(createServices(async () => undefined)).request('/api/doc');
 	const document = (await response.json()) as { paths: Record<string, unknown> };
 
 	assert.equal(response.status, 200);
 	assert.ok(document.paths['/api/health/live']);
 	assert.ok(document.paths['/api/health/ready']);
-	assert.ok(document.paths['/api/workspaces']);
-	assert.ok(document.paths['/api/workspaces/{workspaceId}']);
 });

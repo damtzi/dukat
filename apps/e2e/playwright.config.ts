@@ -2,27 +2,26 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './tests',
-	testIgnore: ['full-stack.spec.ts', 'production-smoke.spec.ts'],
-	fullyParallel: true,
+	testMatch: 'production-smoke.spec.ts',
 	forbidOnly: Boolean(process.env.CI),
-	retries: process.env.CI ? 2 : 0,
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
-		baseURL: 'http://127.0.0.1:4173',
+		baseURL: 'http://127.0.0.1:4174',
 		trace: 'retain-on-failure'
 	},
 	webServer: {
-		command: 'pnpm --filter @dukat/dashboard dev --host 127.0.0.1 --port 4173',
+		command:
+			'pnpm --filter @dukat/dashboard build && pnpm --filter @dukat/e2e exec tsx tests/production-server.ts',
 		cwd: '../..',
-		url: 'http://127.0.0.1:4173',
-		reuseExistingServer: !process.env.CI
+		url: 'http://127.0.0.1:4174/api/health/live',
+		reuseExistingServer: false
 	},
 	projects: [
-		{ name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
-		{ name: 'desktop-chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
-		{ name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },
-		{ name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
-		{ name: 'desktop-edge', use: { ...devices['Desktop Edge'], channel: 'msedge' } },
-		{ name: 'phone-chromium', use: { ...devices['Pixel 7'] } }
+		{
+			name: 'production-chromium',
+			use: {
+				...devices['Desktop Chrome']
+			}
+		}
 	]
 });

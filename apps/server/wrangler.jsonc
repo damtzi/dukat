@@ -10,20 +10,10 @@
 		"directory": "../dashboard/build",
 		"binding": "ASSETS",
 		"not_found_handling": "single-page-application",
-		"run_worker_first": ["/api/*", "/profile-images/*"]
-	},
-	"r2_buckets": [
-		{
-			"binding": "PROFILE_IMAGES",
-			"bucket_name": "dukat-profile-images",
-			"preview_bucket_name": "dukat-profile-images-preview"
-		}
-	],
-	"images": {
-		"binding": "IMAGES"
+		"run_worker_first": ["/api/*"]
 	},
 	"triggers": {
-		"crons": ["17 * * * *"]
+		"crons": []
 	},
 	"vars": {
 		"NODE_ENV": "production",
@@ -36,18 +26,6 @@
 		"preview": {
 			"workers_dev": true,
 			"preview_urls": false,
-			"r2_buckets": [
-				{
-					"binding": "PROFILE_IMAGES",
-					"bucket_name": "dukat-profile-images-preview"
-				}
-			],
-			"images": {
-				"binding": "IMAGES"
-			},
-			"triggers": {
-				"crons": []
-			},
 			"vars": {
 				"NODE_ENV": "production",
 				"LOG_LEVEL": "info"
